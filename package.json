@@ -1,0 +1,18 @@
+{
+  "name": "pita-mutfak",
+  "version": "1.0.0",
+  "description": "Pita Mutfak - Tavuk Pilav, Makarna ve Kuru Fasulye Online Sipariş & Kurye Doğrulama Sistemi",
+  "main": "index.html",
+  "scripts": {
+    "start": "python server.py"
+  },
+  "keywords": [
+    "food-ordering",
+    "courier-delivery-verification",
+    "uber-eats-theme",
+    "realtime-orders",
+    "admin-panel"
+  ],
+  "author": "Pita Mutfak",
+  "license": "MIT"
+}
