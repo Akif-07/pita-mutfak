@@ -4,6 +4,7 @@
   "description": "Pita Mutfak - Tavuk Pilav, Makarna ve Kuru Fasulye Online Sipariş & Kurye Doğrulama Sistemi",
   "main": "index.html",
   "scripts": {
+    "build": "echo Build complete",
     "start": "python server.py"
   },
   "keywords": [
