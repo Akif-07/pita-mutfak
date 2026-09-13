@@ -1,6 +1,19 @@
 // Pita Mutfak - Sipariş & Senkronizasyon Servisi
-// Waffloq mimarisine dayalı; çift yönlü gerçek zamanlı canlı senkronizasyon (BroadcastChannel + LocalStorage + Firebase Ready)
+// Waffloq mimarisine dayalı; çift yönlü gerçek zamanlı canlı senkronizasyon (BroadcastChannel + LocalStorage + Firebase Cloud Firestore)
 import { initialMenu } from '../data/initialMenu.js';
+import { 
+  syncOrderToFirestore, 
+  subscribeFirestoreOrders, 
+  syncReviewToFirestore, 
+  deleteReviewFromFirestore, 
+  subscribeFirestoreReviews,
+  syncCustomerToFirestore,
+  getCustomersFromFirestore,
+  deleteCustomerFromFirestore,
+  syncStockToFirestore,
+  subscribeFirestoreStock,
+  isFirebaseActive 
+} from '../firebase/firebaseService.js';
 
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
@@ -402,6 +415,7 @@ export async function addReview(reviewData) {
   const current = getStoredReviews();
   const updated = [newRev, ...current.filter(r => r.id !== newRev.id)];
   saveStoredReviews(updated, 'NEW_REVIEW_ADDED', newRev);
+  syncReviewToFirestore(newRev).catch(() => {});
   return { ok: true, data: newRev };
 }
 
@@ -411,6 +425,7 @@ export async function deleteReview(reviewId) {
   const current = getStoredReviews();
   const updated = current.filter(r => r.id != reviewId);
   saveStoredReviews(updated, 'REVIEW_DELETED');
+  deleteReviewFromFirestore(reviewId).catch(() => {});
   return res.ok ? res : { ok: true };
 }
 
@@ -460,8 +475,7 @@ export const orderService = {
     // Yeni sipariş zili
     playOrderSound();
 
-    // Backend entegrasyonu: Stok düşme ve Müşteri veritabanı güncelleme
-    try {
+      // Backend entegrasyonu: Stok düşme ve Müşteri veritabanı güncelleme
       if (orderInput.customerPhone) {
         registerCustomer(orderInput.customerName || 'Misafir', orderInput.customerPhone).catch(() => {});
         updateCustomerOrderStats(orderInput.customerPhone, orderInput.totalAmount || 0).catch(() => {});
@@ -476,6 +490,18 @@ export const orderService = {
             broadcastChannel.postMessage({ type: 'STOCK_UPDATED' });
           }
         }).catch(err => console.warn("Backend stok düşülemedi:", err));
+      }
+
+      // Firebase Cloud Firestore senkronizasyonu
+      syncOrderToFirestore(newOrder).catch(() => {});
+      if (orderInput.customerPhone || orderInput.customerName) {
+        syncCustomerToFirestore({
+          name: orderInput.customerName || 'Misafir',
+          phone: orderInput.customerPhone || '',
+          registered_at: now.toISOString(),
+          total_orders: 1,
+          total_spent: orderInput.totalAmount || 0
+        }).catch(() => {});
       }
     } catch (e) {
       console.warn("Backend sipariş senkronizasyonu hatası:", e);
@@ -536,6 +562,9 @@ export const orderService = {
 
     const eventType = newStatus === 'on_the_way' ? 'ORDER_OUT_FOR_DELIVERY' : 'ORDER_STATUS_CHANGED';
     saveOrders(updatedOrders, eventType, updatedOrder);
+    if (updatedOrder) {
+      syncOrderToFirestore(updatedOrder).catch(() => {});
+    }
     return updatedOrder;
   },
 
@@ -623,6 +652,18 @@ export const orderService = {
   subscribe(callback) {
     callback(getStoredOrders());
 
+    let unsubFirestore = null;
+    try {
+      unsubFirestore = subscribeFirestoreOrders((cloudOrders) => {
+        if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+          localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(cloudOrders));
+          callback(cloudOrders);
+        }
+      });
+    } catch (e) {
+      console.warn("Firestore sipariş dinleyicisi:", e);
+    }
+
     const handleBroadcast = (event) => {
       if (event.data && event.data.type) {
         callback(getStoredOrders());
@@ -647,6 +688,9 @@ export const orderService = {
     window.addEventListener('storage', handleStorage);
 
     return () => {
+      if (unsubFirestore) {
+        try { unsubFirestore(); } catch(e) {}
+      }
       if (broadcastChannel) {
         broadcastChannel.removeEventListener('message', handleBroadcast);
       }
@@ -732,11 +776,17 @@ export const orderService = {
   // Backend Müşteri Yönetimi
   async getCustomers() {
     const res = await getRegisteredCustomers();
+    if (res.ok && res.data && res.data.length > 0) return res.data;
+    try {
+      const cloudCust = await getCustomersFromFirestore();
+      if (cloudCust && cloudCust.length > 0) return cloudCust;
+    } catch (e) {}
     return res.ok ? res.data : [];
   },
 
   async deleteCustomer(phone) {
     const res = await deleteCustomer(phone);
+    deleteCustomerFromFirestore(phone).catch(() => {});
     if (broadcastChannel) {
       broadcastChannel.postMessage({ type: 'CUSTOMER_DELETED', phone });
     }
@@ -776,6 +826,7 @@ export const orderService = {
 
   async updateStock(productId, quantity, lowStockThreshold) {
     const res = await updateStockQuantity(productId, quantity, lowStockThreshold);
+    syncStockToFirestore([{ product_id: productId, stock_quantity: quantity, low_stock_threshold: lowStockThreshold }]).catch(() => {});
     if (broadcastChannel) {
       broadcastChannel.postMessage({ type: 'STOCK_UPDATED' });
     }
@@ -806,6 +857,17 @@ export const orderService = {
 
   subscribeReviews(callback) {
     getReviews().then(revs => callback(revs));
+
+    let unsubFirestoreReviews = null;
+    try {
+      unsubFirestoreReviews = subscribeFirestoreReviews((cloudReviews) => {
+        if (Array.isArray(cloudReviews) && cloudReviews.length > 0) {
+          localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(cloudReviews));
+          callback(cloudReviews);
+        }
+      });
+    } catch (e) {}
+
     const handleBroadcast = (e) => {
       if (e.data && (e.data.type === 'NEW_REVIEW_ADDED' || e.data.type === 'REVIEWS_UPDATED' || e.data.type === 'REVIEW_DELETED')) {
         callback(getStoredReviews());
@@ -821,6 +883,9 @@ export const orderService = {
     }
     window.addEventListener('storage', handleStorage);
     return () => {
+      if (unsubFirestoreReviews) {
+        try { unsubFirestoreReviews(); } catch(e) {}
+      }
       if (broadcastChannel) {
         broadcastChannel.removeEventListener('message', handleBroadcast);
       }
