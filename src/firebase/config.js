@@ -1,8 +1,4 @@
-// Pita Mutfak - Firebase Yapılandırması & Bulut Servisleri
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
+// Pita Mutfak - Firebase Yapılandırması
 export const firebaseConfig = {
   apiKey: "AIzaSyAw_K7jI57SHfBWXgVIYZOC1jvrxQKU6yQ",
   authDomain: "pita-mutfak.firebaseapp.com",
@@ -13,17 +9,3 @@ export const firebaseConfig = {
   measurementId: "G-8M4EKX87RH"
 };
 
-let app = null;
-let db = null;
-let auth = null;
-
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-  console.log("🔥 [Firebase] Pita Mutfak Cloud Firestore & Auth başarıyla bağlandı!");
-} catch (e) {
-  console.warn("⚠️ [Firebase] Başlatılamadı veya çevrimdışı, yerel mod aktif:", e);
-}
-
-export { app, db, auth };

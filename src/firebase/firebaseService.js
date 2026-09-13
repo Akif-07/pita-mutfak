@@ -1,26 +1,43 @@
-// Pita Mutfak - Firebase Firestore Canlı Senkronizasyon Servisi
-import { db, auth } from './config.js';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// Pita Mutfak - Firebase Firestore Canlı Senkronizasyon Servisi (Lazy & Fault-Tolerant)
+import { firebaseConfig } from './config.js';
 
-export const isFirebaseActive = () => !!db;
+let dbInstance = null;
+let firestoreLib = null;
+let initPromise = null;
+
+async function getFirestoreContext() {
+  if (dbInstance && firestoreLib) {
+    return { db: dbInstance, ...firestoreLib };
+  }
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    try {
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      const fs = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      const app = initializeApp(firebaseConfig);
+      dbInstance = fs.getFirestore(app);
+      firestoreLib = fs;
+      console.log("🔥 [Firebase] Pita Mutfak Cloud Firestore bağlantısı aktif!");
+      return { db: dbInstance, ...firestoreLib };
+    } catch (err) {
+      console.warn("⚠️ [Firebase] Bulut bağlantısı kurulamadı (yerel mod aktif):", err);
+      return null;
+    }
+  })();
+
+  return initPromise;
+}
+
+export const isFirebaseActive = () => !!dbInstance;
 
 // =================== 1. SİPARİŞLER (ORDERS) ===================
 
 export async function syncOrderToFirestore(order) {
-  if (!db) return false;
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
     const orderRef = doc(db, "orders", order.id);
     await setDoc(orderRef, {
       ...order,
@@ -28,37 +45,48 @@ export async function syncOrderToFirestore(order) {
     }, { merge: true });
     return true;
   } catch (e) {
-    console.warn("Firestore sipariş kaydetme hatası:", e);
+    console.warn("Firestore sipariş kaydetme:", e);
     return false;
   }
 }
 
 export function subscribeFirestoreOrders(callback) {
-  if (!db) return null;
-  try {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snapshot) => {
-      const orders = [];
-      snapshot.forEach(doc => {
-        orders.push({ id: doc.id, ...doc.data() });
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, query, orderBy, onSnapshot } = ctx;
+    try {
+      const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const orders = [];
+        snapshot.forEach(d => {
+          orders.push({ id: d.id, ...d.data() });
+        });
+        if (orders.length > 0) {
+          callback(orders);
+        }
+      }, (error) => {
+        console.warn("Firestore sipariş dinleme:", error);
       });
-      if (orders.length > 0) {
-        callback(orders);
-      }
-    }, (error) => {
-      console.warn("Firestore sipariş dinleme hatası (kurallar veya bağlantı):", error);
-    });
-  } catch (e) {
-    console.warn("Firestore abone olunamadı:", e);
-    return null;
-  }
+    } catch (e) {
+      console.warn("Firestore sipariş dinleyici hatası:", e);
+    }
+  }).catch(() => {});
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
 }
 
 // =================== 2. MÜŞTERİ YORUMLARI (REVIEWS) ===================
 
 export async function syncReviewToFirestore(review) {
-  if (!db) return false;
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
     const reviewId = String(review.id || Date.now());
     const reviewRef = doc(db, "reviews", reviewId);
     await setDoc(reviewRef, {
@@ -68,48 +96,61 @@ export async function syncReviewToFirestore(review) {
     }, { merge: true });
     return true;
   } catch (e) {
-    console.warn("Firestore yorum kaydetme hatası:", e);
+    console.warn("Firestore yorum kaydetme:", e);
     return false;
   }
 }
 
 export async function deleteReviewFromFirestore(reviewId) {
-  if (!db) return false;
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
     await deleteDoc(doc(db, "reviews", String(reviewId)));
     return true;
   } catch (e) {
-    console.warn("Firestore yorum silme hatası:", e);
+    console.warn("Firestore yorum silme:", e);
     return false;
   }
 }
 
 export function subscribeFirestoreReviews(callback) {
-  if (!db) return null;
-  try {
-    const q = query(collection(db, "reviews"), orderBy("created_at", "desc"));
-    return onSnapshot(q, (snapshot) => {
-      const reviews = [];
-      snapshot.forEach(doc => {
-        reviews.push({ id: doc.id, ...doc.data() });
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, query, orderBy, onSnapshot } = ctx;
+    try {
+      const q = query(collection(db, "reviews"), orderBy("created_at", "desc"));
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const reviews = [];
+        snapshot.forEach(d => {
+          reviews.push({ id: d.id, ...d.data() });
+        });
+        if (reviews.length > 0) {
+          callback(reviews);
+        }
+      }, (error) => {
+        console.warn("Firestore yorum dinleme:", error);
       });
-      if (reviews.length > 0) {
-        callback(reviews);
-      }
-    }, (error) => {
-      console.warn("Firestore yorum dinleme hatası:", error);
-    });
-  } catch (e) {
-    console.warn("Firestore yorum abone olunamadı:", e);
-    return null;
-  }
+    } catch (e) {
+      console.warn("Firestore yorum dinleyici hatası:", e);
+    }
+  }).catch(() => {});
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
 }
 
 // =================== 3. MÜŞTERİLER (CUSTOMERS) ===================
 
 export async function syncCustomerToFirestore(customer) {
-  if (!db) return false;
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
     const key = customer.phone || customer.email || `cust-${Date.now()}`;
     const custRef = doc(db, "customers", key);
     await setDoc(custRef, {
@@ -124,8 +165,10 @@ export async function syncCustomerToFirestore(customer) {
 }
 
 export async function getCustomersFromFirestore() {
-  if (!db) return [];
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return [];
+    const { db, collection, getDocs } = ctx;
     const snap = await getDocs(collection(db, "customers"));
     const list = [];
     snap.forEach(d => list.push({ id: d.id, ...d.data() }));
@@ -137,8 +180,10 @@ export async function getCustomersFromFirestore() {
 }
 
 export async function deleteCustomerFromFirestore(phone) {
-  if (!db) return false;
   try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
     await deleteDoc(doc(db, "customers", phone));
     return true;
   } catch (e) {
@@ -149,16 +194,24 @@ export async function deleteCustomerFromFirestore(phone) {
 
 // =================== 4. STOK (STOCK) ===================
 
-export async function syncStockToFirestore(productId, quantity, lowStockThreshold) {
-  if (!db) return false;
+export async function syncStockToFirestore(stockItems) {
   try {
-    const stockRef = doc(db, "stock", productId);
-    await setDoc(stockRef, {
-      product_id: productId,
-      quantity,
-      low_stock_threshold: lowStockThreshold || 5,
-      updated_at: new Date().toISOString()
-    }, { merge: true });
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    if (Array.isArray(stockItems)) {
+      for (const item of stockItems) {
+        if (item.product_id) {
+          const stockRef = doc(db, "stock", item.product_id);
+          await setDoc(stockRef, {
+            product_id: item.product_id,
+            quantity: item.stock_quantity ?? item.quantity ?? 100,
+            low_stock_threshold: item.low_stock_threshold || 5,
+            updated_at: new Date().toISOString()
+          }, { merge: true });
+        }
+      }
+    }
     return true;
   } catch (e) {
     console.warn("Firestore stok güncelleme hatası:", e);
@@ -167,21 +220,30 @@ export async function syncStockToFirestore(productId, quantity, lowStockThreshol
 }
 
 export function subscribeFirestoreStock(callback) {
-  if (!db) return null;
-  try {
-    return onSnapshot(collection(db, "stock"), (snapshot) => {
-      const stockList = [];
-      snapshot.forEach(doc => {
-        stockList.push({ product_id: doc.id, ...doc.data() });
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, onSnapshot } = ctx;
+    try {
+      unsubscribe = onSnapshot(collection(db, "stock"), (snapshot) => {
+        const stockList = [];
+        snapshot.forEach(d => {
+          stockList.push({ product_id: d.id, ...d.data() });
+        });
+        if (stockList.length > 0) {
+          callback(stockList);
+        }
+      }, (error) => {
+        console.warn("Firestore stok dinleme hatası:", error);
       });
-      if (stockList.length > 0) {
-        callback(stockList);
-      }
-    }, (error) => {
-      console.warn("Firestore stok dinleme:", error);
-    });
-  } catch (e) {
-    console.warn("Firestore stok abone:", e);
-    return null;
-  }
+    } catch (e) {
+      console.warn("Firestore stok dinleyici hatası:", e);
+    }
+  }).catch(() => {});
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
 }
