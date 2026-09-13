@@ -5,7 +5,39 @@ import { initialMenu } from '../data/initialMenu.js';
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
 const STORAGE_MY_ORDERS_KEY = 'pita_my_order_ids';
+const STORAGE_REVIEWS_KEY = 'pita_mutfak_reviews';
 const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
+
+// Başlangıç Müşteri Yorumları (Offline / Fallback)
+export const initialReviews = [
+  { id: 1, customer_name: "Ahmet Yılmaz", customer_email: "ahmet@gmail.com", product_id: "pilav-tavuk-klasik", product_name: "Klasik Didilmiş Tavuk Pilav", rating: 5, comment: "Tavuk pilav gerçekten efsane! Tavuğu bol, pilavı tane tane ve tereyağlıydı. Kesinlikle tavsiye ederim.", created_at: "2026-09-12T14:20:00" },
+  { id: 2, customer_name: "Selin Demir", customer_email: "selin@gmail.com", product_id: "kuru-fasulye-guvec", product_name: "Güveçte Kuru Fasulye", rating: 5, comment: "Güveçte kuru fasulye sıcacık geldi, yanındaki turşu ve pilavla tam anne yemeği lezzeti. Ellerinize sağlık.", created_at: "2026-09-12T18:45:00" },
+  { id: 3, customer_name: "Mehmet Kaya", customer_email: "mehmet@gmail.com", product_id: "makarna-penne-tavuk", product_name: "Kremalı Tavuklu Penne", rating: 5, comment: "Fesleğenli kremalı makarna çok lezzetliydi, porsiyon da oldukça doyurucu. Kurye de çok nazikti.", created_at: "2026-09-13T12:10:00" },
+  { id: 4, customer_name: "Ayşe K.", customer_email: "ayse@gmail.com", product_id: "", product_name: "Pita Mutfak Genel", rating: 5, comment: "Sipariş 25 dakikada dumanı üstünde kapıma geldi. Kurye arkadaş çok güler yüzlüydü. Teşekkürler!", created_at: "2026-09-13T13:30:00" }
+];
+
+export function getStoredReviews() {
+  try {
+    const saved = localStorage.getItem(STORAGE_REVIEWS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(initialReviews));
+  return initialReviews;
+}
+
+export function saveStoredReviews(reviews, eventType = 'REVIEWS_UPDATED', newReview = null) {
+  try {
+    localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(reviews));
+  } catch (e) {}
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ type: eventType, review: newReview });
+    } catch (e) {}
+  }
+}
 
 // 8 Haneli Rastgele Sayısal Teslimat Kodu Üretici
 export function generateDeliveryCode() {
@@ -318,6 +350,68 @@ export async function getCustomerMessages(phone) {
 // Mesajı Okundu Olarak İşaretle
 export async function markMessageAsRead(messageId) {
   return apiCall(`/messages/${encodeURIComponent(messageId)}/read`, 'PUT');
+}
+
+// E-posta Doğrulama Kodu İste
+export async function sendVerificationCode(email, name = '', phone = '') {
+  return apiCall('/auth/send-code', 'POST', { email, name, phone });
+}
+
+// Kodu Doğrula ve Kaydol
+export async function verifyAndRegister(payload) {
+  return apiCall('/auth/verify-and-register', 'POST', payload);
+}
+
+// E-posta / Şifre ile Giriş Yap
+export async function customerLogin(email, password) {
+  return apiCall('/auth/login', 'POST', { email, password });
+}
+
+// Müşteri Yorumlarını Getir (Backend API + LocalStorage Hibrit)
+export async function getReviews(productId = null) {
+  const query = productId ? `?product_id=${encodeURIComponent(productId)}` : '';
+  const res = await apiCall(`/reviews${query}`);
+  if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
+    saveStoredReviews(res.data);
+    return res.data;
+  }
+  const local = getStoredReviews();
+  if (productId) {
+    return local.filter(r => !r.product_id || r.product_id === productId);
+  }
+  return local;
+}
+
+// Yeni Yorum Gönder
+export async function addReview(reviewData) {
+  const res = await apiCall('/reviews', 'POST', reviewData);
+  const now = new Date();
+  const newRev = (res.ok && res.data && res.data.review) ? res.data.review : {
+    id: Date.now(),
+    customer_name: reviewData.customer_name || 'Pita Misafiri',
+    customer_email: reviewData.customer_email || '',
+    product_id: reviewData.product_id || '',
+    product_name: reviewData.product_name || 'Pita Mutfak',
+    order_id: reviewData.order_id || '',
+    rating: reviewData.rating || 5,
+    comment: reviewData.comment || '',
+    created_at: now.toISOString(),
+    status: 'approved'
+  };
+
+  const current = getStoredReviews();
+  const updated = [newRev, ...current.filter(r => r.id !== newRev.id)];
+  saveStoredReviews(updated, 'NEW_REVIEW_ADDED', newRev);
+  return { ok: true, data: newRev };
+}
+
+// Yorum Sil (Admin)
+export async function deleteReview(reviewId) {
+  const res = await apiCall(`/reviews/${encodeURIComponent(reviewId)}`, 'DELETE');
+  const current = getStoredReviews();
+  const updated = current.filter(r => r.id != reviewId);
+  saveStoredReviews(updated, 'REVIEW_DELETED');
+  return res.ok ? res : { ok: true };
 }
 
 export const orderService = {
@@ -695,5 +789,56 @@ export const orderService = {
       product_name: item.name
     }));
     return initializeStock(products);
+  },
+
+  // Müşteri Yorum & Puanlama Servisleri
+  async getReviews(productId = null) {
+    return getReviews(productId);
+  },
+
+  async addReview(reviewData) {
+    return addReview(reviewData);
+  },
+
+  async deleteReview(reviewId) {
+    return deleteReview(reviewId);
+  },
+
+  subscribeReviews(callback) {
+    getReviews().then(revs => callback(revs));
+    const handleBroadcast = (e) => {
+      if (e.data && (e.data.type === 'NEW_REVIEW_ADDED' || e.data.type === 'REVIEWS_UPDATED' || e.data.type === 'REVIEW_DELETED')) {
+        callback(getStoredReviews());
+      }
+    };
+    const handleStorage = (e) => {
+      if (e.key === STORAGE_REVIEWS_KEY) {
+        callback(getStoredReviews());
+      }
+    };
+    if (broadcastChannel) {
+      broadcastChannel.addEventListener('message', handleBroadcast);
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcast);
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
+  },
+
+  // E-posta Doğrulama ve Kimlik Doğrulama Servisleri
+  async sendVerificationCode(email, name, phone) {
+    return sendVerificationCode(email, name, phone);
+  },
+
+  async verifyAndRegister(payload) {
+    return verifyAndRegister(payload);
+  },
+
+  async customerLogin(email, password) {
+    return customerLogin(email, password);
   }
 };
+

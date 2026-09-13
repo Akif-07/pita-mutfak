@@ -118,6 +118,12 @@ export function renderAdminPanel(container, state, onStateChange) {
               >
                 👥 Müşteriler (${customers.length})
               </button>
+              <button 
+                id="tab-reviews-btn" 
+                class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer ${activeTab === 'reviews' ? 'bg-white text-[#121212] shadow-xs' : 'text-gray-500 hover:text-black'}"
+              >
+                ⭐ Yorumlar (${(state.reviewsList || []).length})
+              </button>
             </div>
 
           </div>
@@ -235,6 +241,9 @@ export function renderAdminPanel(container, state, onStateChange) {
 
         <!-- =================== 3. SEKME: MÜŞTERİ YÖNETİMİ =================== -->
         ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery) : ''}
+
+        <!-- =================== 4. SEKME: MÜŞTERİ YORUMLARI & PUANLAR =================== -->
+        ${activeTab === 'reviews' ? renderAdminReviewsTab(state) : ''}
 
       </main>
 
@@ -743,7 +752,15 @@ function renderCustomerManagement(customers, searchQuery) {
                             ${initials}
                           </div>
                           <div>
-                            <span class="font-bold text-gray-900 block">${customer.name}</span>
+                            <div class="flex items-center gap-1.5">
+                              <span class="font-bold text-gray-900">${customer.name}</span>
+                              ${customer.is_verified ? `
+                                <span class="bg-emerald-100 text-emerald-800 text-[9px] font-black px-1.5 py-0.2 rounded-full">✓ Onaylı</span>
+                              ` : ''}
+                            </div>
+                            ${customer.email ? `
+                              <span class="text-[10px] text-gray-500 block font-mono">${customer.email}</span>
+                            ` : ''}
                             <span class="text-[10px] text-gray-400 font-mono">ID: #${customer.id}</span>
                           </div>
                         </div>
@@ -806,6 +823,132 @@ function renderCustomerManagement(customers, searchQuery) {
                             <span class="hidden md:inline">Sil</span>
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+
+    </div>
+  `;
+}
+
+// 4. Müşteri Yorum & Puan Yönetim Sekmesi (Admin Panel)
+function renderAdminReviewsTab(state) {
+  const reviews = state.reviewsList || [];
+  const avgScore = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : '5.0';
+
+  const fiveStarCount = reviews.filter(r => r.rating === 5).length;
+
+  return `
+    <div class="space-y-6">
+      
+      <!-- Özet İstatistik Kartları -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl font-bold">
+            ⭐
+          </div>
+          <div>
+            <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">Ortalama Puan</span>
+            <div class="text-2xl font-black text-gray-900">${avgScore} / 5.0</div>
+            <span class="text-[11px] text-gray-500 font-medium">Toplam ${reviews.length} değerlendirme</span>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-[#06C167] flex items-center justify-center text-xl font-bold">
+            🌟
+          </div>
+          <div>
+            <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">5 Yıldızlı Yorumlar</span>
+            <div class="text-2xl font-black text-[#06C167]">${fiveStarCount} adet</div>
+            <span class="text-[11px] text-gray-500 font-medium">En yüksek memnuniyet</span>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold">
+            💬
+          </div>
+          <div>
+            <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">Yorum Durumu</span>
+            <div class="text-2xl font-black text-blue-600">Canlı & Aktif</div>
+            <span class="text-[11px] text-gray-500 font-medium">Sitede anında listelenir</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Yorumlar Tablosu -->
+      <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
+          <div>
+            <h3 class="text-xl font-extrabold text-[#121212]">Müşteri Değerlendirmeleri & Yorumları</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Sitenizden gelen müşteri geri bildirimlerini inceleyin veya uygunsuz olanları kaldırın</p>
+          </div>
+        </div>
+
+        ${reviews.length === 0 ? `
+          <div class="py-12 text-center text-gray-400">
+            <span class="text-4xl block mb-2">⭐</span>
+            <h4 class="font-extrabold text-gray-700 text-sm">Henüz bir müşteri yorumu bulunmuyor.</h4>
+            <p class="text-xs text-gray-400 mt-1">Müşteriler siparişlerini veya menüyü değerlendirdikçe burada listelenecektir.</p>
+          </div>
+        ` : `
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-gray-100 text-[11px] font-black text-gray-400 uppercase tracking-wider">
+                  <th class="py-3 px-3">#</th>
+                  <th class="py-3 px-3">Müşteri</th>
+                  <th class="py-3 px-3">Ürün / Konu</th>
+                  <th class="py-3 px-3 text-center">Puan</th>
+                  <th class="py-3 px-3">Yorum</th>
+                  <th class="py-3 px-3">Tarih</th>
+                  <th class="py-3 px-3 text-right">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 text-xs">
+                ${reviews.map((rev, idx) => {
+                  const dateStr = rev.created_at ? new Date(rev.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                  const stars = '★'.repeat(rev.rating) + '☆'.repeat(Math.max(0, 5 - rev.rating));
+
+                  return `
+                    <tr class="hover:bg-gray-50/80 transition">
+                      <td class="py-3.5 px-3 font-mono text-gray-400 text-[11px]">${idx + 1}</td>
+                      <td class="py-3.5 px-3">
+                        <span class="font-bold text-gray-900 block">${rev.customer_name}</span>
+                        ${rev.customer_email ? `<span class="text-[10px] text-gray-400 font-mono block">${rev.customer_email}</span>` : ''}
+                      </td>
+                      <td class="py-3.5 px-3">
+                        <span class="bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap">
+                          ${rev.product_name || 'Pita Mutfak Genel'}
+                        </span>
+                      </td>
+                      <td class="py-3.5 px-3 text-center">
+                        <span class="text-amber-500 font-bold tracking-widest">${stars}</span>
+                      </td>
+                      <td class="py-3.5 px-3 max-w-xs">
+                        <p class="text-gray-700 line-clamp-2 leading-relaxed">${rev.comment}</p>
+                      </td>
+                      <td class="py-3.5 px-3 whitespace-nowrap text-gray-400 font-mono text-[11px]">
+                        ${dateStr}
+                      </td>
+                      <td class="py-3.5 px-3 text-right">
+                        <button 
+                          data-delete-review-btn="${rev.id}"
+                          class="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 border border-red-200 ml-auto"
+                          title="Yorumu Sil"
+                        >
+                          <span>🗑️</span>
+                          <span class="hidden md:inline">Sil</span>
+                        </button>
                       </td>
                     </tr>
                   `;
@@ -1016,6 +1159,24 @@ function attachAdminEventListeners(container, state, onStateChange) {
   if (tabCustomersBtn) {
     tabCustomersBtn.addEventListener('click', () => onStateChange({ adminActiveTab: 'customers' }));
   }
+
+  const tabReviewsBtn = container.querySelector('#tab-reviews-btn');
+  if (tabReviewsBtn) {
+    tabReviewsBtn.addEventListener('click', () => onStateChange({ adminActiveTab: 'reviews' }));
+  }
+
+  // Yorum Silme (Admin)
+  container.querySelectorAll('[data-delete-review-btn]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const revId = btn.getAttribute('data-delete-review-btn');
+      if (confirm(`Bu müşteri değerlendirmesini silmek istediğinize emin misiniz?`)) {
+        await orderService.deleteReview(revId);
+        const updated = await orderService.getReviews();
+        onStateChange({ reviewsList: updated });
+        alert("Yorum başarıyla silindi.");
+      }
+    });
+  });
 
   // Müşteri Arama Kutusu Dinleyicisi
   const customerSearchInput = container.querySelector('#admin-customer-search');

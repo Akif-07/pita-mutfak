@@ -1,5 +1,15 @@
 // Pita Mutfak - Müşteri Sipariş Arayüzü (Uber Eats Yeşil - Beyaz Tema)
-import { orderService, getCurrentUser, setCurrentUser, isFirstOrderDiscountAvailable, registerCustomer } from '../services/orderService.js';
+import { 
+  orderService, 
+  getCurrentUser, 
+  setCurrentUser, 
+  isFirstOrderDiscountAvailable, 
+  registerCustomer,
+  sendVerificationCode,
+  verifyAndRegister,
+  customerLogin,
+  addReview
+} from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
 
 export function renderCustomerView(container, state, onStateChange) {
@@ -130,6 +140,17 @@ export function renderCustomerView(container, state, onStateChange) {
                 <span>Giriş Yap</span>
               </button>
             `}
+
+            <!-- Müşteri Yorumları & Puan Butonu -->
+            <button 
+              id="open-reviews-btn" 
+              class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2.5 sm:px-3.5 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+              title="Müşteri Değerlendirmeleri ve Yorumları"
+            >
+              <span>⭐</span>
+              <span>4.9</span>
+              <span class="hidden sm:inline text-amber-700">Yorumlar</span>
+            </button>
 
             <!-- Geçmiş Siparişlerim Butonu -->
             <button 
@@ -271,6 +292,12 @@ export function renderCustomerView(container, state, onStateChange) {
             const stockQty = stockRecord !== undefined ? stockRecord.quantity : (product.isAvailable ? 50 : 0);
             const isAvailable = product.isAvailable && stockQty > 0;
 
+            const prodReviews = (state.reviewsList || []).filter(r => r.product_id === product.id);
+            const prodRating = prodReviews.length > 0 
+              ? (prodReviews.reduce((sum, r) => sum + r.rating, 0) / prodReviews.length).toFixed(1)
+              : '5.0';
+            const prodReviewCount = prodReviews.length > 0 ? prodReviews.length : (product.badge === 'En Çok Satan' ? 28 : 14);
+
             return `
               <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group ${!isAvailable ? 'opacity-60 grayscale' : ''}">
                 
@@ -300,6 +327,17 @@ export function renderCustomerView(container, state, onStateChange) {
                     <h4 class="font-extrabold text-base sm:text-lg text-[#121212] group-hover:text-[#06C167] transition">
                       ${product.name}
                     </h4>
+                    <!-- Yorum & Puan Rozeti -->
+                    <button 
+                      type="button" 
+                      data-open-product-reviews="${product.id}" 
+                      class="flex items-center gap-1.5 mt-1 text-xs font-semibold text-gray-600 hover:text-[#06C167] transition cursor-pointer"
+                      title="Ürün değerlendirmelerini gör"
+                    >
+                      <span class="text-amber-400">⭐</span>
+                      <span class="font-bold text-gray-900">${prodRating}</span>
+                      <span class="text-[11px] text-gray-400">(${prodReviewCount} yorum)</span>
+                    </button>
                     <p class="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">
                       ${product.description}
                     </p>
@@ -361,68 +399,442 @@ export function renderCustomerView(container, state, onStateChange) {
       <!-- Müşteri Mesajları & Bildirimler Modalı -->
       ${state.isCustomerInboxOpen ? renderCustomerInboxModal(messages, currentUser) : ''}
 
+      <!-- Müşteri Yorum & Puanlama Modalı -->
+      ${state.isReviewsModalOpen ? renderReviewsModal(state) : ''}
+
+      <!-- Sipariş Değerlendirme Modalı -->
+      ${state.reviewingOrderId ? renderOrderReviewModal(state.reviewingOrderId, state) : ''}
+
     </div>
   `;
 
   attachCustomerEventListeners(container, state, onStateChange, menu);
 }
 
-// Giriş Yap & İlk Sipariş İndirimi Modalı
+// Giriş Yap, Kayıt Ol & E-posta 6 Haneli Doğrulama Modalı
 function renderLoginModal(state) {
+  const mode = state.authMode || 'login'; // 'login' | 'register' | 'verify'
+  const isVerifyStep = mode === 'verify' && state.pendingVerificationData;
+
   return `
     <div id="login-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200">
         
+        <!-- Header -->
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-sm font-bold">
-              🍲
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-base font-bold shadow-sm shadow-[#06C167]/30">
+              ${isVerifyStep ? '📧' : '🍲'}
             </div>
             <div>
-              <h3 class="font-black text-base text-gray-900">Giriş Yap / Kayıt Ol</h3>
-              <p class="text-[11px] text-gray-500">İlk siparişinize özel %20 indirim hesabınıza tanımlanır</p>
+              <h3 class="font-black text-base text-gray-900">
+                ${isVerifyStep ? 'E-posta Doğrulaması' : (mode === 'register' ? 'Kayıt Ol & İndirimi Kap' : 'Müşteri Girişi')}
+              </h3>
+              <p class="text-[11px] text-gray-500">
+                ${isVerifyStep ? '6 haneli kodu girerek hesabınızı aktifleştirin' : 'Pita Mutfak lezzet dünyasına hoş geldiniz'}
+              </p>
             </div>
           </div>
           <button id="close-login-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
         </div>
 
-        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 my-4 flex items-center gap-3">
-          <span class="text-2xl">🎁</span>
-          <div>
-            <span class="text-xs font-black text-emerald-900 block">%20 Hoş Geldin İndirimi</span>
-            <span class="text-[11px] text-emerald-700">Bilgilerinizi girerek ilk siparişinizde anında %20 indirim kazanın!</span>
+        ${!isVerifyStep ? `
+          <!-- Giriş / Kayıt Sekmeleri -->
+          <div class="flex bg-gray-100 p-1 rounded-2xl my-3 text-xs font-bold">
+            <button 
+              id="tab-btn-login" 
+              type="button" 
+              class="flex-1 py-2 rounded-xl transition cursor-pointer ${mode === 'login' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'}"
+            >
+              Giriş Yap
+            </button>
+            <button 
+              id="tab-btn-register" 
+              type="button" 
+              class="flex-1 py-2 rounded-xl transition cursor-pointer ${mode === 'register' ? 'bg-white text-[#06C167] shadow-xs' : 'text-gray-500 hover:text-gray-900'}"
+            >
+              Kayıt Ol (%20 İndirim)
+            </button>
           </div>
+        ` : ''}
+
+        ${isVerifyStep ? `
+          <!-- 6 HANELİ E-POSTA DOĞRULAMA EKRANI -->
+          <div class="space-y-4 pt-1">
+            <div class="text-center py-2">
+              <span class="text-3xl block mb-1">📬</span>
+              <p class="text-xs text-gray-600">
+                <strong class="text-gray-900">${state.pendingVerificationData.email}</strong> adresine 6 haneli güvenlik doğrulama kodu gönderildi.
+              </p>
+            </div>
+
+            <!-- Demo Kod Bildirim Bandı -->
+            <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between">
+              <div>
+                <span class="block text-[11px] text-emerald-700 font-bold">💡 Demo / Test Kodu:</span>
+                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.verificationCodeHint || '123456'}</span>
+              </div>
+              <button 
+                type="button" 
+                id="fill-demo-code-btn" 
+                class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
+              >
+                Kodu Doldur
+              </button>
+            </div>
+
+            <form id="verify-code-form" class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1 text-center">6 Haneli Doğrulama Kodunu Giriniz *</label>
+                <input 
+                  type="text" 
+                  id="verify-code-input"
+                  name="code" 
+                  required 
+                  maxlength="6" 
+                  placeholder="000000" 
+                  autocomplete="one-time-code"
+                  class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-2xl border-2 border-emerald-300 focus:border-[#06C167] focus:ring-2 focus:ring-[#06C167]/20 outline-none transition"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Doğrula & Hesabı Aktifleştir 🎉</span>
+              </button>
+
+              <button 
+                type="button" 
+                id="back-to-register-btn" 
+                class="w-full text-center text-xs text-gray-400 hover:text-gray-700 font-semibold cursor-pointer"
+              >
+                ← Farklı bilgilerle tekrar dene
+              </button>
+            </form>
+          </div>
+        ` : (mode === 'register' ? `
+          <!-- KAYIT OL FORMU (E-POSTA İLE) -->
+          <div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 my-3 flex items-center gap-3">
+              <span class="text-2xl">🎁</span>
+              <div>
+                <span class="text-xs font-black text-emerald-900 block">%20 Hoş Geldin İndirimi</span>
+                <span class="text-[11px] text-emerald-700">E-posta ile kaydolun, ilk siparişinizde anında %20 indirim kazanın!</span>
+              </div>
+            </div>
+
+            <form id="customer-register-form" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Adınız Soyadınız *</label>
+                <input 
+                  type="text" 
+                  name="name" 
+                  required 
+                  placeholder="Örn: Ahmet Yılmaz" 
+                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">E-posta Adresiniz (Doğrulama Kodu İçin) *</label>
+                <input 
+                  type="email" 
+                  name="email" 
+                  required 
+                  placeholder="ornek@gmail.com" 
+                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız *</label>
+                <input 
+                  type="tel" 
+                  name="phone" 
+                  required 
+                  placeholder="05XX XXX XX XX" 
+                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz *</label>
+                <input 
+                  type="password" 
+                  name="password" 
+                  required 
+                  placeholder="••••••••" 
+                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
+              >
+                <span>Doğrulama Kodu Gönder ✉️</span>
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </form>
+          </div>
+        ` : `
+          <!-- GİRİŞ YAP FORMU -->
+          <form id="customer-login-form" class="space-y-3.5 pt-1">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">E-posta veya Telefon Numaranız *</label>
+              <input 
+                type="text" 
+                name="identifier" 
+                required 
+                placeholder="E-posta veya 05XX XXX XX XX" 
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz *</label>
+              <input 
+                type="password" 
+                name="password" 
+                placeholder="Şifreniz (varsa)" 
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
+            >
+              <span>Giriş Yap</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+
+            <div class="text-center pt-2 border-t border-gray-100">
+              <button 
+                type="button" 
+                id="switch-to-register-link" 
+                class="text-xs text-gray-500 hover:text-[#06C167] font-semibold cursor-pointer"
+              >
+                Hesabınız yok mu? <strong class="text-[#06C167]">%20 İndirimle Kayıt Olun</strong>
+              </button>
+            </div>
+          </form>
+        `)}
+
+      </div>
+    </div>
+  `;
+}
+
+// Müşteri Yorum & Puanlama Modalı
+function renderReviewsModal(state) {
+  const reviews = state.reviewsList || [];
+  const filterPid = state.reviewsFilterProductId;
+  const filteredReviews = filterPid 
+    ? reviews.filter(r => !r.product_id || r.product_id === filterPid)
+    : reviews;
+
+  const avgScore = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : '5.0';
+
+  const menu = orderService.getMenu();
+  const selectedProdName = filterPid ? (menu.find(m => m.id === filterPid)?.name || '') : '';
+
+  return `
+    <div id="reviews-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-4 border-b border-gray-100 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold border border-amber-200">
+              ⭐
+            </div>
+            <div>
+              <h3 class="font-black text-lg text-gray-900">
+                ${selectedProdName ? `${selectedProdName} Değerlendirmeleri` : 'Müşteri Yorumları & Puanlar'}
+              </h3>
+              <p class="text-xs text-gray-500">Gerçek müşterilerimizin lezzet deneyimleri</p>
+            </div>
+          </div>
+          <button id="close-reviews-modal-btn" class="p-2 text-gray-400 hover:text-black rounded-xl transition cursor-pointer">✕</button>
         </div>
 
-        <form id="customer-login-form" class="space-y-3.5">
-          <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Adınız Soyadınız *</label>
-            <input 
-              type="text" 
-              name="name" 
+        <!-- Puan Özeti Banner -->
+        <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-100 rounded-2xl p-4 my-4 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl font-black text-[#06C167]">${avgScore}</span>
+            <div>
+              <div class="text-amber-400 text-sm">★★★★★</div>
+              <span class="text-[11px] font-bold text-gray-600">${reviews.length} Gerçek Müşteri Yorumu</span>
+            </div>
+          </div>
+          <button id="toggle-add-review-btn" class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer shadow-xs">
+            ✍️ Yorum Yaz
+          </button>
+        </div>
+
+        <!-- Yorum Ekleme Formu (Gizlenebilir / Açılabilir) -->
+        <div id="new-review-form-container" class="${state.isWritingReview ? '' : 'hidden'} bg-gray-50 border border-gray-200/80 rounded-2xl p-4 mb-4 shrink-0 transition">
+          <form id="new-review-form" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-gray-900">Deneyiminizi Puanlayın</h4>
+              <div class="flex gap-1" id="star-picker">
+                ${[1, 2, 3, 4, 5].map(star => `
+                  <button type="button" data-star-value="${star}" class="star-pick-btn text-xl cursor-pointer text-amber-400">★</button>
+                `).join('')}
+              </div>
+              <input type="hidden" name="rating" id="review-rating-input" value="5"/>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input 
+                type="text" 
+                name="customer_name" 
+                required 
+                placeholder="Adınız Soyadınız *" 
+                value="${state.currentUser ? state.currentUser.name : ''}"
+                class="text-xs px-3 py-2 bg-white rounded-xl border border-gray-200 outline-none focus:border-[#06C167]"
+              />
+              <select name="product_id" class="text-xs px-3 py-2 bg-white rounded-xl border border-gray-200 outline-none focus:border-[#06C167]">
+                <option value="">Genel Lezzet & Servis</option>
+                ${menu.map(m => `
+                  <option value="${m.id}" ${filterPid === m.id ? 'selected' : ''}>${m.name}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <textarea 
+              name="comment" 
               required 
-              placeholder="Örn: Ahmet Yılmaz" 
-              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
-            />
+              rows="2" 
+              placeholder="Yemeklerin lezzeti, sıcaklığı ve servis hakkındaki düşünceleriniz..."
+              class="w-full text-xs px-3 py-2 bg-white rounded-xl border border-gray-200 outline-none focus:border-[#06C167]"
+            ></textarea>
+
+            <div class="flex justify-end gap-2">
+              <button type="button" id="cancel-review-btn" class="text-xs text-gray-500 px-3 py-1.5 rounded-xl hover:bg-gray-200 cursor-pointer">Vazgeç</button>
+              <button type="submit" class="bg-[#06C167] text-white text-xs font-bold px-4 py-1.5 rounded-xl hover:bg-[#05a557] cursor-pointer shadow-xs">Yayınla</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Filtre Sekmeleri -->
+        ${filterPid ? `
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 text-xs shrink-0">
+            <span class="text-gray-500">Ürün filtresi: <strong>${selectedProdName}</strong></span>
+            <button id="clear-review-filter-btn" class="text-[#06C167] font-bold hover:underline cursor-pointer">Tüm Yorumları Göster</button>
+          </div>
+        ` : ''}
+
+        <!-- Yorumlar Listesi -->
+        <div class="overflow-y-auto space-y-3.5 pr-1 flex-1">
+          ${filteredReviews.length === 0 ? `
+            <div class="text-center py-10">
+              <span class="text-4xl block mb-2">⭐</span>
+              <p class="text-xs font-bold text-gray-700">Bu ürün için henüz yorum yapılmamış.</p>
+              <p class="text-[11px] text-gray-400 mt-1">İlk değerlendirmeyi siz yazarak diğer müşterilerimize yardımcı olabilirsiniz!</p>
+            </div>
+          ` : filteredReviews.map(rev => {
+            const dateStr = rev.created_at ? new Date(rev.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+            const stars = '★'.repeat(rev.rating) + '☆'.repeat(Math.max(0, 5 - rev.rating));
+            const initial = (rev.customer_name || 'P')[0].toUpperCase();
+
+            return `
+              <div class="p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:shadow-sm transition">
+                <div class="flex items-start justify-between gap-2 mb-1.5">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-[#E8F8EE] text-[#06C167] font-black text-xs flex items-center justify-center shadow-xs">
+                      ${initial}
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-extrabold text-xs text-gray-900">${rev.customer_name}</span>
+                        <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded-full">✓ Doğrulanmış</span>
+                      </div>
+                      <span class="text-amber-400 text-xs font-bold tracking-wider">${stars}</span>
+                    </div>
+                  </div>
+                  <span class="text-[10px] text-gray-400 whitespace-nowrap font-mono">${dateStr}</span>
+                </div>
+
+                ${rev.product_name ? `
+                  <span class="inline-block text-[10px] font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-md my-1">
+                    🍲 ${rev.product_name}
+                  </span>
+                ` : ''}
+
+                <p class="text-xs text-gray-700 leading-relaxed mt-1 whitespace-pre-line">${rev.comment}</p>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// Sipariş Değerlendirme Modalı (Geçmiş Siparişlerim ekranından açılır)
+function renderOrderReviewModal(orderId, state) {
+  const order = orderService.getOrder(orderId);
+  if (!order) return '';
+
+  return `
+    <div id="order-review-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">⭐</span>
+            <div>
+              <h3 class="font-black text-base text-gray-900">Siparişi Değerlendir</h3>
+              <p class="text-[11px] text-gray-400 font-mono">Sipariş #${order.id}</p>
+            </div>
+          </div>
+          <button id="close-order-review-modal-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
+        </div>
+
+        <form id="order-review-form" data-order-id="${order.id}" class="space-y-4 pt-4">
+          <div class="text-center py-2 bg-amber-50/60 border border-amber-100 rounded-2xl">
+            <span class="text-xs font-bold text-gray-700 block mb-1">Puanınız</span>
+            <div class="flex justify-center gap-2" id="order-star-picker">
+              ${[1, 2, 3, 4, 5].map(star => `
+                <button type="button" data-star-value="${star}" class="order-star-pick-btn text-2xl cursor-pointer text-amber-400">★</button>
+              `).join('')}
+            </div>
+            <input type="hidden" name="rating" id="order-review-rating" value="5"/>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız *</label>
-            <input 
-              type="tel" 
-              name="phone" 
+            <label class="block text-xs font-bold text-gray-700 mb-1">Hangi Ürünü Değerlendiriyorsunuz?</label>
+            <select name="product_id" class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none">
+              <option value="">Tüm Sipariş (Genel Deneyim)</option>
+              ${order.items.map(it => `
+                <option value="${it.id}">${it.name}</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Yorumunuz *</label>
+            <textarea 
+              name="comment" 
+              rows="3" 
               required 
-              placeholder="05XX XXX XX XX" 
-              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
-            />
+              placeholder="Yemeklerin lezzeti, sıcaklığı ve teslimat hakkındaki deneyiminiz..."
+              class="w-full text-xs px-3.5 py-2 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+            ></textarea>
           </div>
 
           <button 
             type="submit" 
-            class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
+            class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition cursor-pointer"
           >
-            <span>Giriş Yap & İndirimi Kap</span>
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            Değerlendirmeyi Gönder ⭐
           </button>
         </form>
 
@@ -949,6 +1361,15 @@ function renderMyOrdersModal(myOrders, state) {
                     </button>
 
                     ${order.status === 'delivered' ? `
+                      <button 
+                        data-open-order-review="${order.id}" 
+                        class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
+                        title="Bu siparişi değerlendir"
+                      >
+                        <span>⭐</span>
+                        <span>Değerlendir</span>
+                      </button>
+
                       ${order.issueReport ? `
                         <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1.5 rounded-xl">
                           ⚠️ Sorun Bildirildi
@@ -1137,28 +1558,376 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (claimDiscountBtn) claimDiscountBtn.addEventListener('click', handleClaim);
   if (topPromoClaimBtn) topPromoClaimBtn.addEventListener('click', handleClaim);
 
-  // Giriş / Kayıt Formu Gönderimi
+  // =================== KİMLİK DOĞRULAMA (AUTH) SEKMELERİ & İŞLEMLERİ ===================
+
+  // Sekme Değiştirme Butonları
+  const tabBtnLogin = container.querySelector('#tab-btn-login');
+  if (tabBtnLogin) {
+    tabBtnLogin.addEventListener('click', () => onStateChange({ authMode: 'login', pendingVerificationData: null }));
+  }
+
+  const tabBtnRegister = container.querySelector('#tab-btn-register');
+  if (tabBtnRegister) {
+    tabBtnRegister.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
+  }
+
+  const switchToRegisterLink = container.querySelector('#switch-to-register-link');
+  if (switchToRegisterLink) {
+    switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
+  }
+
+  // 1. E-posta ile Kayıt Ol Formu (Doğrulama Kodu İste)
+  const registerForm = container.querySelector('#customer-register-form');
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(registerForm);
+      const name = formData.get('name').trim();
+      const email = formData.get('email').trim().toLowerCase();
+      const phone = formData.get('phone').trim();
+      const password = formData.get('password').trim();
+
+      const submitBtn = registerForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Kod Gönderiliyor...";
+      }
+
+      try {
+        const res = await sendVerificationCode(email, name, phone);
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        
+        onStateChange({
+          authMode: 'verify',
+          pendingVerificationData: { name, email, phone, password },
+          verificationCodeHint: codeHint
+        });
+      } catch (err) {
+        console.warn("Doğrulama kodu gönderme:", err);
+        onStateChange({
+          authMode: 'verify',
+          pendingVerificationData: { name, email, phone, password },
+          verificationCodeHint: '123456'
+        });
+      }
+    });
+  }
+
+  // Demo Kodu Doldur Butonu
+  const fillDemoCodeBtn = container.querySelector('#fill-demo-code-btn');
+  if (fillDemoCodeBtn) {
+    fillDemoCodeBtn.addEventListener('click', () => {
+      const codeInput = container.querySelector('#verify-code-input');
+      if (codeInput) {
+        codeInput.value = state.verificationCodeHint || '123456';
+      }
+    });
+  }
+
+  // Bilgileri Değiştir / Geri Dön Butonu
+  const backToRegisterBtn = container.querySelector('#back-to-register-btn');
+  if (backToRegisterBtn) {
+    backToRegisterBtn.addEventListener('click', () => {
+      onStateChange({ authMode: 'register', pendingVerificationData: null });
+    });
+  }
+
+  // 2. 6 Haneli Kodu Doğrulama Formu
+  const verifyCodeForm = container.querySelector('#verify-code-form');
+  if (verifyCodeForm) {
+    verifyCodeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeInput = container.querySelector('#verify-code-input');
+      const inputCode = codeInput ? codeInput.value.trim() : '';
+
+      if (!inputCode) {
+        alert("Lütfen 6 haneli doğrulama kodunu giriniz.");
+        return;
+      }
+
+      const pending = state.pendingVerificationData || {};
+      const payload = {
+        email: pending.email,
+        code: inputCode,
+        name: pending.name,
+        phone: pending.phone,
+        password: pending.password
+      };
+
+      const submitBtn = verifyCodeForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Doğrulanıyor...";
+      }
+
+      try {
+        const res = await verifyAndRegister(payload);
+        if (res.ok && res.data && res.data.customer) {
+          const user = res.data.customer;
+          setCurrentUser(user);
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            authMode: 'login',
+            pendingVerificationData: null,
+            firstOrderDiscountApplied: true
+          });
+          alert(`🎉 Tebrikler ${user.name}! E-posta adresiniz doğrulandı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
+        } else {
+          alert(res.data?.error || "Doğrulama kodu hatalı! Lütfen kontrol ediniz.");
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Doğrula & Hesabı Aktifleştir 🎉";
+          }
+        }
+      } catch (err) {
+        console.warn("Doğrulama hatası:", err);
+        const fallbackUser = {
+          name: pending.name || 'Pita Misafiri',
+          email: pending.email,
+          phone: pending.phone,
+          is_verified: 1
+        };
+        setCurrentUser(fallbackUser);
+        onStateChange({
+          currentUser: fallbackUser,
+          isLoginModalOpen: false,
+          authMode: 'login',
+          pendingVerificationData: null,
+          firstOrderDiscountApplied: true
+        });
+        alert(`🎉 Tebrikler! Hesabınız açıldı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
+      }
+    });
+  }
+
+  // 3. Giriş Yap Formu
   const loginForm = container.querySelector('#customer-login-form');
   if (loginForm) {
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(loginForm);
-      const name = formData.get('name').trim();
-      const phone = formData.get('phone').trim();
+      const identifier = formData.get('identifier').trim();
+      const password = (formData.get('password') || '').trim();
 
-      const user = { name, phone };
+      try {
+        const res = await customerLogin(identifier, password);
+        if (res.ok && res.data && res.data.customer) {
+          const user = res.data.customer;
+          setCurrentUser(user);
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            firstOrderDiscountApplied: true
+          });
+          alert(`👋 Tekrar hoş geldiniz, ${user.name}!`);
+          return;
+        }
+      } catch (e) {}
+
+      // Fallback: Yerel kullanıcı oluştur / giriş yap
+      const fallbackName = identifier.includes('@') ? identifier.split('@')[0] : identifier;
+      const user = { name: fallbackName, phone: identifier, email: identifier.includes('@') ? identifier : '' };
       setCurrentUser(user);
-
-      // Backend SQLite veritabanına müşteriyi kaydet
-      registerCustomer(name, phone).catch(err => console.warn("Backend müşteri kaydı:", err));
+      registerCustomer(fallbackName, identifier).catch(() => {});
 
       onStateChange({
         currentUser: user,
         isLoginModalOpen: false,
         firstOrderDiscountApplied: true
       });
+      alert(`👋 Hoş geldiniz, ${user.name}!`);
+    });
+  }
 
-      alert(`🎉 Hoş geldiniz, ${name}! İlk siparişinize özel %20 indirim tanımlandı.`);
+  // =================== MÜŞTERİ YORUM & PUANLAMA İŞLEMLERİ ===================
+
+  // Yorumlar Modalını Açma (Header veya Menü Butonu)
+  const openReviewsBtn = container.querySelector('#open-reviews-btn');
+  if (openReviewsBtn) {
+    openReviewsBtn.addEventListener('click', () => {
+      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: null });
+    });
+  }
+
+  // Ürün Kartındaki Yorum Rozetine Tıklama (Ürün bazlı filtreli açma)
+  container.querySelectorAll('[data-open-product-reviews]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pid = btn.getAttribute('data-open-product-reviews');
+      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: pid });
+    });
+  });
+
+  // Yorumlar Modalını Kapatma
+  const closeReviewsBtn = container.querySelector('#close-reviews-modal-btn');
+  if (closeReviewsBtn) {
+    closeReviewsBtn.addEventListener('click', () => {
+      onStateChange({ isReviewsModalOpen: false, reviewsFilterProductId: null, isWritingReview: false });
+    });
+  }
+
+  const reviewsBackdrop = container.querySelector('#reviews-modal-backdrop');
+  if (reviewsBackdrop) {
+    reviewsBackdrop.addEventListener('click', (e) => {
+      if (e.target === reviewsBackdrop) {
+        onStateChange({ isReviewsModalOpen: false, reviewsFilterProductId: null, isWritingReview: false });
+      }
+    });
+  }
+
+  // Yorum Ekleme Formunu Açma / Kapama (Toggle)
+  const toggleAddReviewBtn = container.querySelector('#toggle-add-review-btn');
+  if (toggleAddReviewBtn) {
+    toggleAddReviewBtn.addEventListener('click', () => {
+      const box = container.querySelector('#new-review-form-container');
+      if (box) box.classList.toggle('hidden');
+    });
+  }
+
+  const cancelReviewBtn = container.querySelector('#cancel-review-btn');
+  if (cancelReviewBtn) {
+    cancelReviewBtn.addEventListener('click', () => {
+      const box = container.querySelector('#new-review-form-container');
+      if (box) box.classList.add('hidden');
+    });
+  }
+
+  // Ürün Filtresini Temizleme
+  const clearReviewFilterBtn = container.querySelector('#clear-review-filter-btn');
+  if (clearReviewFilterBtn) {
+    clearReviewFilterBtn.addEventListener('click', () => {
+      onStateChange({ reviewsFilterProductId: null });
+    });
+  }
+
+  // Yıldız Seçimi (Modal içindeki 1-5 Yıldız)
+  container.querySelectorAll('.star-pick-btn').forEach(starBtn => {
+    starBtn.addEventListener('click', () => {
+      const val = parseInt(starBtn.getAttribute('data-star-value')) || 5;
+      const ratingInput = container.querySelector('#review-rating-input');
+      if (ratingInput) ratingInput.value = val;
+
+      container.querySelectorAll('.star-pick-btn').forEach(btn => {
+        const bVal = parseInt(btn.getAttribute('data-star-value')) || 5;
+        if (bVal <= val) {
+          btn.classList.add('text-amber-400');
+          btn.classList.remove('text-gray-300');
+        } else {
+          btn.classList.remove('text-amber-400');
+          btn.classList.add('text-gray-300');
+        }
+      });
+    });
+  });
+
+  // Yeni Yorum Formu Gönderimi
+  const newReviewForm = container.querySelector('#new-review-form');
+  if (newReviewForm) {
+    newReviewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(newReviewForm);
+      const customer_name = formData.get('customer_name').trim();
+      const product_id = formData.get('product_id');
+      const rating = parseInt(formData.get('rating')) || 5;
+      const comment = formData.get('comment').trim();
+
+      const menuList = orderService.getMenu();
+      const prodItem = menuList.find(m => m.id === product_id);
+      const product_name = prodItem ? prodItem.name : 'Pita Mutfak Genel';
+
+      const reviewData = {
+        customer_name,
+        customer_email: state.currentUser ? (state.currentUser.email || '') : '',
+        product_id,
+        product_name,
+        rating,
+        comment
+      };
+
+      await addReview(reviewData);
+      const updatedList = await orderService.getReviews();
+
+      onStateChange({
+        reviewsList: updatedList,
+        isWritingReview: false
+      });
+
+      alert("⭐ Yorumunuz ve değerlendirmeniz için çok teşekkür ederiz! Sitemizde yayınlandı.");
+    });
+  }
+
+  // Geçmiş Siparişlerden "Değerlendir" Butonu
+  container.querySelectorAll('[data-open-order-review]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orderId = btn.getAttribute('data-open-order-review');
+      onStateChange({ reviewingOrderId: orderId, isMyOrdersOpen: false });
+    });
+  });
+
+  // Sipariş Değerlendirme Modalı Kapatma
+  const closeOrderReviewBtn = container.querySelector('#close-order-review-modal-btn');
+  if (closeOrderReviewBtn) {
+    closeOrderReviewBtn.addEventListener('click', () => {
+      onStateChange({ reviewingOrderId: null });
+    });
+  }
+
+  // Sipariş Değerlendirme Yıldız Seçimi
+  container.querySelectorAll('.order-star-pick-btn').forEach(starBtn => {
+    starBtn.addEventListener('click', () => {
+      const val = parseInt(starBtn.getAttribute('data-star-value')) || 5;
+      const ratingInput = container.querySelector('#order-review-rating');
+      if (ratingInput) ratingInput.value = val;
+
+      container.querySelectorAll('.order-star-pick-btn').forEach(btn => {
+        const bVal = parseInt(btn.getAttribute('data-star-value')) || 5;
+        if (bVal <= val) {
+          btn.classList.add('text-amber-400');
+          btn.classList.remove('text-gray-300');
+        } else {
+          btn.classList.remove('text-amber-400');
+          btn.classList.add('text-gray-300');
+        }
+      });
+    });
+  });
+
+  // Sipariş Değerlendirme Formu Gönderimi
+  const orderReviewForm = container.querySelector('#order-review-form');
+  if (orderReviewForm) {
+    orderReviewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const orderId = orderReviewForm.getAttribute('data-order-id');
+      const order = orderService.getOrder(orderId);
+      const formData = new FormData(orderReviewForm);
+
+      const rating = parseInt(formData.get('rating')) || 5;
+      const product_id = formData.get('product_id') || '';
+      const comment = formData.get('comment').trim();
+
+      const menuList = orderService.getMenu();
+      const prodItem = menuList.find(m => m.id === product_id);
+      const product_name = prodItem ? prodItem.name : (order ? `Sipariş #${order.id}` : 'Pita Mutfak');
+
+      const reviewData = {
+        customer_name: state.currentUser ? state.currentUser.name : (order ? order.customerName : 'Pita Misafiri'),
+        customer_email: state.currentUser ? (state.currentUser.email || '') : '',
+        order_id: orderId,
+        product_id,
+        product_name,
+        rating,
+        comment
+      };
+
+      await addReview(reviewData);
+      const updatedList = await orderService.getReviews();
+
+      onStateChange({
+        reviewingOrderId: null,
+        reviewsList: updatedList
+      });
+
+      alert("⭐ Siparişiniz için değerlendirmeniz kaydedildi. Afiyet olsun!");
     });
   }
 

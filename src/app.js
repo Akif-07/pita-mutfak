@@ -26,6 +26,13 @@ const state = {
   customerSearchQuery: '',
   customers: [],
   stockList: [],
+  reviewsList: [],
+  isReviewsModalOpen: false,
+  reviewsFilterProductId: null,
+  reviewingOrderId: null,
+  authMode: 'login', // 'login' | 'register' | 'verify'
+  pendingVerificationData: null,
+  verificationCodeHint: '',
   activeAssignCodeCustomer: null,
   activeSendMessageCustomer: null,
   isCustomerInboxOpen: false,
@@ -60,12 +67,14 @@ async function loadCustomerMessages() {
 // Backend Verilerini Yükleme Fonksiyonu
 async function loadBackendData() {
   try {
-    const [customers, stock] = await Promise.all([
+    const [customers, stock, reviews] = await Promise.all([
       orderService.getCustomers(),
-      orderService.getStock()
+      orderService.getStock(),
+      orderService.getReviews()
     ]);
     state.customers = Array.isArray(customers) ? customers : [];
     state.stockList = Array.isArray(stock) ? stock : [];
+    state.reviewsList = Array.isArray(reviews) ? reviews : [];
 
     // Eğer stok veritabanı henüz boşsa menüdeki ürünlerle başlat
     if (state.stockList.length === 0) {
@@ -156,6 +165,12 @@ orderService.subscribe((orders) => {
 
 // Menü Güncelleme Senkronizasyonu
 orderService.subscribeMenu(() => {
+  render();
+});
+
+// Müşteri Yorumları Canlı Senkronizasyonu
+orderService.subscribeReviews((reviews) => {
+  state.reviewsList = Array.isArray(reviews) ? reviews : [];
   render();
 });
 

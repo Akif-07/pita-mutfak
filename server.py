@@ -4,7 +4,8 @@ import os
 import sys
 import sqlite3
 import json
-from urllib.parse import urlparse, unquote
+import random
+from urllib.parse import urlparse, parse_qs, unquote
 from datetime import datetime
 
 if sys.platform == 'win32':
@@ -17,15 +18,22 @@ if sys.platform == 'win32':
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(DIRECTORY, "pita_mutfak.db")
 
+# Geçici e-posta doğrulama kodları belleği (email.lower() -> {code, created_at, name, phone})
+VERIFICATION_CODES = {}
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    # 1. Müşteriler Tablosu
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       phone TEXT UNIQUE NOT NULL,
+      email TEXT DEFAULT '',
+      password TEXT DEFAULT '',
+      is_verified INTEGER DEFAULT 0,
       registered_at TEXT NOT NULL,
       total_orders INTEGER DEFAULT 0,
       total_spent REAL DEFAULT 0,
@@ -37,6 +45,18 @@ def init_db():
     
     # Mevcut veritabanı varsa yeni kolonları güvenle ekle
     try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN password TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN is_verified INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
         cursor.execute("ALTER TABLE customers ADD COLUMN custom_code TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
@@ -45,6 +65,7 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 2. Stok Tablosu
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS stock (
       product_id TEXT PRIMARY KEY,
@@ -55,6 +76,7 @@ def init_db():
     )
     ''')
 
+    # 3. Mesajlar / Bildirimler Tablosu
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,6 +88,36 @@ def init_db():
       is_read INTEGER DEFAULT 0
     )
     ''')
+
+    # 4. Müşteri Yorumları & Değerlendirmeleri Tablosu
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_name TEXT NOT NULL,
+      customer_email TEXT DEFAULT '',
+      product_id TEXT DEFAULT '',
+      product_name TEXT DEFAULT '',
+      order_id TEXT DEFAULT '',
+      rating INTEGER NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      status TEXT DEFAULT 'approved'
+    )
+    ''')
+
+    # Başlangıçta örnek müşteri yorumları ekle (eğer boşsa)
+    cursor.execute("SELECT COUNT(*) FROM reviews")
+    if cursor.fetchone()[0] == 0:
+        initial_reviews = [
+            ("Ahmet Yılmaz", "ahmet@gmail.com", "pilav-tavuk-klasik", "Klasik Didilmiş Tavuk Pilav", "", 5, "Tavuk pilav gerçekten efsane! Tavuğu bol, pilavı tane tane ve tereyağlıydı. Kesinlikle tavsiye ederim.", "2026-09-12T14:20:00"),
+            ("Selin Demir", "selin@gmail.com", "kuru-fasulye-guvec", "Güveçte Kuru Fasulye", "", 5, "Güveçte kuru fasulye sıcacık geldi, yanındaki turşu ve pilavla tam anne yemeği lezzeti. Ellerinize sağlık.", "2026-09-12T18:45:00"),
+            ("Mehmet Kaya", "mehmet@gmail.com", "makarna-penne-tavuk", "Kremalı Tavuklu Penne", "", 5, "Fesleğenli kremalı makarna çok lezzetliydi, porsiyon da oldukça doyurucu. Kurye de çok nazikti.", "2026-09-13T12:10:00"),
+            ("Ayşe K.", "ayse@gmail.com", "", "Pita Mutfak Genel", "", 5, "Sipariş 25 dakikada dumanı üstünde kapıma geldi. Kurye arkadaş çok güler yüzlüydü. Teşekkürler!", "2026-09-13T13:30:00")
+        ]
+        cursor.executemany(
+            "INSERT INTO reviews (customer_name, customer_email, product_id, product_name, order_id, rating, comment, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')",
+            initial_reviews
+        )
     
     conn.commit()
     conn.close()
@@ -75,10 +127,9 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
     def end_headers(self):
-        # CORS & Onbellek basliklari
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
         super().end_headers()
 
@@ -93,9 +144,9 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_json(self, status, data):
         try:
-            body = json.dumps(data).encode('utf-8')
+            body = json.dumps(data, ensure_ascii=False).encode('utf-8')
             self.send_response(status)
-            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -126,9 +177,10 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
+        query_params = parse_qs(parsed_url.query)
 
         if path.startswith('/api/'):
-            self.handle_api_get(path)
+            self.handle_api_get(path, query_params)
         else:
             super().do_GET()
 
@@ -153,26 +205,28 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
+        query_params = parse_qs(parsed_url.query)
 
         if path.startswith('/api/'):
-            self.handle_api_delete(path)
+            self.handle_api_delete(path, query_params)
         else:
             self.send_error(405, "Method Not Allowed")
 
-    def handle_api_get(self, path):
+    # =================== API GET ===================
+    def handle_api_get(self, path, query_params):
         try:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
             if path == '/api/customers':
-                cursor.execute("SELECT * FROM customers")
+                cursor.execute("SELECT id, name, phone, email, is_verified, registered_at, total_orders, total_spent, custom_code, custom_discount FROM customers ORDER BY id DESC")
                 customers = [dict(row) for row in cursor.fetchall()]
                 self.send_json(200, customers)
             
             elif path.startswith('/api/customers/'):
                 phone = unquote(path.split('/')[-1])
-                cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
+                cursor.execute("SELECT * FROM customers WHERE phone = ? OR email = ?", (phone, phone))
                 row = cursor.fetchone()
                 if row:
                     self.send_json(200, dict(row))
@@ -189,6 +243,15 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("SELECT * FROM stock")
                 stock_items = [dict(row) for row in cursor.fetchall()]
                 self.send_json(200, stock_items)
+
+            elif path == '/api/reviews':
+                product_id = query_params.get('product_id', [None])[0]
+                if product_id:
+                    cursor.execute("SELECT * FROM reviews WHERE (product_id = ? OR product_id = '') ORDER BY id DESC", (product_id,))
+                else:
+                    cursor.execute("SELECT * FROM reviews ORDER BY id DESC")
+                reviews = [dict(row) for row in cursor.fetchall()]
+                self.send_json(200, reviews)
             
             else:
                 self.send_json(404, {"error": "Not Found"})
@@ -199,6 +262,7 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             if 'conn' in locals():
                 conn.close()
 
+    # =================== API POST ===================
     def handle_api_post(self, path):
         body = self.read_json_body()
         if body is None:
@@ -210,9 +274,153 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            if path == '/api/customers':
+            # 1. E-posta Doğrulama Kodu Üret ve İlet (POST /api/auth/send-code)
+            if path == '/api/auth/send-code':
+                email = str(body.get('email', '')).strip().lower()
+                name = str(body.get('name', '')).strip()
+                phone = str(body.get('phone', '')).strip()
+
+                if not email or '@' not in email:
+                    self.send_json(400, {"error": "Lütfen geçerli bir e-posta adresi giriniz."})
+                    return
+
+                # 6 Haneli Rastgele Sayısal Kod Üret
+                code = f"{random.randint(100000, 999999)}"
+                now = datetime.now().isoformat()
+                VERIFICATION_CODES[email] = {
+                    "code": code,
+                    "created_at": now,
+                    "name": name,
+                    "phone": phone
+                }
+
+                print(f"[AUTH] Dogrulama Kodu Uretildi -> E-Posta: {email} | Kod: {code}")
+
+                # JSON yanıtında kodu da dönüyoruz (Demo/test ortamında anında test edilebilmesi için)
+                self.send_json(200, {
+                    "success": True,
+                    "message": f"6 haneli doğrulama kodu {email} adresine iletildi.",
+                    "code": code,
+                    "email": email
+                })
+
+            # 2. Kodu Doğrula ve Müşteriyi Kaydet (POST /api/auth/verify-and-register)
+            elif path == '/api/auth/verify-and-register':
+                email = str(body.get('email', '')).strip().lower()
+                input_code = str(body.get('code', '')).strip()
+                name = str(body.get('name', '')).strip()
+                phone = str(body.get('phone', '')).strip()
+                password = str(body.get('password', '')).strip()
+
+                if not email or not input_code:
+                    self.send_json(400, {"error": "E-posta ve doğrulama kodu zorunludur."})
+                    return
+
+                stored = VERIFICATION_CODES.get(email)
+                # Test/demo kolaylığı için 123456 veya üretilen kod kabul edilir
+                is_valid_code = (stored and stored.get('code') == input_code) or (input_code == "123456")
+
+                if not is_valid_code:
+                    self.send_json(400, {"error": "Hatalı doğrulama kodu! Lütfen size iletilen 6 haneli kodu kontrol ediniz."})
+                    return
+
+                now = datetime.now().isoformat()
+                # Kullanıcı daha önce var mı?
+                cursor.execute("SELECT * FROM customers WHERE email = ? OR phone = ?", (email, phone))
+                existing = cursor.fetchone()
+
+                if existing:
+                    cursor.execute(
+                        "UPDATE customers SET name = ?, phone = ?, email = ?, password = ?, is_verified = 1 WHERE id = ?",
+                        (name or existing['name'], phone or existing['phone'], email, password or existing['password'], existing['id'])
+                    )
+                    conn.commit()
+                    cursor.execute("SELECT * FROM customers WHERE id = ?", (existing['id'],))
+                    customer = cursor.fetchone()
+                else:
+                    cursor.execute(
+                        "INSERT INTO customers (name, phone, email, password, is_verified, registered_at) VALUES (?, ?, ?, ?, 1, ?)",
+                        (name or 'Misafir Müşteri', phone or email, email, password, now)
+                    )
+                    conn.commit()
+                    customer_id = cursor.lastrowid
+                    cursor.execute("SELECT * FROM customers WHERE id = ?", (customer_id,))
+                    customer = cursor.fetchone()
+
+                # Kod kullanıldıktan sonra temizle
+                if email in VERIFICATION_CODES:
+                    del VERIFICATION_CODES[email]
+
+                self.send_json(200, {
+                    "success": True,
+                    "message": "Hesabınız başarıyla doğrulandı ve oluşturuldu!",
+                    "customer": dict(customer)
+                })
+
+            # 3. E-posta / Telefon ile Giriş Yap (POST /api/auth/login)
+            elif path == '/api/auth/login':
+                identifier = str(body.get('email', '') or body.get('phone', '')).strip().lower()
+                password = str(body.get('password', '')).strip()
+
+                if not identifier:
+                    self.send_json(400, {"error": "E-posta veya telefon numarası gereklidir."})
+                    return
+
+                cursor.execute("SELECT * FROM customers WHERE lower(email) = ? OR phone = ?", (identifier, identifier))
+                customer = cursor.fetchone()
+
+                if not customer:
+                    self.send_json(404, {"error": "Bu bilgilerle kayıtlı bir müşteri bulunamadı."})
+                    return
+
+                # Eğer şifre belirlenmişse ve girilmişse kontrol et
+                if customer['password'] and password and customer['password'] != password:
+                    self.send_json(401, {"error": "Hatalı şifre girdiniz."})
+                    return
+
+                self.send_json(200, {
+                    "success": True,
+                    "customer": dict(customer)
+                })
+
+            # 4. Yeni Müşteri Yorumu & Puanı Ekle (POST /api/reviews)
+            elif path == '/api/reviews':
+                customer_name = str(body.get('customer_name', '')).strip() or 'Pita Lezzet Sever'
+                customer_email = str(body.get('customer_email', '')).strip().lower()
+                product_id = str(body.get('product_id', '')).strip()
+                product_name = str(body.get('product_name', '')).strip() or 'Pita Mutfak'
+                order_id = str(body.get('order_id', '')).strip()
+                rating = int(body.get('rating', 5))
+                comment = str(body.get('comment', '')).strip()
+
+                if not comment:
+                    self.send_json(400, {"error": "Yorum metni zorunludur."})
+                    return
+
+                rating = max(1, min(5, rating))
+                now = datetime.now().isoformat()
+
+                cursor.execute(
+                    '''INSERT INTO reviews (customer_name, customer_email, product_id, product_name, order_id, rating, comment, created_at, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')''',
+                    (customer_name, customer_email, product_id, product_name, order_id, rating, comment, now)
+                )
+                conn.commit()
+                review_id = cursor.lastrowid
+                cursor.execute("SELECT * FROM reviews WHERE id = ?", (review_id,))
+                new_review = cursor.fetchone()
+
+                self.send_json(201, {
+                    "success": True,
+                    "message": "Değerlendirmeniz için teşekkür ederiz!",
+                    "review": dict(new_review)
+                })
+
+            # 5. Klasik Müşteri Kayıt (POST /api/customers)
+            elif path == '/api/customers':
                 name = body.get('name')
                 phone = body.get('phone')
+                email = body.get('email', '')
                 
                 if not name or not phone:
                     self.send_json(400, {"error": "Name and phone are required"})
@@ -226,8 +434,8 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     registered_at = datetime.now().isoformat()
                     cursor.execute(
-                        "INSERT INTO customers (name, phone, registered_at) VALUES (?, ?, ?)",
-                        (name, phone, registered_at)
+                        "INSERT INTO customers (name, phone, email, registered_at) VALUES (?, ?, ?, ?)",
+                        (name, phone, email, registered_at)
                     )
                     conn.commit()
                     customer_id = cursor.lastrowid
@@ -235,13 +443,13 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     new_customer = cursor.fetchone()
                     self.send_json(201, dict(new_customer))
             
+            # 6. Stok Düşme (POST /api/stock/deduct)
             elif path == '/api/stock/deduct':
                 items = body.get('items', [])
                 if not isinstance(items, list):
                     self.send_json(400, {"error": "Items must be a list"})
                     return
                 
-                # Check stock before deducting
                 errors = []
                 for item in items:
                     pid = item.get('productId')
@@ -258,7 +466,6 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json(400, {"error": "Stock check failed", "details": errors})
                     return
                 
-                # Deduct
                 now = datetime.now().isoformat()
                 for item in items:
                     pid = item.get('productId')
@@ -270,6 +477,7 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 conn.commit()
                 self.send_json(200, {"message": "Stock deducted successfully"})
 
+            # 7. Stok Başlatma (POST /api/stock/init)
             elif path == '/api/stock/init':
                 products = body.get('products', [])
                 now = datetime.now().isoformat()
@@ -288,6 +496,7 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 conn.commit()
                 self.send_json(200, {"message": f"Initialized {added_count} products"})
             
+            # 8. Müşteriye Özel Mesaj Gönder (POST /api/messages)
             elif path == '/api/messages':
                 customer_phone = body.get('customerPhone')
                 title = body.get('title')
@@ -318,6 +527,7 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             if 'conn' in locals():
                 conn.close()
 
+    # =================== API PUT ===================
     def handle_api_put(self, path):
         body = self.read_json_body()
         if body is None:
@@ -330,14 +540,8 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             cursor = conn.cursor()
 
             if path.startswith('/api/customers/') and path.endswith('/order'):
-                # /api/customers/{phone}/order
                 parts = path.split('/')
-                if len(parts) >= 4:
-                    phone = unquote(parts[3])
-                else:
-                    self.send_json(400, {"error": "Invalid path"})
-                    return
-
+                phone = unquote(parts[3]) if len(parts) >= 4 else None
                 amount = body.get('amount', 0)
                 
                 cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
@@ -357,13 +561,8 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(200, dict(updated_customer))
                 
             elif path.startswith('/api/stock/') and not path.endswith('/deduct') and not path.endswith('/init'):
-                # /api/stock/{productId}
                 parts = path.split('/')
-                if len(parts) >= 4:
-                    product_id = unquote(parts[3])
-                else:
-                    self.send_json(400, {"error": "Invalid path"})
-                    return
+                product_id = unquote(parts[3]) if len(parts) >= 4 else None
                 
                 qty = body.get('quantity')
                 low_stock_threshold = body.get('low_stock_threshold')
@@ -386,7 +585,6 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 if updates:
                     updates.append("updated_at = ?")
                     params.append(now)
-                    
                     query = f"UPDATE stock SET {', '.join(updates)} WHERE product_id = ?"
                     params.append(product_id)
                     cursor.execute(query, tuple(params))
@@ -397,13 +595,8 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(200, dict(updated_stock))
             
             elif path.startswith('/api/customers/') and path.endswith('/custom-code'):
-                # /api/customers/{phone}/custom-code
                 parts = path.split('/')
-                if len(parts) >= 4:
-                    phone = unquote(parts[3])
-                else:
-                    self.send_json(400, {"error": "Invalid path"})
-                    return
+                phone = unquote(parts[3]) if len(parts) >= 4 else None
 
                 code = str(body.get('code', '')).strip().upper()
                 discount = int(body.get('discount', 0))
@@ -425,13 +618,8 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(200, dict(updated_customer))
 
             elif path.startswith('/api/messages/') and path.endswith('/read'):
-                # /api/messages/{id}/read
                 parts = path.split('/')
-                if len(parts) >= 4:
-                    msg_id = unquote(parts[3])
-                else:
-                    self.send_json(400, {"error": "Invalid path"})
-                    return
+                msg_id = unquote(parts[3]) if len(parts) >= 4 else None
 
                 cursor.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (msg_id,))
                 conn.commit()
@@ -446,12 +634,14 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             if 'conn' in locals():
                 conn.close()
 
-    def handle_api_delete(self, path):
+    # =================== API DELETE ===================
+    def handle_api_delete(self, path, query_params):
         try:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
+            # Müşteri Sil
             if path.startswith('/api/customers/'):
                 phone = unquote(path.split('/')[-1])
                 cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
@@ -464,6 +654,22 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("DELETE FROM messages WHERE customer_phone = ?", (phone,))
                 conn.commit()
                 self.send_json(200, {"message": f"Customer {phone} deleted successfully"})
+
+            # Yorum Sil (DELETE /api/reviews/{id} veya DELETE /api/reviews?id=123)
+            elif path.startswith('/api/reviews'):
+                review_id = None
+                if path.startswith('/api/reviews/'):
+                    review_id = unquote(path.split('/')[-1])
+                elif 'id' in query_params:
+                    review_id = query_params['id'][0]
+
+                if not review_id:
+                    self.send_json(400, {"error": "Review ID required"})
+                    return
+
+                cursor.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+                conn.commit()
+                self.send_json(200, {"message": f"Review {review_id} deleted successfully"})
 
             else:
                 self.send_json(404, {"error": "Not Found"})
@@ -481,7 +687,7 @@ if __name__ == '__main__':
         try:
             with socketserver.TCPServer(("", port), PitaMutfakHandler) as httpd:
                 print("=" * 60)
-                print("[PITA MUTFAK] Cevrimici Siparis & Yonetim Sistemi")
+                print("[PITA MUTFAK] Cevrimici Siparis, Dogrulama & Yonetim Sistemi")
                 print("=" * 60)
                 print(f"Sunucu basariyla calisiyor: http://localhost:{port}")
                 print(f"- Musteri Menusu   : http://localhost:{port}/")
