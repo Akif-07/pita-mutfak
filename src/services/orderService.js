@@ -293,10 +293,16 @@ async function apiCall(endpoint, method = 'GET', body = null) {
       options.body = JSON.stringify(body);
     }
     const response = await fetch(`${API_BASE}${endpoint}`, options);
+    if (!response.ok) {
+      return { ok: false, status: response.status, data: null };
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, status: response.status, data: null };
+    }
     const data = await response.json();
     return { ok: response.ok, status: response.status, data };
   } catch (error) {
-    console.error(`API Hatasi [${method} ${endpoint}]:`, error);
     return { ok: false, status: 0, data: { error: error.message } };
   }
 }
@@ -475,6 +481,7 @@ export const orderService = {
     // Yeni sipariş zili
     playOrderSound();
 
+    try {
       // Backend entegrasyonu: Stok düşme ve Müşteri veritabanı güncelleme
       if (orderInput.customerPhone) {
         registerCustomer(orderInput.customerName || 'Misafir', orderInput.customerPhone).catch(() => {});
