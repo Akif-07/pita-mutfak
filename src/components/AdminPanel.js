@@ -163,8 +163,10 @@ export function renderAdminPanel(container, state, onStateChange) {
   const menu = orderService.getMenu();
   const customers = state.customers || [];
   const stockList = state.stockList || [];
-  const activeVisitors = state.activeVisitors || [];
+  const activeVisitors = state.activeVisitors || [];   // Giriş yapmış
+  const activeGuests = state.activeGuests || [];        // Misafir
   const activeVisitorCount = activeVisitors.length;
+  const activeGuestCount = activeGuests.length;
 
   const customerSearchQuery = state.customerSearchQuery || '';
   const adminFilter = state.adminFilter || 'all';
@@ -261,14 +263,15 @@ export function renderAdminPanel(container, state, onStateChange) {
           <!-- Restoran Durumu & Çalışma Saatleri & Canlı Ziyaretçi & Sekmeler -->
           <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             
-            <!-- Canlı Ziyaretçi Rozeti -->
+            <!-- Canlı Ziyaretçi Rozeti (Giriş Yapmış ve Misafir Ayrı) -->
             <div class="flex items-center gap-2 bg-[#E8F8EE] border border-[#06C167]/30 text-emerald-950 px-3 py-2 rounded-xl text-xs font-black shadow-xs">
               <span class="relative flex h-2.5 w-2.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#06C167] opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#06C167]"></span>
               </span>
-              <span>🟢 Sitede Canlı: <strong class="text-[#06C167]">${activeVisitorCount} Kişi</strong></span>
+              <span>🟢 Canlı: <strong class="text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Üye</strong>, <strong class="text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Misafir</strong></span>
             </div>
+
 
             <!-- Restoran Açık / Kapalı Butonu -->
             <button 
@@ -333,20 +336,35 @@ export function renderAdminPanel(container, state, onStateChange) {
 
       <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
         
-        <!-- ÖZET İSTATİSTİK KARTLARI -->
-        <div class="grid grid-cols-2 sm:grid-cols-7 gap-3 sm:gap-4 mb-6">
+        <!-- ÖZET İSTATİSTİK KARTLARI (8 Kart: 2 Canlı Varlık + 6 Operasyon) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4 mb-6">
+
           
-          <!-- Canlı Ziyaretçi Kartı -->
+          <!-- Aktif Müşteri Kartı (Giriş Yapmış) -->
           <div class="bg-gradient-to-br from-[#E8F8EE] to-[#d8f6e3] rounded-2xl p-4 border border-[#06C167]/30 shadow-xs flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-md shadow-[#06C167]/20">
-              🌐
+              👤
             </div>
             <div>
               <span class="text-[10px] text-emerald-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] ${activeVisitorCount > 0 ? 'animate-ping' : ''}"></span>
                 Aktif Müşteri
               </span>
-              <div class="text-xl font-black text-[#06C167]" data-presence-count>${activeVisitorCount} Aktif</div>
+              <div class="text-xl font-black text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Giriş Yaptı</div>
+            </div>
+          </div>
+
+          <!-- Misafir Ziyaretçi Kartı -->
+          <div class="bg-gradient-to-br from-[#EEF0FF] to-[#e0e4ff] rounded-2xl p-4 border border-indigo-200 shadow-xs flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-indigo-500/20">
+              👁️
+            </div>
+            <div>
+              <span class="text-[10px] text-indigo-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 ${activeGuestCount > 0 ? 'animate-ping' : ''}"></span>
+                Misafir
+              </span>
+              <div class="text-xl font-black text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Ziyaretçi</div>
             </div>
           </div>
 
@@ -454,7 +472,8 @@ export function renderAdminPanel(container, state, onStateChange) {
         ${activeTab === 'menu' ? renderMenuManagement(menu, stockMap) : ''}
 
         <!-- =================== 3. SEKME: MÜŞTERİ YÖNETİMİ =================== -->
-        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery, activeVisitors) : ''}
+        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery, activeVisitors, activeGuests) : ''}
+
 
         <!-- =================== 4. SEKME: MÜŞTERİ YORUMLARI & PUANLAR =================== -->
         ${activeTab === 'reviews' ? renderAdminReviewsTab(state) : ''}
@@ -892,7 +911,7 @@ function renderMenuManagement(menu, stockMap) {
 }
 
 // Müşteri Yönetim Sekmesi (SQLite & Firestore Canlı Veritabanı)
-function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
+function renderCustomerManagement(customers, searchQuery, activeVisitors = [], activeGuests = []) {
   const query = (searchQuery || '').trim().toLowerCase();
   const filteredCustomers = customers.filter(c => {
     if (!query) return true;
@@ -904,60 +923,101 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
 
   const totalOrders = customers.reduce((sum, c) => sum + (c.total_orders || 0), 0);
   const totalSpent = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
-  const activeCount = activeVisitors.length;
+  const loggedInCount = activeVisitors.length;
+  const guestCount = activeGuests.length;
+  const totalOnline = loggedInCount + guestCount;
 
   return `
     <div class="space-y-6">
       
       <!-- CANLI ZİYARETÇİ & AKTİF KULLANICILAR VİTRİNİ -->
       <div class="bg-gradient-to-r from-gray-900 via-[#1a2e22] to-[#121212] text-white p-5 sm:p-6 rounded-3xl shadow-lg border border-[#06C167]/30">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
+        
+        <!-- Başlık & özet sayaçlar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-white/10">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-2xl bg-[#06C167] text-white flex items-center justify-center text-xl font-bold shadow-lg shadow-[#06C167]/30">
               🌐
             </div>
             <div>
-              <div class="flex items-center gap-2">
-                <h3 class="font-black text-base text-white">Sitede Şu An Aktif Oturum Açmış Kullanıcılar</h3>
-                <span class="bg-[#06C167] text-white text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${activeCount > 0 ? 'animate-pulse' : ''}">
-                  <span class="w-2 h-2 rounded-full bg-white"></span>
-                  ${activeCount} Aktif
-                </span>
-              </div>
-              <p class="text-xs text-gray-300">Giriş yapmış ve şu an sitenizde bulunan müşteriler</p>
+              <h3 class="font-black text-base text-white">Sitede Anlık Canlı Varlık</h3>
+              <p class="text-xs text-gray-300">Firestore heartbeat — 25 sn'de bir güncellenir, sekme kapanınca silinir</p>
             </div>
           </div>
-          <div class="text-right">
-            <span class="text-[11px] text-gray-400 block">Canlı Senkronizasyon</span>
-            <span class="text-xs font-bold text-[#06C167]">Firestore Heartbeat Aktif</span>
+          <div class="flex items-center gap-3">
+            <!-- Giriş yapmış sayacı -->
+            <div class="text-center bg-[#06C167]/20 border border-[#06C167]/40 rounded-2xl px-4 py-2">
+              <div class="text-2xl font-black text-[#06C167]"><span data-presence-loggedin>${loggedInCount}</span></div>
+              <div class="text-[10px] text-gray-300 font-bold flex items-center gap-1 justify-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] ${loggedInCount > 0 ? 'animate-ping' : ''}"></span>
+                Giriş Yapmış
+              </div>
+            </div>
+            <!-- Misafir sayacı -->
+            <div class="text-center bg-indigo-500/20 border border-indigo-400/40 rounded-2xl px-4 py-2">
+              <div class="text-2xl font-black text-indigo-400"><span data-presence-guests>${guestCount}</span></div>
+              <div class="text-[10px] text-gray-300 font-bold flex items-center gap-1 justify-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 ${guestCount > 0 ? 'animate-ping' : ''}"></span>
+                Misafir
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          ${activeVisitors.length === 0 ? `
-            <div class="col-span-full py-4 text-center text-xs text-gray-400">
-              😴 Şu an sitede aktif oturum açmış müşteri yok
-            </div>
-          ` : activeVisitors.map((v, i) => `
-            <div class="bg-white/10 hover:bg-white/15 transition backdrop-blur-md rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl ${v.isLoggedIn ? 'bg-[#06C167]' : 'bg-gray-700'} text-white flex items-center justify-center text-xs font-black shadow-inner">
-                  ${v.isLoggedIn ? '👤' : '👁️'}
-                </div>
-                <div>
-                  <div class="font-bold text-xs text-white">${v.name || `Ziyaretçi #${i + 1}`}</div>
-                  <div class="text-[10px] text-gray-400 font-medium">${v.phone || v.email || 'Giriş Yapmamış Misafir'}</div>
-                </div>
+        <!-- Giriş yapmış kullanıcılar listesi -->
+        <div class="mb-4">
+          <div class="text-[11px] font-black text-[#06C167] uppercase tracking-widest mb-2 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#06C167]"></span> Oturum Açmış Müşteriler
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            ${activeVisitors.length === 0 ? `
+              <div class="col-span-full py-3 text-center text-xs text-gray-500">
+                😴 Şu an oturum açmış müşteri yok
               </div>
-              <div class="text-right">
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${v.isLoggedIn ? 'bg-[#06C167]/20 text-[#06C167] border border-[#06C167]/40' : 'bg-white/10 text-gray-300'}">
+            ` : activeVisitors.map((v, i) => `
+              <div class="bg-[#06C167]/10 hover:bg-[#06C167]/15 transition rounded-xl p-3 border border-[#06C167]/20 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-lg bg-[#06C167] text-white flex items-center justify-center text-xs font-black">👤</div>
+                  <div>
+                    <div class="font-bold text-xs text-white">${v.name || 'Müşteri'}</div>
+                    <div class="text-[10px] text-gray-400">${v.phone || v.email || '—'}</div>
+                  </div>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#06C167]/20 text-[#06C167] border border-[#06C167]/30">
                   ${v.view || 'Menüde'}
                 </span>
-                <span class="block text-[9px] text-gray-400 mt-1">● Aktif</span>
               </div>
-            </div>
-          `).join('')}
+            `).join('')}
+          </div>
         </div>
+
+        <!-- Misafir ziyaretçiler listesi -->
+        <div>
+          <div class="text-[11px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-indigo-400"></span> Misafir Ziyaretçiler
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            ${activeGuests.length === 0 ? `
+              <div class="col-span-full py-3 text-center text-xs text-gray-500">
+                🔍 Şu an misafir ziyaretçi yok
+              </div>
+            ` : activeGuests.map((v, i) => `
+              <div class="bg-indigo-500/10 hover:bg-indigo-500/15 transition rounded-xl p-3 border border-indigo-400/20 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center text-xs font-black">👁️</div>
+                  <div>
+                    <div class="font-bold text-xs text-gray-300">Misafir #${i + 1}</div>
+                    <div class="text-[10px] text-gray-500">Giriş yapmamış</div>
+                  </div>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                  ${v.view || 'Menüde'}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
       </div>
 
       <!-- Özet Kartları -->

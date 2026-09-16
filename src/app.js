@@ -44,8 +44,10 @@ const state = {
   isAdminAddProductOpen: false,
   courierFilter: 'active',
   verificationResults: {},
-  activeVisitors: [] // Sitede anlık aktif olan canlı ziyaretçi ve müşteriler
+  activeVisitors: [], // Giriş yapmış aktif kullanıcılar
+  activeGuests: []    // Misafir (giriş yapmamış) ziyaretçiler
 };
+
 
 // Müşteri Özel Mesajlarını Yükleme Fonksiyonu
 async function loadCustomerMessages() {
@@ -230,56 +232,80 @@ orderService.subscribeReviews((reviews) => {
   render();
 });
 
-// Canlı Ziyaretçi & Aktif Kullanıcı Senkronizasyonu
-orderService.subscribePresence((activeVisitors) => {
-  state.activeVisitors = Array.isArray(activeVisitors) ? activeVisitors : [];
-  render();
-  // Admin görünümündeyken presence kartını in-place güncelle (full re-render beklemeden)
+// Canlı Ziyaretçi & Aktif Kullanıcı Senkronizasyonu (giriş yapmış + misafir ayrı)
+orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
+  const prevLoggedInCount = (state.activeVisitors || []).length;
+  const prevGuestCount = (state.activeGuests || []).length;
+  state.activeVisitors = loggedIn;       // Giriş yapmış kullanıcılar
+  state.activeGuests = guests;           // Misafir ziyaretçiler
+
+  // In-place DOM güncelleme (full re-render beklemeden anlık ve pürüzsüz)
   try {
-    const countEls = document.querySelectorAll('[data-presence-count]');
-    countEls.forEach(el => { el.textContent = state.activeVisitors.length + ' Aktif'; });
+    document.querySelectorAll('[data-presence-loggedin]').forEach(el => {
+      el.textContent = loggedIn.length;
+    });
+    document.querySelectorAll('[data-presence-guests]').forEach(el => {
+      el.textContent = guests.length;
+    });
+    document.querySelectorAll('[data-presence-total]').forEach(el => {
+      el.textContent = (loggedIn.length + guests.length);
+    });
   } catch (e) {}
+
+  // Eğer admin 'Müşteriler' sekmesindeyse veya sayı değiştiyse tabloyu tazele
+  if (state.currentView === 'admin' && (state.adminActiveTab === 'customers' || prevLoggedInCount !== loggedIn.length || prevGuestCount !== guests.length)) {
+    render();
+  }
 });
 
-
-// Canlı Varlık Pingi — Sadece giriş yapmış kullanıcılar için
+// Canlı Varlık Pingi — her kullanıcı için (misafir dahil), 15 saniyede bir
 let presenceInterval = null;
 function startPresence() {
-  if (!state.currentUser) return;
-  orderService.pingPresence(state.currentUser);
+  // Admin paneli açıkken admin kullanıcısı ziyaretçi/müşteri olarak sayılmaz
+  if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+    orderService.removePresence();
+    return;
+  }
+  orderService.pingPresence(state.currentUser || null);
   if (presenceInterval) clearInterval(presenceInterval);
   presenceInterval = setInterval(() => {
-    if (state.currentUser) {
-      orderService.pingPresence(state.currentUser);
-    } else {
-      clearInterval(presenceInterval);
-      presenceInterval = null;
+    if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+      orderService.removePresence();
+      return;
     }
-  }, 25000);
+    orderService.pingPresence(state.currentUser || null);
+  }, 15000);
 }
 startPresence();
 
-// Sekme kapanınca veya sayfa gizlenince presence'ı Firestore'dan sil
+// Sekme kapanınca veya sayfa arka plana atılınca presence'ı temizle
 window.addEventListener('beforeunload', () => {
-  if (state.currentUser) {
-    orderService.removePresence();
-  }
+  orderService.removePresence();
+});
+window.addEventListener('pagehide', () => {
+  orderService.removePresence();
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && state.currentUser) {
+  if (document.visibilityState === 'hidden') {
     orderService.removePresence();
-  } else if (document.visibilityState === 'visible' && state.currentUser) {
-    orderService.pingPresence(state.currentUser);
+  } else if (document.visibilityState === 'visible') {
+    startPresence();
   }
 });
-
 
 // Hash Değişimi Dinleyici
 window.addEventListener('hashchange', () => {
   syncViewFromHash();
+  // Eğer admin paneline geçildiyse presence'tan düş, müşteri arayüzüne dönüldüyse ping başlat
+  if (window.location.hash.includes('admin')) {
+    orderService.removePresence();
+  } else {
+    startPresence();
+  }
   render();
 });
+
 
 // Başlangıç Yüklemesi
 syncViewFromHash();

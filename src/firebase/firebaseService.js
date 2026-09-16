@@ -413,31 +413,50 @@ function getSessionId() {
   }
 }
 
+// Presence için anlık yerel kanal (aynı tarayıcı sekmeleri arasında 0ms gecikme)
+let presenceChannel = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    presenceChannel = new BroadcastChannel('pita_mutfak_presence_ch');
+  }
+} catch (e) {}
+
 export async function pingPresence(user = null) {
-  // Sadece giriş yapmış kullanıcılar için ping at
-  if (!user) return false;
   try {
+    // Admin paneli açıkken admin kullanıcısı ziyaretçi/müşteri olarak sayılmaz
+    if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+      return false;
+    }
+
+    const sid = getSessionId();
+    const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
+    let viewName = 'Menüde';
+    if (hash.includes('kurye') || hash.includes('courier')) viewName = 'Kurye Paneli';
+
+    const presenceData = {
+      id: sid,
+      lastSeen: Date.now(),
+      name: user ? (user.name || 'Müşteri') : 'Misafir',
+      email: user ? (user.email || '') : '',
+      phone: user ? (user.phone || '') : '',
+      isLoggedIn: !!user,
+      view: viewName,
+      _updatedAt: new Date().toISOString()
+    };
+
+    // Aynı cihaz sekmelerine anında bildir
+    if (presenceChannel) {
+      try {
+        presenceChannel.postMessage({ type: 'PRESENCE_PING', data: presenceData });
+      } catch (e) {}
+    }
+
+    // Firestore bulut veritabanına yaz
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc } = ctx;
-    const sid = getSessionId();
     const presenceRef = doc(db, "presence", sid);
-    const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
-    
-    let viewName = 'Menüde';
-    if (hash.includes('admin')) viewName = 'Admin Paneli';
-    else if (hash.includes('kurye') || hash.includes('courier')) viewName = 'Kurye Paneli';
-
-    await setDoc(presenceRef, {
-      id: sid,
-      lastSeen: Date.now(),
-      name: user.name || 'Müşteri',
-      email: user.email || '',
-      phone: user.phone || '',
-      isLoggedIn: true,
-      view: viewName,
-      _updatedAt: new Date().toISOString()
-    }, { merge: true });
+    await setDoc(presenceRef, presenceData, { merge: true });
     return true;
   } catch (e) {
     return false;
@@ -446,10 +465,18 @@ export async function pingPresence(user = null) {
 
 export async function removePresence() {
   try {
+    const sid = getSessionId();
+    
+    // Aynı cihaz sekmelerine anında silindiğini bildir
+    if (presenceChannel) {
+      try {
+        presenceChannel.postMessage({ type: 'PRESENCE_REMOVE', id: sid });
+      } catch (e) {}
+    }
+
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, deleteDoc } = ctx;
-    const sid = getSessionId();
     const presenceRef = doc(db, "presence", sid);
     await deleteDoc(presenceRef);
     return true;
@@ -458,33 +485,83 @@ export async function removePresence() {
   }
 }
 
+// subscribePresence — { loggedIn: [...], guests: [...] } objesi döndürür
+// Sayfa yenilemeye ASLA gerek kalmadan anlık ve otomatik güncellenir
 export function subscribePresence(callback) {
-  let unsubscribe = () => {};
+  let unsubscribeFirestore = () => {};
+  const activeSessionsMap = new Map();
+
+  function evaluateAndEmit() {
+    const now = Date.now();
+    const cutoff = now - (35 * 1000); // Son 35 saniye içinde aktif olanlar
+    const loggedIn = [];
+    const guests = [];
+
+    activeSessionsMap.forEach((data, id) => {
+      if (!data || !data.lastSeen || data.lastSeen < cutoff) {
+        activeSessionsMap.delete(id);
+        return;
+      }
+      if (data.isLoggedIn) {
+        loggedIn.push(data);
+      } else {
+        guests.push(data);
+      }
+    });
+
+    callback({ loggedIn, guests });
+  }
+
+  // 1. Yerel BroadcastChannel Dinleyici (Aynı tarayıcıda 0ms tepki)
+  const handleChannelMsg = (event) => {
+    const msg = event?.data;
+    if (!msg) return;
+    if (msg.type === 'PRESENCE_PING' && msg.data) {
+      activeSessionsMap.set(msg.data.id, msg.data);
+      evaluateAndEmit();
+    } else if (msg.type === 'PRESENCE_REMOVE' && msg.id) {
+      activeSessionsMap.delete(msg.id);
+      evaluateAndEmit();
+    }
+  };
+
+  if (presenceChannel) {
+    presenceChannel.addEventListener('message', handleChannelMsg);
+  }
+
+  // 2. Firestore Cloud Dinleyici (Farklı cihazlar ve uzak kullanıcılar için)
   getFirestoreContext().then(ctx => {
     if (!ctx || !ctx.db) return;
     const { db, collection, onSnapshot } = ctx;
     const colRef = collection(db, "presence");
-    unsubscribe = onSnapshot(colRef, (snapshot) => {
-      const now = Date.now();
-      const cutoff = now - (90 * 1000); // Son 90 saniye içinde aktif olanlar
-      const activeSessions = [];
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        // Sadece giriş yapmış ve son 90 saniyede aktif olan kullanıcıları göster
-        if (data && data.isLoggedIn && data.lastSeen && data.lastSeen >= cutoff) {
-          activeSessions.push(data);
+    unsubscribeFirestore = onSnapshot(colRef, (snapshot) => {
+      activeSessionsMap.clear();
+      snapshot.forEach(d => {
+        const data = d.data();
+        if (data && data.id) {
+          activeSessionsMap.set(data.id, data);
         }
       });
-      callback(activeSessions);
+      evaluateAndEmit();
     }, (err) => {
       console.warn("Presence subscription error:", err);
     });
   });
 
+  // 3. Otomatik Zamanlayıcı: Sekme kapanınca ya da sinyal kesilince
+  // sayfa yenilemeye gerek kalmadan 2 saniyede bir süresi dolanları anında temizler
+  const autoCleanupTimer = setInterval(() => {
+    evaluateAndEmit();
+  }, 2000);
+
   return () => {
-    if (typeof unsubscribe === 'function') {
-      try { unsubscribe(); } catch (e) {}
+    if (typeof unsubscribeFirestore === 'function') {
+      try { unsubscribeFirestore(); } catch (e) {}
     }
+    if (presenceChannel) {
+      try { presenceChannel.removeEventListener('message', handleChannelMsg); } catch (e) {}
+    }
+    clearInterval(autoCleanupTimer);
   };
 }
 
