@@ -1717,7 +1717,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         } else {
           googleBtn.disabled = false;
           googleBtn.innerHTML = originalHTML;
-          if (res.error && !res.error.includes('popup-closed') && !res.error.includes('user-cancelled')) {
+          if (res.error && !res.error.includes('popup-closed') && !res.error.includes('user-cancelled') && !res.error.includes('penceresi kapatıldı')) {
             onStateChange({ authError: res.error || 'Google ile giriş yapılamadı.' });
           }
         }

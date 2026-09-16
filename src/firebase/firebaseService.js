@@ -357,9 +357,21 @@ export async function signInWithGoogle() {
     };
   } catch (error) {
     console.warn("Firebase Google Sign-In hatası:", error);
+    let errorMsg = 'Google ile giriş yapılamadı.';
+    if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+      errorMsg = 'Yetkisiz Alan Adı (auth/unauthorized-domain): "pita-mutfak.vercel.app" adresi Firebase Console > Authentication > Settings > Authorized Domains listesine eklenmelidir.';
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      errorMsg = 'Google giriş penceresi kapatıldı.';
+    } else if (error.code === 'auth/popup-blocked') {
+      errorMsg = 'Tarayıcınız açılır pencereyi (popup) engelledi. Lütfen izin veriniz.';
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+
     return {
       ok: false,
-      error: error.message || 'Google ile giriş yapılamadı'
+      error: errorMsg,
+      code: error.code
     };
   }
 }
