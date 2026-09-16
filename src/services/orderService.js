@@ -677,25 +677,33 @@ export const orderService = {
     });
 
     saveOrders(updatedOrders, 'ISSUE_REPORTED', updatedOrder);
+    if (updatedOrder) {
+      syncOrderToFirestore(updatedOrder).catch(() => {});
+    }
     return updatedOrder;
   },
 
   // 7. Admin Sorun Çözüldü Olarak İşaretleme
   resolveIssue(orderId) {
     const orders = getStoredOrders();
+    let updatedOrder = null;
     const updatedOrders = orders.map(order => {
       if (order.id === orderId && order.issueReport) {
-        return {
+        updatedOrder = {
           ...order,
           issueReport: {
             ...order.issueReport,
             status: 'resolved'
           }
         };
+        return updatedOrder;
       }
       return order;
     });
-    saveOrders(updatedOrders, 'ISSUE_RESOLVED');
+    saveOrders(updatedOrders, 'ISSUE_RESOLVED', updatedOrder);
+    if (updatedOrder) {
+      syncOrderToFirestore(updatedOrder).catch(() => {});
+    }
   },
 
   // 8. Kurye 8 Haneli Kod Doğrulama & Teslimat (Kurye Tarafı)
