@@ -393,104 +393,6 @@ export function renderCustomerView(container, state, onStateChange) {
 
       </main>
 
-      <!-- ================= SITE FOOTER (YASAL BİLGİLER & HUKUKİ LİNKLER) ================= -->
-      <footer class="bg-white border-t border-gray-200 mt-16 pt-12 pb-24 sm:pb-12 text-[#121212]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            
-            <!-- Restoran Markası & Hakkımızda -->
-            <div class="md:col-span-1 space-y-3">
-              <div class="flex items-center gap-2">
-                <div class="w-9 h-9 rounded-2xl bg-[#06C167] text-white flex items-center justify-center font-bold shadow-md shadow-[#06C167]/20">
-                  🍲
-                </div>
-                <span class="text-lg font-black text-[#121212]">Pita <span class="text-[#06C167]">Mutfak</span></span>
-              </div>
-              <p class="text-xs text-gray-500 leading-relaxed">
-                Tavuk pilav, taze kremalı makarnalar ve ağır ateşte pişen güveç yemekleriyle kapınıza sıcacık lezzet.
-              </p>
-              <div class="flex items-center gap-2 text-xs font-bold text-[#06C167] bg-[#E8F8EE] px-3 py-1.5 rounded-xl inline-flex">
-                <span class="w-2 h-2 rounded-full bg-[#06C167] animate-pulse"></span>
-                <span>${restaurantSettings.isOpen ? 'Restoranımız Siparişe Açık' : 'Şu Anda Kapalı'}</span>
-              </div>
-            </div>
-
-            <!-- Çalışma Saatleri & İletişim -->
-            <div>
-              <h4 class="text-xs font-black uppercase tracking-wider text-gray-900 mb-3 flex items-center gap-1.5">
-                <span>⏰</span>
-                <span>Çalışma & Teslimat</span>
-              </h4>
-              <ul class="space-y-2 text-xs text-gray-600 font-medium">
-                <li>Açılış - Kapanış: <strong class="text-gray-900">${restaurantSettings.openingHours || '10:00 - 23:00'}</strong></li>
-                <li>Hızlı & Sıcak Teslimat</li>
-                <li>8 Haneli Güvenlik Kodu ile Doğrulama</li>
-                <li>Kapıda Nakit veya EFT/Havale</li>
-              </ul>
-            </div>
-
-            <!-- Hızlı Menü Bağlantıları -->
-            <div>
-              <h4 class="text-xs font-black uppercase tracking-wider text-gray-900 mb-3 flex items-center gap-1.5">
-                <span>🍽️</span>
-                <span>Hızlı Menü</span>
-              </h4>
-              <ul class="space-y-2 text-xs text-gray-600 font-medium">
-                <li><a href="#/" class="hover:text-[#06C167] transition">Tüm Menü & Lezzetler</a></li>
-                <li><button type="button" id="footer-reviews-btn" class="hover:text-[#06C167] transition cursor-pointer">Misafir Değerlendirmeleri</button></li>
-                <li><button type="button" id="footer-login-btn" class="hover:text-[#06C167] transition cursor-pointer">${currentUser ? 'Hesabım & Siparişlerim' : 'Giriş Yap / Kayıt Ol'}</button></li>
-                <li><a href="#/admin" class="hover:text-[#06C167] transition">Yönetici Masası</a></li>
-              </ul>
-            </div>
-
-            <!-- Hukuki Belgeler & KVKK -->
-            <div>
-              <h4 class="text-xs font-black uppercase tracking-wider text-gray-900 mb-3 flex items-center gap-1.5">
-                <span>⚖️</span>
-                <span>Yasal & Hukuki Belgeler</span>
-              </h4>
-              <ul class="space-y-2 text-xs text-gray-600 font-medium">
-                <li>
-                  <button type="button" class="hover:text-[#06C167] transition cursor-pointer flex items-center gap-1.5" data-open-legal="kvkk">
-                    <span>🛡️</span>
-                    <span class="underline">KVKK Aydınlatma Metni</span>
-                  </button>
-                </li>
-                <li>
-                  <button type="button" class="hover:text-[#06C167] transition cursor-pointer flex items-center gap-1.5" data-open-legal="terms">
-                    <span>📜</span>
-                    <span class="underline">Kullanıcı Sözleşmesi</span>
-                  </button>
-                </li>
-                <li>
-                  <button type="button" class="hover:text-[#06C167] transition cursor-pointer flex items-center gap-1.5" data-open-legal="privacy">
-                    <span>🔒</span>
-                    <span class="underline">Gizlilik Politikası</span>
-                  </button>
-                </li>
-                <li>
-                  <button type="button" class="hover:text-[#06C167] transition cursor-pointer flex items-center gap-1.5" data-open-legal="consent">
-                    <span>✉️</span>
-                    <span class="underline">Ticari Elektronik İleti İzni</span>
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-          </div>
-
-          <!-- Alt Çizgi & Güvenlik Rozeti -->
-          <div class="pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-gray-400">
-            <div>
-              © 2026 Pita Mutfak. Tüm hakları saklıdır.
-            </div>
-            <div class="flex items-center gap-2 text-[#06C167] font-bold">
-              <span>🔒 256-Bit SSL & 6698 Sayılı KVKK Uyumlu Güvenli Altyapı</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
       <!-- Ürün Detay & Özelleştirme Modalı -->
       ${selectedProduct ? renderProductModal(selectedProduct) : ''}
 
@@ -521,167 +423,10 @@ export function renderCustomerView(container, state, onStateChange) {
       <!-- Sipariş Değerlendirme Modalı -->
       ${state.reviewingOrderId ? renderOrderReviewModal(state.reviewingOrderId, state) : ''}
 
-      <!-- Yasal Belgeler & KVKK Aydınlatma Metni Modalı -->
-      ${state.isLegalModalOpen ? renderLegalModal(state) : ''}
-
     </div>
   `;
 
   attachCustomerEventListeners(container, state, onStateChange, menu);
-}
-
-// =================== YASAL BELGELER & KVKK AYDINLATMA METNİ MODALI ===================
-function renderLegalModal(state) {
-  const activeTab = state.activeLegalTab || 'kvkk'; // 'kvkk' | 'terms' | 'privacy' | 'consent'
-
-  return `
-    <div id="legal-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-        
-        <!-- Header -->
-        <div class="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
-          <div class="flex items-center gap-2.5">
-            <div class="w-10 h-10 rounded-2xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-sm shadow-[#06C167]/30">
-              ⚖️
-            </div>
-            <div>
-              <h3 class="font-black text-base text-gray-900">Yasal Bilgilendirme & Hukuki Belgeler</h3>
-              <p class="text-[11px] text-gray-500">Pita Mutfak KVKK, Gizlilik ve Kullanıcı Hakları</p>
-            </div>
-          </div>
-          <button id="close-legal-modal-btn" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-bold transition cursor-pointer">✕</button>
-        </div>
-
-        <!-- Sekmeler -->
-        <div class="flex bg-gray-50 px-4 pt-2 border-b border-gray-200 overflow-x-auto no-scrollbar gap-1 text-xs font-extrabold">
-          <button 
-            type="button"
-            data-legal-tab="kvkk" 
-            class="px-3.5 py-2.5 rounded-t-xl transition cursor-pointer whitespace-nowrap ${activeTab === 'kvkk' ? 'bg-white text-[#06C167] border-t-2 border-[#06C167] shadow-2xs' : 'text-gray-500 hover:text-gray-800'}"
-          >
-            🛡️ KVKK Aydınlatma Metni
-          </button>
-          <button 
-            type="button"
-            data-legal-tab="terms" 
-            class="px-3.5 py-2.5 rounded-t-xl transition cursor-pointer whitespace-nowrap ${activeTab === 'terms' ? 'bg-white text-[#06C167] border-t-2 border-[#06C167] shadow-2xs' : 'text-gray-500 hover:text-gray-800'}"
-          >
-            📜 Kullanıcı Sözleşmesi
-          </button>
-          <button 
-            type="button"
-            data-legal-tab="privacy" 
-            class="px-3.5 py-2.5 rounded-t-xl transition cursor-pointer whitespace-nowrap ${activeTab === 'privacy' ? 'bg-white text-[#06C167] border-t-2 border-[#06C167] shadow-2xs' : 'text-gray-500 hover:text-gray-800'}"
-          >
-            🔒 Gizlilik Politikası
-          </button>
-          <button 
-            type="button"
-            data-legal-tab="consent" 
-            class="px-3.5 py-2.5 rounded-t-xl transition cursor-pointer whitespace-nowrap ${activeTab === 'consent' ? 'bg-white text-[#06C167] border-t-2 border-[#06C167] shadow-2xs' : 'text-gray-500 hover:text-gray-800'}"
-          >
-            ✉️ Ticari İleti & Açık Rıza
-          </button>
-        </div>
-
-        <!-- Metin İçeriği (Kaydırılabilir) -->
-        <div class="p-6 overflow-y-auto space-y-4 text-xs text-gray-700 leading-relaxed max-h-[60vh]">
-          ${activeTab === 'kvkk' ? `
-            <div class="space-y-3">
-              <h4 class="font-black text-sm text-gray-900 border-b pb-1">6698 SAYILI KİŞİSEL VERİLERİN KORUNMASI KANUNU (KVKK) AYDINLATMA METNİ</h4>
-              <p><strong>1. Veri Sorumlusu:</strong> Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, veri sorumlusu sıfatıyla <strong>Pita Mutfak</strong> tarafından hazırlanmıştır.</p>
-              
-              <p><strong>2. İşlenen Kişisel Veri Kategorileri:</strong></p>
-              <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                <li><strong>Kimlik Bilgileri:</strong> Adınız, Soyadınız.</li>
-                <li><strong>İletişim Bilgileri:</strong> Telefon numaranız, e-posta adresiniz, teslimat adresiniz.</li>
-                <li><strong>Müşteri İşlem Bilgileri:</strong> Sipariş geçmişiniz, sipariş ve ürün notlarınız, sepet içeriği, ödeme türü tercihi, 8 haneli teslimat güvenlik kodları.</li>
-                <li><strong>İşlem Güvenliği Bilgileri:</strong> Giriş/çıkış zaman damgaları, oturum çerezleri, IP ve cihaz bilgileri.</li>
-                <li><strong>Pazarlama & Rıza Bilgileri:</strong> Açık rıza beyanınız ve kampanya tercih durumu.</li>
-              </ul>
-
-              <p><strong>3. Kişisel Verilerin İşlenme Amaçları:</strong></p>
-              <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                <li>Siparişlerinizin eksiksiz hazırlanması ve mutfak süreçlerinin yürütülmesi,</li>
-                <li>Siparişinizin kurye aracılığıyla adresinize güvenle ulaştırılması,</li>
-                <li>Adres teyidi, sipariş durumu veya teslimat gecikmelerinde sizinle iletişime geçilmesi,</li>
-                <li>Müşteri şikayet, talep ve geri bildirimlerinin değerlendirilmesi ve çözümlenmesi,</li>
-                <li>Yasal düzenlemelerden doğan saklama ve muhasebe yükümlülüklerinin yerine getirilmesi,</li>
-                <li>Açık rızanızın bulunması halinde size özel indirim, kampanya ve kupon fırsatlarının sunulması.</li>
-              </ul>
-
-              <p><strong>4. Kişisel Verilerin Toplanma Yöntemi ve Hukuki Sebebi:</strong></p>
-              <p>Kişisel verileriniz, web sitemiz ve mobil arayüzümüz üzerinden elektronik ortamda toplanmaktadır. Bu veriler, KVKK'nın 5. maddesi kapsamında; <em>"Bir sözleşmenin kurulması veya ifasıyla doğrudan doğruya ilgili olması (Sipariş ve Teslimat)"</em>, <em>"Veri sorumlusunun hukuki yükümlülüğünü yerine getirebilmesi"</em> ve <em>"İlgili kişinin temel hak ve özgürlüklerine zarar vermemek kaydıyla meşru menfaatlerimiz"</em> hukuki sebeplerine dayalı olarak işlenmektedir. Ticari elektronik ileti gönderimleri ise yalnızca <em>"Açık Rıza"</em> hukuki sebebine dayanmaktadır.</p>
-
-              <p><strong>5. Kişisel Verilerin Aktarımı:</strong></p>
-              <p>Kişisel verileriniz, yalnızca siparişinizin teslim edilmesi amacıyla yetkili kurye personeline ve güvenli bulut depolama altyapısı sağlayıcımız olan Google Firebase altyapısına aktarılmaktadır. Verileriniz hiçbir koşulda üçüncü taraflara pazarlama amacıyla satılmaz ve devredilmez.</p>
-
-              <p><strong>6. İlgili Kişinin Hakları (KVKK Madde 11):</strong></p>
-              <p>KVKK'nın 11. maddesi uyarınca; verilerinizin işlenip işlenmediğini öğrenme, işlenmişse bilgi talep etme, eksik/yanlış işlenmişse düzeltilmesini isteme, silinmesini veya yok edilmesini talep etme ve dilediğiniz zaman ticari ileti onayınızı geri alma haklarına sahipsiniz.</p>
-            </div>
-          ` : activeTab === 'terms' ? `
-            <div class="space-y-3">
-              <h4 class="font-black text-sm text-gray-900 border-b pb-1">PİTA MUTFAK KULLANICI & MESAFELİ HİZMET SÖZLEŞMESİ</h4>
-              <p><strong>1. Taraflar:</strong> İşbu sözleşme, Pita Mutfak ("Restoran") ile platform üzerinden sipariş veren veya üye olan kullanıcı ("Müşteri") arasında akdedilmiştir.</p>
-              
-              <p><strong>2. Sözleşmenin Konusu:</strong> Müşterinin platform üzerinden elektronik ortamda siparişini verdiği gıda ürünlerinin satışı, hazırlanması ve teslimine ilişkin hak ve yükümlülüklerin belirlenmesidir.</p>
-
-              <p><strong>3. Sipariş ve Ödeme Koşulları:</strong></p>
-              <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                <li>Müşteri, sipariş verirken bildirdiği adres, telefon ve isim bilgilerinin doğruluğundan sorumludur.</li>
-                <li>Ödemeler kapıda nakit veya banka havalesi/EFT yöntemiyle sipariş onayında belirtilen toplam tutar üzerinden tahsil edilir.</li>
-              </ul>
-
-              <p><strong>4. Teslimat Güvenliği:</strong></p>
-              <p>Teslimatın doğru kişiye yapılabilmesi ve suistimallerin önlenmesi amacıyla sistem tarafından üretilen <strong>8 Haneli Güvenlik Teslimat Kodu</strong> kuryeye beyan edilerek teslimat tamamlanır.</p>
-
-              <p><strong>5. İptal, İade ve Cayma Hakkı:</strong></p>
-              <p>6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği'nin 15. maddesi uyarınca; <em>"Çabuk bozulabilen veya son kullanma tarihi geçme ihtimali olan malların teslimine ilişkin sözleşmelerde cayma hakkı kullanılamaz."</em> Bu doğrultuda, hazırlanmaya başlanan sıcak yemek siparişlerinde keyfi iptal kabul edilmemektedir. Ancak siparişin eksik, hatalı veya hasarlı gelmesi durumunda Müşteri, sorun bildirme ekranı üzerinden anında restoran ile iletişime geçebilir; telafi veya iade derhal sağlanır.</p>
-
-              <p><strong>6. Yürürlük:</strong> Müşteri, sipariş verirken veya kayıt olurken ilgili onay kutucuğunu işaretlediğinde bu sözleşmenin tüm hükümlerini kabul etmiş sayılır.</p>
-            </div>
-          ` : activeTab === 'privacy' ? `
-            <div class="space-y-3">
-              <h4 class="font-black text-sm text-gray-900 border-b pb-1">GİZLİLİK POLİTİKASI & GÜVENLİK ESASLARI</h4>
-              <p>Pita Mutfak olarak misafirlerimizin kişisel gizliliğine ve bilgi güvenliğine en üst düzeyde önem vermekteyiz.</p>
-
-              <p><strong>1. Veri Güvenliği:</strong> Sitemiz üzerinden iletilen tüm veriler SSL/TLS şifreleme protokolleri ile korunmaktadır. Müşteri şifreleri ve hassas kimlik bilgileri yetkisiz erişimlere karşı korumalı veritabanlarında saklanır.</p>
-
-              <p><strong>2. Çerez (Cookie) Kullanımı:</strong> Sitemizde yalnızca oturumunuzun açık kalmasını sağlamak, sepet içeriğinizi hatırlamak ve kullanıcı deneyiminizi kolaylaştırmak amacıyla teknik zorunlu çerezler kullanılmaktadır.</p>
-
-              <p><strong>3. Üçüncü Taraf Entegrasyonları:</strong> Google ile Giriş yapılması durumunda yalnızca Google profilinizden sağlanan ad, soyad ve e-posta bilgisi oturum açma amacıyla kullanılmakta, Google şifreniz hiçbir şekilde sistemimize kaydedilmemektedir.</p>
-
-              <p><strong>4. Değişiklikler:</strong> Gizlilik politikamız yasal mevzuat gereksinimlerine göre güncellenebilir ve güncel metin her zaman bu sayfada yayınlanır.</p>
-            </div>
-          ` : `
-            <div class="space-y-3">
-              <h4 class="font-black text-sm text-gray-900 border-b pb-1">TİCARİ ELEKTRONİK İLETİ AÇIK RIZA METNİ</h4>
-              <p>6563 sayılı Elektronik Ticaretin Düzenlenmesi Hakkında Kanun ve Ticari İletişim ve Ticari Elektronik İletiler Hakkında Yönetmelik kapsamında;</p>
-
-              <p>Pita Mutfak tarafından sunulan özel indirimler, kupon kodları, dönemsel kampanyalar, yeni menü lezzetleri ve promosyonlar hakkında tarafıma <strong>SMS ve E-posta</strong> kanalları üzerinden ticari elektronik ileti gönderilmesine özgür irademle açık rıza veriyorum.</p>
-
-              <div class="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-2xl text-xs">
-                💡 <strong>Dilediğiniz Zaman İptal Hakkı:</strong> Ticari elektronik ileti onayınızı hiçbir gerekçe göstermeksizin ve tamamen ücretsiz olarak dilediğiniz zaman bildirim ayarlarınızdan veya restoranımıza ileterek iptal edebilirsiniz.
-              </div>
-            </div>
-          `}
-        </div>
-
-        <!-- Footer / Buton -->
-        <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-          <span class="text-[11px] text-gray-500 font-medium">Son Güncelleme: 17 Eylül 2026</span>
-          <button 
-            type="button"
-            id="close-legal-modal-footer-btn" 
-            class="bg-[#06C167] hover:bg-[#05a557] text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-md shadow-[#06C167]/20 transition cursor-pointer"
-          >
-            Anladım & Kapat
-          </button>
-        </div>
-
-      </div>
-    </div>
-  `;
 }
 
 // Giriş Yap, Kayıt Ol & Doğrulama Modalı
@@ -878,38 +623,6 @@ function renderLoginModal(state) {
                   placeholder="••••••••" 
                   class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
                 />
-              </div>
-
-              <!-- KVKK, Kullanıcı Sözleşmesi ve Açık Rıza Onay Kutuları -->
-              <div class="pt-1 space-y-2.5 text-[11px] text-gray-600 bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
-                <!-- Zorunlu Onay -->
-                <label class="flex items-start gap-2.5 cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    name="terms_accepted" 
-                    id="terms-accepted-checkbox"
-                    required 
-                    class="mt-0.5 w-4 h-4 rounded text-[#06C167] focus:ring-[#06C167] accent-[#06C167] cursor-pointer shrink-0" 
-                  />
-                  <span class="leading-relaxed text-gray-700">
-                    <button type="button" class="text-[#06C167] font-extrabold underline hover:text-[#05a557] cursor-pointer" data-open-legal="terms">Kullanıcı Sözleşmesi</button>, 
-                    <button type="button" class="text-[#06C167] font-extrabold underline hover:text-[#05a557] cursor-pointer" data-open-legal="privacy">Gizlilik Politikası</button> ve 
-                    <button type="button" class="text-[#06C167] font-extrabold underline hover:text-[#05a557] cursor-pointer" data-open-legal="kvkk">KVKK Aydınlatma Metni</button>'ni okudum, anladım ve kabul ediyorum. <strong class="text-rose-600">*</strong>
-                  </span>
-                </label>
-
-                <!-- Ticari Elektronik İleti Açık Rıza (İsteğe Bağlı) -->
-                <label class="flex items-start gap-2.5 cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    name="marketing_consent" 
-                    id="marketing-consent-checkbox"
-                    class="mt-0.5 w-4 h-4 rounded text-[#06C167] focus:ring-[#06C167] accent-[#06C167] cursor-pointer shrink-0" 
-                  />
-                  <span class="leading-relaxed text-gray-500">
-                    Pita Mutfak tarafından sunulan özel indirim, kupon ve kampanyalardan SMS ve E-posta yoluyla haberdar olmak istiyorum (<button type="button" class="text-[#06C167] font-bold underline hover:text-[#05a557] cursor-pointer" data-open-legal="consent">Açık Rıza Metni</button>).
-                  </span>
-                </label>
               </div>
 
               <button 
@@ -1480,11 +1193,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
             </div>
           ` : ''}
 
-          <div class="text-[11px] text-gray-500 text-center leading-relaxed pt-2">
-            Siparişinizi tamamlayarak <button type="button" class="text-[#06C167] font-bold underline hover:text-[#05a557] cursor-pointer" data-open-legal="terms">Kullanıcı Sözleşmesi</button> ve <button type="button" class="text-[#06C167] font-bold underline hover:text-[#05a557] cursor-pointer" data-open-legal="kvkk">KVKK Aydınlatma Metni</button>'ni kabul etmiş sayılırsınız.
-          </div>
-
-          <div class="pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
+          <div class="pt-4 border-t border-gray-100 flex items-center justify-between gap-4">
             <div>
               <span class="text-xs text-gray-400 block">Ödenecek Tutar</span>
               <span class="text-xl font-black text-[#06C167]">₺${cartTotal}</span>
@@ -2003,15 +1712,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           } catch (e) {
             console.warn("Google profili Firestore senkronizasyon:", e);
           }
-          
-          onStateChange({
-            currentUser: customerProfile,
-            isLoginModalOpen: false,
-            authError: '',
-            loginNotice: '',
-            pendingVerificationData: null,
-            firstOrderDiscountApplied: true
-          });
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2040,13 +1740,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const email = (formData.get('email') || '').trim().toLowerCase();
       const phone = formData.get('phone').trim();
       const password = formData.get('password').trim();
-      const termsAccepted = formData.get('terms_accepted') === 'on' || formData.get('terms_accepted') === 'true';
-      const marketingConsent = formData.get('marketing_consent') === 'on' || formData.get('marketing_consent') === 'true';
-
-      if (!termsAccepted) {
-        onStateChange({ authError: 'Lütfen devam etmek için Kullanıcı Sözleşmesi, Gizlilik Politikası ve KVKK Aydınlatma Metnini onaylayınız.' });
-        return;
-      }
 
       const submitBtn = registerForm.querySelector('button[type="submit"]');
       if (submitBtn) {
@@ -2062,15 +1755,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         onStateChange({
           authMode: 'verify',
           authError: '',
-          pendingVerificationData: { 
-            name, 
-            email, 
-            phone, 
-            password, 
-            identifier,
-            terms_accepted: true,
-            marketing_consent: marketingConsent
-          },
+          pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: codeHint
         });
       } catch (err) {
@@ -2078,15 +1763,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         onStateChange({
           authMode: 'verify',
           authError: '',
-          pendingVerificationData: { 
-            name, 
-            email, 
-            phone, 
-            password, 
-            identifier,
-            terms_accepted: true,
-            marketing_consent: marketingConsent
-          },
+          pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: '123456'
         });
       }
@@ -2132,10 +1809,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         identifier: pending.identifier || pending.phone || pending.email,
         code: inputCode,
         name: pending.name,
-        password: pending.password,
-        terms_accepted: true,
-        marketing_consent: pending.marketing_consent || false,
-        kvkk_accepted_at: new Date().toISOString()
+        password: pending.password
       };
 
       const submitBtn = verifyCodeForm.querySelector('button[type="submit"]');
@@ -2153,15 +1827,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           try {
             await syncCustomerToFirestore(user);
           } catch (e) {}
-          onStateChange({
-            currentUser: user,
-            isLoginModalOpen: false,
-            authMode: 'login',
-            authError: '',
-            loginNotice: '',
-            pendingVerificationData: null,
-            firstOrderDiscountApplied: true
-          });
           performSmoothReload(`🎉 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2196,7 +1861,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       if (verifyAdminCredentials(identifier, password)) {
         setAdminLoggedIn(true);
         window.location.hash = '#/admin';
-        onStateChange({ isLoginModalOpen: false, authError: '' });
         performSmoothReload('Yönetici paneline geçiliyor...');
         return;
       }
@@ -2213,13 +1877,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
-          onStateChange({
-            currentUser: user,
-            isLoginModalOpen: false,
-            authError: '',
-            loginNotice: '',
-            firstOrderDiscountApplied: true
-          });
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2236,62 +1893,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           submitBtn.disabled = false;
           submitBtn.innerText = originalText;
         }
-      }
-    });
-  }
-
-  // =================== YASAL BELGELER & HUKUKİ METİNLER DİNLENİYİCİLERİ ===================
-
-  // Yasal Belgeler Modalını Açma (Tüm Linkler ve Butonlar)
-  container.querySelectorAll('[data-open-legal]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const tab = btn.getAttribute('data-open-legal') || 'kvkk';
-      onStateChange({ isLegalModalOpen: true, activeLegalTab: tab });
-    });
-  });
-
-  // Yasal Belgeler Sekme Değiştirme
-  container.querySelectorAll('[data-legal-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.getAttribute('data-legal-tab');
-      onStateChange({ isLegalModalOpen: true, activeLegalTab: tab });
-    });
-  });
-
-  // Yasal Belgeler Modalı Kapatma
-  const closeLegalModalBtn = container.querySelector('#close-legal-modal-btn');
-  if (closeLegalModalBtn) {
-    closeLegalModalBtn.addEventListener('click', () => onStateChange({ isLegalModalOpen: false }));
-  }
-
-  const closeLegalFooterBtn = container.querySelector('#close-legal-modal-footer-btn');
-  if (closeLegalFooterBtn) {
-    closeLegalFooterBtn.addEventListener('click', () => onStateChange({ isLegalModalOpen: false }));
-  }
-
-  const legalBackdrop = container.querySelector('#legal-modal-backdrop');
-  if (legalBackdrop) {
-    legalBackdrop.addEventListener('click', (e) => {
-      if (e.target === legalBackdrop) {
-        onStateChange({ isLegalModalOpen: false });
-      }
-    });
-  }
-
-  // Footer Özel Butonları
-  const footerReviewsBtn = container.querySelector('#footer-reviews-btn');
-  if (footerReviewsBtn) {
-    footerReviewsBtn.addEventListener('click', () => onStateChange({ isReviewsModalOpen: true }));
-  }
-
-  const footerLoginBtn = container.querySelector('#footer-login-btn');
-  if (footerLoginBtn) {
-    footerLoginBtn.addEventListener('click', () => {
-      if (state.currentUser) {
-        onStateChange({ isMyOrdersOpen: true });
-      } else {
-        onStateChange({ isLoginModalOpen: true, authError: '' });
       }
     });
   }

@@ -19,10 +19,9 @@ async function getFirestoreContext() {
 
   initPromise = (async () => {
     try {
-      const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
       const fs = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      const apps = getApps ? getApps() : [];
-      const app = (apps && apps.length > 0) ? apps[0] : initializeApp(firebaseConfig);
+      const app = initializeApp(firebaseConfig);
       dbInstance = fs.getFirestore(app);
       firestoreLib = fs;
       console.log("🔥 [Firebase] Pita Mutfak Cloud Firestore bağlantısı aktif!");

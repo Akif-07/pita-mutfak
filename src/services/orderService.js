@@ -19,7 +19,7 @@ import {
   signInWithGoogle
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle };
+export { signInWithGoogle, syncCustomerToFirestore };
 
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
