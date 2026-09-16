@@ -41,7 +41,8 @@ const state = {
   customerMessages: [],
   isAdminAddProductOpen: false,
   courierFilter: 'active',
-  verificationResults: {}
+  verificationResults: {},
+  activeVisitors: [] // Sitede anlık aktif olan canlı ziyaretçi ve müşteriler
 };
 
 // Müşteri Özel Mesajlarını Yükleme Fonksiyonu
@@ -183,18 +184,17 @@ orderService.subscribeReviews((reviews) => {
   render();
 });
 
-// Canlı Müşteri ve Mesaj Senkronizasyonu
-try {
-  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-    const channel = new BroadcastChannel('pita_mutfak_realtime_channel');
-    channel.addEventListener('message', (e) => {
-      if (e.data && (e.data.type === 'CUSTOMER_UPDATED' || e.data.type === 'CUSTOMER_DELETED' || e.data.type === 'NEW_MESSAGE_SENT' || e.data.type === 'STOCK_UPDATED')) {
-        loadBackendData();
-        loadCustomerMessages();
-      }
-    });
-  }
-} catch (e) {}
+// Canlı Ziyaretçi & Aktif Kullanıcı Senkronizasyonu
+orderService.subscribePresence((activeVisitors) => {
+  state.activeVisitors = Array.isArray(activeVisitors) ? activeVisitors : [];
+  render();
+});
+
+// Canlı Varlık Pingi (Heartbeat: Sayfa açılışında ve her 25 saniyede bir)
+orderService.pingPresence(state.currentUser);
+setInterval(() => {
+  orderService.pingPresence(state.currentUser);
+}, 25000);
 
 // Hash Değişimi Dinleyici
 window.addEventListener('hashchange', () => {

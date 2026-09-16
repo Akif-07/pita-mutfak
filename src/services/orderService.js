@@ -16,10 +16,12 @@ import {
   subscribeFirestoreSettings,
   getRestaurantSettingsFromFirestore,
   isFirebaseActive,
-  signInWithGoogle
+  signInWithGoogle,
+  pingPresence,
+  subscribePresence
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle, syncCustomerToFirestore };
+export { signInWithGoogle, syncCustomerToFirestore, pingPresence, subscribePresence };
 
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
@@ -1221,6 +1223,15 @@ export const orderService = {
 
   async customerLogin(email, password) {
     return customerLogin(email, password);
+  },
+
+  // Canlı Kullanıcı / Varlık Takibi Servisleri
+  pingPresence(user = null) {
+    return pingPresence(user);
+  },
+
+  subscribePresence(callback) {
+    return subscribePresence(callback);
   },
 
   // Restoran Durumu & Çalışma Saatleri Servisleri

@@ -364,3 +364,80 @@ export async function signInWithGoogle() {
   }
 }
 
+// =================== 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ (PRESENCE) ===================
+
+let currentSessionId = null;
+function getSessionId() {
+  if (currentSessionId) return currentSessionId;
+  try {
+    let s = sessionStorage.getItem('pita_session_id');
+    if (!s) {
+      s = 'sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      sessionStorage.setItem('pita_session_id', s);
+    }
+    currentSessionId = s;
+    return s;
+  } catch (e) {
+    currentSessionId = 'sess_' + Date.now();
+    return currentSessionId;
+  }
+}
+
+export async function pingPresence(user = null) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const sid = getSessionId();
+    const presenceRef = doc(db, "presence", sid);
+    const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
+    
+    let viewName = 'Menüde';
+    if (hash.includes('admin')) viewName = 'Admin Paneli';
+    else if (hash.includes('kurye') || hash.includes('courier')) viewName = 'Kurye Paneli';
+
+    await setDoc(presenceRef, {
+      id: sid,
+      lastSeen: Date.now(),
+      name: user?.name || 'Ziyaretçi',
+      email: user?.email || '',
+      phone: user?.phone || '',
+      isLoggedIn: !!user,
+      view: viewName,
+      _updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function subscribePresence(callback) {
+  let unsubscribe = () => {};
+  getFirestoreContext().then(ctx => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, onSnapshot } = ctx;
+    const colRef = collection(db, "presence");
+    unsubscribe = onSnapshot(colRef, (snapshot) => {
+      const now = Date.now();
+      const cutoff = now - (90 * 1000); // Son 90 saniye içinde aktif olanlar
+      const activeSessions = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data && data.lastSeen && data.lastSeen >= cutoff) {
+          activeSessions.push(data);
+        }
+      });
+      callback(activeSessions);
+    }, (err) => {
+      console.warn("Presence subscription error:", err);
+    });
+  });
+
+  return () => {
+    if (typeof unsubscribe === 'function') {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+

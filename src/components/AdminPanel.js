@@ -163,6 +163,8 @@ export function renderAdminPanel(container, state, onStateChange) {
   const menu = orderService.getMenu();
   const customers = state.customers || [];
   const stockList = state.stockList || [];
+  const activeVisitors = state.activeVisitors || [];
+  const activeVisitorCount = Math.max(1, activeVisitors.length);
   const customerSearchQuery = state.customerSearchQuery || '';
   const adminFilter = state.adminFilter || 'all';
   const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers'
@@ -255,9 +257,18 @@ export function renderAdminPanel(container, state, onStateChange) {
             </div>
           </div>
 
-          <!-- Restoran Durumu & Çalışma Saatleri & Sekmeler -->
+          <!-- Restoran Durumu & Çalışma Saatleri & Canlı Ziyaretçi & Sekmeler -->
           <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             
+            <!-- Canlı Ziyaretçi Rozeti -->
+            <div class="flex items-center gap-2 bg-[#E8F8EE] border border-[#06C167]/30 text-emerald-950 px-3 py-2 rounded-xl text-xs font-black shadow-xs">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#06C167] opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#06C167]"></span>
+              </span>
+              <span>🟢 Sitede Canlı: <strong class="text-[#06C167]">${activeVisitorCount} Kişi</strong></span>
+            </div>
+
             <!-- Restoran Açık / Kapalı Butonu -->
             <button 
               id="admin-toggle-restaurant-btn" 
@@ -322,8 +333,22 @@ export function renderAdminPanel(container, state, onStateChange) {
       <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
         
         <!-- ÖZET İSTATİSTİK KARTLARI -->
-        <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 sm:gap-4 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-7 gap-3 sm:gap-4 mb-6">
           
+          <!-- Canlı Ziyaretçi Kartı -->
+          <div class="bg-gradient-to-br from-[#E8F8EE] to-[#d8f6e3] rounded-2xl p-4 border border-[#06C167]/30 shadow-xs flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-md shadow-[#06C167]/20">
+              🌐
+            </div>
+            <div>
+              <span class="text-[10px] text-emerald-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-ping"></span>
+                Canlı Ziyaretçi
+              </span>
+              <div class="text-xl font-black text-[#06C167]">${activeVisitorCount} Aktif</div>
+            </div>
+          </div>
+
           <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-bold">
               ⏳
@@ -428,7 +453,7 @@ export function renderAdminPanel(container, state, onStateChange) {
         ${activeTab === 'menu' ? renderMenuManagement(menu, stockMap) : ''}
 
         <!-- =================== 3. SEKME: MÜŞTERİ YÖNETİMİ =================== -->
-        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery) : ''}
+        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery, activeVisitors) : ''}
 
         <!-- =================== 4. SEKME: MÜŞTERİ YORUMLARI & PUANLAR =================== -->
         ${activeTab === 'reviews' ? renderAdminReviewsTab(state) : ''}
@@ -865,22 +890,75 @@ function renderMenuManagement(menu, stockMap) {
   `;
 }
 
-// Müşteri Yönetim Sekmesi (SQLite Backend Veritabanı)
-function renderCustomerManagement(customers, searchQuery) {
+// Müşteri Yönetim Sekmesi (SQLite & Firestore Canlı Veritabanı)
+function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
   const query = (searchQuery || '').trim().toLowerCase();
   const filteredCustomers = customers.filter(c => {
     if (!query) return true;
     const nameMatch = (c.name || '').toLowerCase().includes(query);
     const phoneMatch = (c.phone || '').toLowerCase().includes(query);
-    return nameMatch || phoneMatch;
+    const emailMatch = (c.email || '').toLowerCase().includes(query);
+    return nameMatch || phoneMatch || emailMatch;
   });
 
   const totalOrders = customers.reduce((sum, c) => sum + (c.total_orders || 0), 0);
   const totalSpent = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+  const activeCount = Math.max(1, activeVisitors.length);
 
   return `
     <div class="space-y-6">
       
+      <!-- CANLI ZİYARETÇİ & AKTİF KULLANICILAR VİTRİNİ -->
+      <div class="bg-gradient-to-r from-gray-900 via-[#1a2e22] to-[#121212] text-white p-5 sm:p-6 rounded-3xl shadow-lg border border-[#06C167]/30">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-[#06C167] text-white flex items-center justify-center text-xl font-bold shadow-lg shadow-[#06C167]/30">
+              🌐
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-black text-base text-white">Sitede Şu An Bulunan Canlı Kullanıcılar</h3>
+                <span class="bg-[#06C167] text-white text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                  <span class="w-2 h-2 rounded-full bg-white"></span>
+                  ${activeCount} Canlı Bağlantı
+                </span>
+              </div>
+              <p class="text-xs text-gray-300">Sitenizde şu an menüye bakan, sepet oluşturan ve sipariş veren anlık ziyaretçiler</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[11px] text-gray-400 block">Canlı Senkronizasyon</span>
+            <span class="text-xs font-bold text-[#06C167]">Firestore Heartbeat Aktif</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${activeVisitors.length === 0 ? `
+            <div class="col-span-full py-4 text-center text-xs text-gray-400">
+              🟢 1 Aktif Oturum (Admin Masası)
+            </div>
+          ` : activeVisitors.map((v, i) => `
+            <div class="bg-white/10 hover:bg-white/15 transition backdrop-blur-md rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl ${v.isLoggedIn ? 'bg-[#06C167]' : 'bg-gray-700'} text-white flex items-center justify-center text-xs font-black shadow-inner">
+                  ${v.isLoggedIn ? '👤' : '👁️'}
+                </div>
+                <div>
+                  <div class="font-bold text-xs text-white">${v.name || `Ziyaretçi #${i + 1}`}</div>
+                  <div class="text-[10px] text-gray-400 font-medium">${v.phone || v.email || 'Giriş Yapmamış Misafir'}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${v.isLoggedIn ? 'bg-[#06C167]/20 text-[#06C167] border border-[#06C167]/40' : 'bg-white/10 text-gray-300'}">
+                  ${v.view || 'Menüde'}
+                </span>
+                <span class="block text-[9px] text-gray-400 mt-1">● Aktif</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
       <!-- Özet Kartları -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-3.5">
