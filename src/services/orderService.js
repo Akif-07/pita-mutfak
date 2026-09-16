@@ -594,10 +594,23 @@ export const orderService = {
   },
 
   // 4. Müşterinin Kendi Geçmiş Siparişlerini Al
-  getMyOrders() {
+  getMyOrders(ordersList = null) {
     const myIds = getMyOrderIds();
-    const allOrders = getStoredOrders();
-    return allOrders.filter(o => myIds.includes(o.id));
+    const allOrders = Array.isArray(ordersList) ? ordersList : getStoredOrders();
+    const currentUser = getCurrentUser();
+    const currentPhone = currentUser ? (currentUser.phone || '').replace(/\D/g, '') : '';
+
+    return allOrders.filter(o => {
+      if (myIds.includes(o.id)) return true;
+      if (currentPhone && o.customerPhone) {
+        const orderPhone = o.customerPhone.replace(/\D/g, '');
+        if (orderPhone && (orderPhone === currentPhone || orderPhone.endsWith(currentPhone) || currentPhone.endsWith(orderPhone))) {
+          addMyOrderId(o.id);
+          return true;
+        }
+      }
+      return false;
+    });
   },
 
   // 5. Sipariş Durumunu Güncelle (Admin Tarafı)

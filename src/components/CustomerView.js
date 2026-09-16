@@ -16,7 +16,7 @@ import { verifyAdminCredentials, setAdminLoggedIn } from './AdminPanel.js';
 export function renderCustomerView(container, state, onStateChange) {
   const { cart, activeCategory, selectedProduct, activeTrackingOrder, currentUser, firstOrderDiscountApplied, discountPercentage } = state;
   const menu = orderService.getMenu();
-  const myOrders = orderService.getMyOrders();
+  const myOrders = orderService.getMyOrders(state.orders);
   const restaurantSettings = state.restaurantSettings || orderService.getRestaurantSettings();
   const isRestaurantOpen = restaurantSettings.isOpen !== false;
 
