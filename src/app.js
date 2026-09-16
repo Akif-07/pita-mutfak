@@ -1,5 +1,6 @@
 // Pita Mutfak - Ana Uygulama Yöneticisi & Router
-import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence } from './services/orderService.js';
+import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, syncCustomerToFirestore } from './services/orderService.js';
+
 
 import { renderCustomerView } from './components/CustomerView.js';
 import { renderAdminPanel } from './components/AdminPanel.js';
@@ -94,6 +95,34 @@ async function loadBackendData() {
     }
   } catch (e) {
     console.warn("Backend veri yüklenirken hata:", e);
+  }
+}
+
+// Google Redirect Sonucu Kontrol — Sayfa yüklenince Google'dan dönüldüyse giriş tamamla
+async function checkGoogleRedirect() {
+  try {
+    const res = await getGoogleRedirectResult();
+    if (res && res.ok && res.user) {
+      const user = res.user;
+      const { setCurrentUser, saveCustomerLocally } = await import('./services/orderService.js');
+      const customerProfile = {
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone || '',
+        uid: user.uid,
+        photoURL: user.photoURL || '',
+        auth_provider: 'google',
+        registered_at: new Date().toISOString()
+      };
+      setCurrentUser(customerProfile);
+      saveCustomerLocally(customerProfile);
+      try { await syncCustomerToFirestore(customerProfile); } catch (e) {}
+      state.currentUser = customerProfile;
+      startPresence();
+      render();
+    }
+  } catch (e) {
+    console.warn("Google redirect result kontrol hatası:", e);
   }
 }
 
@@ -205,7 +234,13 @@ orderService.subscribeReviews((reviews) => {
 orderService.subscribePresence((activeVisitors) => {
   state.activeVisitors = Array.isArray(activeVisitors) ? activeVisitors : [];
   render();
+  // Admin görünümündeyken presence kartını in-place güncelle (full re-render beklemeden)
+  try {
+    const countEls = document.querySelectorAll('[data-presence-count]');
+    countEls.forEach(el => { el.textContent = state.activeVisitors.length + ' Aktif'; });
+  } catch (e) {}
 });
+
 
 // Canlı Varlık Pingi — Sadece giriş yapmış kullanıcılar için
 let presenceInterval = null;
@@ -251,6 +286,7 @@ syncViewFromHash();
 render();
 loadBackendData();
 loadCustomerMessages();
+checkGoogleRedirect(); // Google redirect ile döndüyse giriş tamamla
 
 // Sayfa ilk yüklendiğinde yükleme ekranını yumuşakça kaldır
 setTimeout(() => {

@@ -327,7 +327,7 @@ export function subscribeFirestoreStock(callback) {
 export async function signInWithGoogle() {
   try {
     const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getAuth, signInWithPopup, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const { getAuth, signInWithRedirect, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
 
     let app;
     const apps = getApps();
@@ -341,9 +341,39 @@ export async function signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    const result = await signInWithPopup(auth, provider);
+    // Redirect ile giriş — sayfa Google'a yönlenecek, dönünce getGoogleRedirectResult çağrılacak
+    await signInWithRedirect(auth, provider);
+    return { ok: false, redirecting: true };
+  } catch (error) {
+    console.warn("Firebase Google Sign-In hatası:", error);
+    let errorMsg = 'Google ile giriş yapılamadı.';
+    if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+      errorMsg = 'Yetkisiz Alan Adı: Firebase Console > Authentication > Authorized Domains\'e alan adınızı ekleyin.';
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+    return { ok: false, error: errorMsg, code: error.code };
+  }
+}
+
+export async function getGoogleRedirectResult() {
+  try {
+    const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getAuth, getRedirectResult } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+
+    let app;
+    const apps = getApps();
+    if (apps && apps.length > 0) {
+      app = apps[0];
+    } else {
+      app = initializeApp(firebaseConfig);
+    }
+
+    const auth = getAuth(app);
+    const result = await getRedirectResult(auth);
+    if (!result || !result.user) return { ok: false };
+
     const user = result.user;
-    
     return {
       ok: true,
       user: {
@@ -356,23 +386,11 @@ export async function signInWithGoogle() {
       }
     };
   } catch (error) {
-    console.warn("Firebase Google Sign-In hatası:", error);
-    let errorMsg = 'Google ile giriş yapılamadı.';
+    console.warn("Google redirect result hatası:", error);
     if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
-      errorMsg = 'Yetkisiz Alan Adı (auth/unauthorized-domain): "pita-mutfak.vercel.app" adresi Firebase Console > Authentication > Settings > Authorized Domains listesine eklenmelidir.';
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      errorMsg = 'Google giriş penceresi kapatıldı.';
-    } else if (error.code === 'auth/popup-blocked') {
-      errorMsg = 'Tarayıcınız açılır pencereyi (popup) engelledi. Lütfen izin veriniz.';
-    } else if (error.message) {
-      errorMsg = error.message;
+      return { ok: false, error: 'Yetkisiz Alan Adı: Firebase Console > Authentication > Authorized Domains\'e alan adınızı ekleyin.' };
     }
-
-    return {
-      ok: false,
-      error: errorMsg,
-      code: error.code
-    };
+    return { ok: false };
   }
 }
 

@@ -17,12 +17,14 @@ import {
   getRestaurantSettingsFromFirestore,
   isFirebaseActive,
   signInWithGoogle,
+  getGoogleRedirectResult,
   pingPresence,
   subscribePresence,
   removePresence
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
+export { signInWithGoogle, getGoogleRedirectResult, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
+
 
 
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';

@@ -346,7 +346,7 @@ export function renderAdminPanel(container, state, onStateChange) {
                 <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] ${activeVisitorCount > 0 ? 'animate-ping' : ''}"></span>
                 Aktif Müşteri
               </span>
-              <div class="text-xl font-black text-[#06C167]">${activeVisitorCount} Aktif</div>
+              <div class="text-xl font-black text-[#06C167]" data-presence-count>${activeVisitorCount} Aktif</div>
             </div>
           </div>
 
