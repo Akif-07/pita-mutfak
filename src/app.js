@@ -41,7 +41,9 @@ const state = {
   customerMessages: [],
   isAdminAddProductOpen: false,
   courierFilter: 'active',
-  verificationResults: {}
+  verificationResults: {},
+  isLegalModalOpen: false,
+  activeLegalTab: 'kvkk' // 'kvkk' | 'terms' | 'privacy' | 'consent'
 };
 
 // Müşteri Özel Mesajlarını Yükleme Fonksiyonu
