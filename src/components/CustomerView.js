@@ -1253,13 +1253,33 @@ function renderTrackingModal(order) {
           ${order.status === 'delivered' ? `
             <div class="pt-2">
               ${order.issueReport ? `
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                  <div class="font-bold flex items-center gap-1.5">
-                    <span>⚠️</span>
-                    <span>Sorun Bildiriminiz Restorana İletildi (${order.issueReport.reason})</span>
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
+                  <div class="flex items-center justify-between font-black mb-1">
+                    <span class="flex items-center gap-1.5">
+                      <span>⚠️</span>
+                      <span>Sorun Bildiriminiz: ${order.issueReport.reason}</span>
+                    </span>
+                    <span class="text-[10px] text-gray-500 font-normal">${order.issueReport.reportedTime || ''}</span>
                   </div>
-                  <p class="text-[11px] text-amber-700 mt-1">"${order.issueReport.message || 'Mesajınız iletildi'}"</p>
-                  <span class="text-[10px] text-gray-500 block mt-1">Durum: Restoran incelemesinde</span>
+                  <p class="text-[11px] text-amber-800 italic bg-white/80 p-2.5 rounded-xl border border-amber-200/60 mt-1">"${order.issueReport.message || 'Mesajınız iletildi'}"</p>
+                  
+                  ${order.issueReport.adminReply ? `
+                    <div class="bg-white border-2 border-emerald-400 rounded-xl p-3.5 mt-3 shadow-xs">
+                      <div class="flex items-center justify-between font-black text-xs text-emerald-800 mb-1">
+                        <span class="flex items-center gap-1.5">
+                          <span class="text-base">🏪</span>
+                          <span>Pita Mutfak Yetkilisi Yanıtı:</span>
+                        </span>
+                        <span class="text-[10px] text-gray-400 font-normal">${order.issueReport.adminReply.repliedTime || ''}</span>
+                      </div>
+                      <p class="text-xs text-gray-800 font-medium leading-relaxed mt-1">${order.issueReport.adminReply.message}</p>
+                    </div>
+                  ` : `
+                    <div class="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold mt-2">
+                      <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      <span>Restoran yetkilisi incelemesinde...</span>
+                    </div>
+                  `}
                 </div>
               ` : `
                 <button 
@@ -1386,8 +1406,9 @@ function renderMyOrdersModal(myOrders, state) {
                       </button>
 
                       ${order.issueReport ? `
-                        <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1.5 rounded-xl">
-                          ⚠️ Sorun Bildirildi
+                        <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1">
+                          <span>⚠️</span>
+                          <span>${order.issueReport.status === 'resolved' ? 'Sorun Çözüldü' : 'Sorun Bildirildi'}</span>
                         </span>
                       ` : `
                         <button 
@@ -1400,6 +1421,29 @@ function renderMyOrdersModal(myOrders, state) {
                     ` : ''}
                   </div>
                 </div>
+
+                ${order.issueReport ? `
+                  <div class="mt-2 pt-2.5 border-t border-amber-200/80 bg-amber-50/70 rounded-xl p-3 text-xs">
+                    <div class="flex items-center justify-between text-amber-900 font-bold text-[11px] mb-1">
+                      <span>⚠️ Bildirilen Sorun: ${order.issueReport.reason}</span>
+                      <span class="text-[10px] font-medium text-gray-500">${order.issueReport.reportedTime || ''}</span>
+                    </div>
+                    <p class="text-[11px] text-gray-700 italic">"${order.issueReport.message}"</p>
+                    
+                    ${order.issueReport.adminReply ? `
+                      <div class="bg-white border border-emerald-300 rounded-xl p-2.5 mt-2 shadow-2xs">
+                        <div class="flex items-center justify-between font-black text-[11px] text-emerald-800 mb-0.5">
+                          <span class="flex items-center gap-1">
+                            <span>🏪</span>
+                            <span>Restoran Yanıtı:</span>
+                          </span>
+                          <span class="text-[10px] text-gray-400 font-normal">${order.issueReport.adminReply.repliedTime || ''}</span>
+                        </div>
+                        <p class="text-xs text-gray-800 font-medium leading-relaxed">${order.issueReport.adminReply.message}</p>
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : ''}
 
               </div>
             `;

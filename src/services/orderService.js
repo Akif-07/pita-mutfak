@@ -706,6 +706,46 @@ export const orderService = {
     }
   },
 
+  // 7.1 Admin Müşteri Sorununa Yanıt Gönderme
+  replyToIssue(orderId, replyMessage, autoResolve = true) {
+    const orders = getStoredOrders();
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    let updatedOrder = null;
+
+    const updatedOrders = orders.map(order => {
+      if (order.id === orderId && order.issueReport) {
+        updatedOrder = {
+          ...order,
+          issueReport: {
+            ...order.issueReport,
+            status: autoResolve ? 'resolved' : order.issueReport.status,
+            adminReply: {
+              message: replyMessage,
+              repliedAt: now.toISOString(),
+              repliedTime: timeStr
+            }
+          }
+        };
+        return updatedOrder;
+      }
+      return order;
+    });
+
+    saveOrders(updatedOrders, 'ISSUE_REPLIED', updatedOrder);
+    if (updatedOrder) {
+      syncOrderToFirestore(updatedOrder).catch(() => {});
+      if (updatedOrder.customerPhone) {
+        sendCustomerMessage(
+          updatedOrder.customerPhone,
+          `#${updatedOrder.id} Nolu Sipariş Sorunuza Yanıt`,
+          replyMessage
+        ).catch(() => {});
+      }
+    }
+    return updatedOrder;
+  },
+
   // 8. Kurye 8 Haneli Kod Doğrulama & Teslimat (Kurye Tarafı)
   verifyAndDeliver(orderId, inputCode) {
     const orders = getStoredOrders();

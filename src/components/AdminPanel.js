@@ -444,6 +444,9 @@ export function renderAdminPanel(container, state, onStateChange) {
       <!-- Müşteriye Mesaj Gönderme Modalı -->
       ${state.activeSendMessageCustomer ? renderSendMessageModal(state.activeSendMessageCustomer) : ''}
 
+      <!-- Müşteri Sorununa Yanıt Verme Modalı -->
+      ${state.activeReplyIssueOrder ? renderReplyIssueModal(state.activeReplyIssueOrder) : ''}
+
     </div>
   `;
 
@@ -499,18 +502,43 @@ function renderOrderCard(order) {
             <p class="text-gray-800 italic bg-white p-2.5 rounded-xl border border-rose-200 mt-1.5 leading-relaxed">
               "${order.issueReport.message}"
             </p>
-            <div class="mt-2.5 flex items-center justify-between">
-              <span class="text-[11px] font-black ${order.issueReport.status === 'resolved' ? 'text-[#06C167]' : 'text-rose-700'}">
-                ${order.issueReport.status === 'resolved' ? '✓ Sorun Çözüldü Olarak İşaretlendi' : '⏳ İnceleme Bekliyor'}
-              </span>
-              ${order.issueReport.status !== 'resolved' ? `
-                <button 
-                  data-resolve-issue-btn="${order.id}" 
-                  class="bg-[#06C167] hover:bg-[#05a557] text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer"
-                >
-                  ✓ Çözüldü Olarak İşaretle
-                </button>
-              ` : ''}
+
+            ${order.issueReport.adminReply ? `
+              <div class="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 mt-2 text-emerald-900">
+                <div class="flex items-center justify-between font-extrabold text-[11px] mb-1">
+                  <span class="flex items-center gap-1 text-[#06C167]">
+                    <span>🏪</span>
+                    <span>Restoran Yanıtınız:</span>
+                  </span>
+                  <span class="text-[10px] text-gray-500 font-normal">${order.issueReport.adminReply.repliedTime || ''}</span>
+                </div>
+                <p class="text-[11px] text-gray-800 font-medium">"${order.issueReport.adminReply.message}"</p>
+              </div>
+            ` : ''}
+
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rose-200/60">
+              <button 
+                data-reply-issue-btn="${order.id}"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
+                title="Müşteriye panel üzerinden mesajla yanıt ver"
+              >
+                <span>💬</span>
+                <span>${order.issueReport.adminReply ? 'Tekrar Yanıt Yaz' : 'Müşteriye Yanıt Yaz'}</span>
+              </button>
+
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-black ${order.issueReport.status === 'resolved' ? 'text-[#06C167]' : 'text-rose-700'}">
+                  ${order.issueReport.status === 'resolved' ? '✓ Çözüldü' : '⏳ Bekliyor'}
+                </span>
+                ${order.issueReport.status !== 'resolved' ? `
+                  <button 
+                    data-resolve-issue-btn="${order.id}" 
+                    class="bg-[#06C167] hover:bg-[#05a557] text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer"
+                  >
+                    ✓ Çözüldü Olarak İşaretle
+                  </button>
+                ` : ''}
+              </div>
             </div>
           </div>
         ` : ''}
@@ -1321,6 +1349,107 @@ function renderAddProductModal() {
   `;
 }
 
+// Müşteri Sorununa Yanıt Verme Modalı
+function renderReplyIssueModal(order) {
+  return `
+    <div id="reply-issue-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between pb-4 border-b border-gray-100 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
+              💬
+            </div>
+            <div>
+              <h3 class="font-black text-base text-[#121212]">Müşteri Sorununa Yanıt Ver</h3>
+              <p class="text-[11px] text-gray-500">Sipariş #${order.id} • ${order.customerName} (${order.customerPhone})</p>
+            </div>
+          </div>
+          <button id="close-reply-issue-btn" class="p-2 text-gray-400 hover:text-black rounded-xl transition cursor-pointer">✕</button>
+        </div>
+
+        <div class="overflow-y-auto py-4 space-y-4 flex-1">
+          <!-- Müşterinin Bildirdiği Sorun Özeti -->
+          <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs">
+            <div class="flex items-center justify-between text-rose-900 font-black mb-1">
+              <span>⚠️ Müşteri Şikayeti: ${order.issueReport?.reason || 'Genel Şikayet'}</span>
+              <span class="text-[10px] text-gray-500 font-normal">${order.issueReport?.reportedTime || ''}</span>
+            </div>
+            <p class="text-gray-800 italic bg-white p-3 rounded-xl border border-rose-200 mt-2 leading-relaxed">
+              "${order.issueReport?.message || 'Açıklama belirtilmemiş'}"
+            </p>
+          </div>
+
+          <!-- Hızlı Yanıt Şablonları (Pills) -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-2">⚡ Hızlı Yanıt Şablonları (Tek Tıkla Ekle):</label>
+            <div class="flex flex-wrap gap-1.5">
+              <button 
+                type="button" 
+                class="quick-reply-pill bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, yaşadığınız bu aksaklık için Pita Mutfak ailesi olarak çok özür dileriz. Eksik ürününüzü hemen kuryemizle telafi olarak gönderiyoruz."
+              >
+                🛵 Eksik Ürünü Hemen Gönderiyoruz
+              </button>
+              <button 
+                type="button" 
+                class="quick-reply-pill bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, geri bildiriminiz için teşekkür ederiz. Mutfak ekibimiz uyarıldı ve bir sonraki siparişiniz için hesabınıza özel indirim tanımlandı. Afiyet olsun!"
+              >
+                🎁 Özür & İndirim Tanımlandı
+              </button>
+              <button 
+                type="button" 
+                class="quick-reply-pill bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, yaşanan gecikme/yoğunluk nedeniyle özür dileriz. Sorun çözümlenmiştir, memnuniyetiniz bizim için çok değerlidir."
+              >
+                ✓ Yoğunluk Özrü & Çözüldü
+              </button>
+            </div>
+          </div>
+
+          <form id="admin-reply-issue-form" data-order-id="${order.id}" class="space-y-4 pt-1">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Müşteriye İletilecek Yanıt Mesajı *</label>
+              <textarea 
+                id="reply-issue-textarea"
+                name="replyMessage" 
+                rows="4" 
+                required 
+                placeholder="Müşterinize iletmek istediğiniz açıklama veya telafi mesajını buraya yazınız..." 
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-blue-600 outline-none leading-relaxed"
+              >${order.issueReport?.adminReply?.message || ''}</textarea>
+              <p class="text-[10px] text-gray-400 mt-1">Bu yanıt hem müşterinin sipariş detayına eklenecek hem de gelen kutusuna anında bildirim olarak düşecektir.</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="auto-resolve-checkbox" name="autoResolve" checked class="w-4 h-4 accent-[#06C167] rounded cursor-pointer" />
+              <label for="auto-resolve-checkbox" class="text-xs font-bold text-gray-700 cursor-pointer select-none">
+                Sorunu "✓ Çözüldü" olarak işaretle
+              </label>
+            </div>
+
+            <div class="pt-2 flex items-center gap-2">
+              <button 
+                type="submit" 
+                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>💬 Yanıtı Müşteriye Gönder</span>
+              </button>
+              <button 
+                type="button" 
+                id="cancel-reply-issue-btn"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-3 rounded-2xl text-xs transition cursor-pointer"
+              >
+                İptal
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // Event Listeners Bağlayıcı
 function attachAdminEventListeners(container, state, onStateChange) {
   
@@ -1400,6 +1529,66 @@ function attachAdminEventListeners(container, state, onStateChange) {
       onStateChange({});
     });
   });
+
+  // Müşteri Sorununa Yanıt Verme Modalını Aç
+  container.querySelectorAll('[data-reply-issue-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orderId = btn.getAttribute('data-reply-issue-btn');
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        onStateChange({ activeReplyIssueOrder: order });
+      }
+    });
+  });
+
+  // Yanıt Modalını Kapat
+  const closeReplyBtn = container.querySelector('#close-reply-issue-btn');
+  if (closeReplyBtn) {
+    closeReplyBtn.addEventListener('click', () => onStateChange({ activeReplyIssueOrder: null }));
+  }
+  const cancelReplyBtn = container.querySelector('#cancel-reply-issue-btn');
+  if (cancelReplyBtn) {
+    cancelReplyBtn.addEventListener('click', () => onStateChange({ activeReplyIssueOrder: null }));
+  }
+  const replyBackdrop = container.querySelector('#reply-issue-modal-backdrop');
+  if (replyBackdrop) {
+    replyBackdrop.addEventListener('click', (e) => {
+      if (e.target === replyBackdrop) onStateChange({ activeReplyIssueOrder: null });
+    });
+  }
+
+  // Hızlı Yanıt Şablon Butonları (Pills)
+  container.querySelectorAll('.quick-reply-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const text = pill.getAttribute('data-text');
+      const textarea = container.querySelector('#reply-issue-textarea');
+      if (textarea && text) {
+        textarea.value = text;
+        textarea.focus();
+      }
+    });
+  });
+
+  // Yanıt Gönderme Formu Submit
+  const replyIssueForm = container.querySelector('#admin-reply-issue-form');
+  if (replyIssueForm) {
+    replyIssueForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const orderId = replyIssueForm.getAttribute('data-order-id');
+      const formData = new FormData(replyIssueForm);
+      const replyMsg = (formData.get('replyMessage') || '').trim();
+      const autoResolve = container.querySelector('#auto-resolve-checkbox')?.checked ?? true;
+
+      if (!replyMsg) {
+        alert("Lütfen bir yanıt mesajı yazınız.");
+        return;
+      }
+
+      orderService.replyToIssue(orderId, replyMsg, autoResolve);
+      alert("✓ Yanıtınız müşteriye başarıyla iletildi ve siparişe işlendi.");
+      onStateChange({ activeReplyIssueOrder: null });
+    });
+  }
 
   // Menü Fiyat Güncelleme
   container.querySelectorAll('[data-save-price-btn]').forEach(btn => {
