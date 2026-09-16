@@ -1678,24 +1678,15 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.user) {
           const user = res.user;
           setCurrentUser(user);
-          const wasPendingCheckout = state.pendingCheckout;
-          onStateChange({
-            currentUser: user,
-            isLoginModalOpen: false,
-            loginNotice: '',
-            firstOrderDiscountApplied: true,
-            pendingCheckout: false,
-            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
-          });
-          alert(`👋 Hoş geldiniz, ${user.name}!`);
+          // Bildirim / alert göstermeden sayfayı doğrudan yenile
+          window.location.reload();
+          return;
         } else {
-          alert(res.error || "Google ile giriş tamamlanamadı.");
           googleBtn.disabled = false;
           googleBtn.innerHTML = originalHTML;
         }
       } catch (err) {
         console.warn("Google login error:", err);
-        alert("Google ile giriş sırasında bir hata oluştu.");
         googleBtn.disabled = false;
         googleBtn.innerHTML = originalHTML;
       }
@@ -1768,7 +1759,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const inputCode = codeInput ? codeInput.value.trim() : '';
 
       if (!inputCode) {
-        alert("Lütfen 6 haneli doğrulama kodunu giriniz.");
         return;
       }
 
@@ -1793,23 +1783,13 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
-          const wasPendingCheckout = state.pendingCheckout;
-          onStateChange({
-            currentUser: user,
-            isLoginModalOpen: false,
-            authMode: 'login',
-            loginNotice: '',
-            pendingVerificationData: null,
-            firstOrderDiscountApplied: true,
-            pendingCheckout: false,
-            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
-          });
-          alert(`🎉 Tebrikler ${user.name}! Hesabınız doğrulandı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
+          // Bildirim / alert göstermeden sayfayı doğrudan yenile
+          window.location.reload();
+          return;
         } else {
-          alert(res.data?.error || "Doğrulama kodu hatalı! Lütfen kontrol ediniz.");
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerText = "Doğrula & Hesabı Aç 🎉";
+            submitBtn.innerText = "Doğrula & Giriş Yap";
           }
         }
       } catch (err) {
@@ -1821,18 +1801,9 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           is_verified: 1
         };
         setCurrentUser(fallbackUser);
-        const wasPendingCheckout = state.pendingCheckout;
-        onStateChange({
-          currentUser: fallbackUser,
-          isLoginModalOpen: false,
-          authMode: 'login',
-          loginNotice: '',
-          pendingVerificationData: null,
-          firstOrderDiscountApplied: true,
-          pendingCheckout: false,
-          ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
-        });
-        alert(`🎉 Tebrikler! Hesabınız açıldı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
+        // Bildirim / alert göstermeden sayfayı doğrudan yenile
+        window.location.reload();
+        return;
       }
     });
   }
@@ -1849,8 +1820,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       // Admin Kullanıcı Adı / Şifresi Kontrolü: Doğruysa doğrudan Admin Paneline yönlendir!
       if (verifyAdminCredentials(identifier, password)) {
         setAdminLoggedIn(true);
-        onStateChange({ isLoginModalOpen: false });
         window.location.hash = '#/admin';
+        window.location.reload();
         return;
       }
 
@@ -1859,16 +1830,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
-          const wasPendingCheckout = state.pendingCheckout;
-          onStateChange({
-            currentUser: user,
-            isLoginModalOpen: false,
-            loginNotice: '',
-            firstOrderDiscountApplied: true,
-            pendingCheckout: false,
-            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
-          });
-          alert(`👋 Tekrar hoş geldiniz, ${user.name}!`);
+          // Bildirim / alert göstermeden sayfayı doğrudan yenile
+          window.location.reload();
           return;
         }
       } catch (e) {}
@@ -1879,16 +1842,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       setCurrentUser(user);
       registerCustomer(fallbackName, identifier).catch(() => {});
 
-      const wasPendingCheckout = state.pendingCheckout;
-      onStateChange({
-        currentUser: user,
-        isLoginModalOpen: false,
-        loginNotice: '',
-        firstOrderDiscountApplied: true,
-        pendingCheckout: false,
-        ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
-      });
-      alert(`👋 Hoş geldiniz, ${user.name}!`);
+      // Bildirim / alert göstermeden sayfayı doğrudan yenile
+      window.location.reload();
     });
   }
 
