@@ -5,6 +5,12 @@ let dbInstance = null;
 let firestoreLib = null;
 let initPromise = null;
 
+// JSON serialize helper to remove undefined fields which cause Firestore setDoc to throw errors
+function cleanForFirestore(obj) {
+  if (obj === null || obj === undefined) return null;
+  return JSON.parse(JSON.stringify(obj, (k, v) => (v === undefined ? null : v)));
+}
+
 async function getFirestoreContext() {
   if (dbInstance && firestoreLib) {
     return { db: dbInstance, ...firestoreLib };
@@ -38,14 +44,16 @@ export async function syncOrderToFirestore(order) {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc } = ctx;
-    const orderRef = doc(db, "orders", order.id);
+    const sanitized = cleanForFirestore(order);
+    const orderRef = doc(db, "orders", sanitized.id);
     await setDoc(orderRef, {
-      ...order,
+      ...sanitized,
       _syncedAt: new Date().toISOString()
     }, { merge: true });
+    console.log("🔥 [Firestore] Sipariş buluta senkronize edildi:", sanitized.id);
     return true;
   } catch (e) {
-    console.warn("Firestore sipariş kaydetme:", e);
+    console.error("Firestore sipariş kaydetme hatası:", e);
     return false;
   }
 }
@@ -54,22 +62,70 @@ export function subscribeFirestoreOrders(callback) {
   let unsubscribe = null;
   getFirestoreContext().then((ctx) => {
     if (!ctx || !ctx.db) return;
-    const { db, collection, query, orderBy, onSnapshot } = ctx;
+    const { db, collection, onSnapshot } = ctx;
     try {
-      const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-      unsubscribe = onSnapshot(q, (snapshot) => {
+      // Direct collection snapshot avoids index errors and works on any collection state
+      const collRef = collection(db, "orders");
+      unsubscribe = onSnapshot(collRef, (snapshot) => {
         const orders = [];
         snapshot.forEach(d => {
           orders.push({ id: d.id, ...d.data() });
         });
-        if (orders.length > 0) {
-          callback(orders);
-        }
+        // Client-side sort: newest orders first
+        orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        callback(orders);
       }, (error) => {
-        console.warn("Firestore sipariş dinleme:", error);
+        console.error("Firestore sipariş dinleme hatası (Kuralları kontrol ediniz):", error);
       });
     } catch (e) {
-      console.warn("Firestore sipariş dinleyici hatası:", e);
+      console.error("Firestore sipariş dinleyici hatası:", e);
+    }
+  }).catch((e) => console.warn("Firestore bağlantı hatası:", e));
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+
+// =================== 2. RESTORAN AYARLARI (AÇIK/KAPALI, ÇALIŞMA SAATLERİ) ===================
+
+export async function syncRestaurantSettingsToFirestore(settings) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const clean = cleanForFirestore(settings);
+    const settingsRef = doc(db, "settings", "restaurant");
+    await setDoc(settingsRef, {
+      ...clean,
+      _updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log("🔥 [Firestore] Restoran ayarları buluta kaydedildi:", clean);
+    return true;
+  } catch (e) {
+    console.error("Firestore ayar kaydetme hatası:", e);
+    return false;
+  }
+}
+
+export function subscribeFirestoreSettings(callback) {
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, doc, onSnapshot } = ctx;
+    try {
+      const settingsRef = doc(db, "settings", "restaurant");
+      unsubscribe = onSnapshot(settingsRef, (snap) => {
+        if (snap.exists()) {
+          callback(snap.data());
+        }
+      }, (error) => {
+        console.warn("Firestore ayar dinleme:", error);
+      });
+    } catch (e) {
+      console.warn("Firestore ayar dinleyici:", e);
     }
   }).catch(() => {});
 
@@ -80,17 +136,33 @@ export function subscribeFirestoreOrders(callback) {
   };
 }
 
-// =================== 2. MÜŞTERİ YORUMLARI (REVIEWS) ===================
+export async function getRestaurantSettingsFromFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return null;
+    const { db, doc, getDoc } = ctx;
+    const snap = await getDoc(doc(db, "settings", "restaurant"));
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// =================== 3. MÜŞTERİ YORUMLARI (REVIEWS) ===================
 
 export async function syncReviewToFirestore(review) {
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc } = ctx;
-    const reviewId = String(review.id || Date.now());
+    const clean = cleanForFirestore(review);
+    const reviewId = String(clean.id || Date.now());
     const reviewRef = doc(db, "reviews", reviewId);
     await setDoc(reviewRef, {
-      ...review,
+      ...clean,
       id: reviewId,
       _syncedAt: new Date().toISOString()
     }, { merge: true });
@@ -118,19 +190,18 @@ export function subscribeFirestoreReviews(callback) {
   let unsubscribe = null;
   getFirestoreContext().then((ctx) => {
     if (!ctx || !ctx.db) return;
-    const { db, collection, query, orderBy, onSnapshot } = ctx;
+    const { db, collection, onSnapshot } = ctx;
     try {
-      const q = query(collection(db, "reviews"), orderBy("created_at", "desc"));
-      unsubscribe = onSnapshot(q, (snapshot) => {
+      const collRef = collection(db, "reviews");
+      unsubscribe = onSnapshot(collRef, (snapshot) => {
         const reviews = [];
         snapshot.forEach(d => {
           reviews.push({ id: d.id, ...d.data() });
         });
-        if (reviews.length > 0) {
-          callback(reviews);
-        }
+        reviews.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        callback(reviews);
       }, (error) => {
-        console.warn("Firestore yorum dinleme:", error);
+        console.warn("Firestore yorum dinleme hatası:", error);
       });
     } catch (e) {
       console.warn("Firestore yorum dinleyici hatası:", e);
@@ -144,17 +215,18 @@ export function subscribeFirestoreReviews(callback) {
   };
 }
 
-// =================== 3. MÜŞTERİLER (CUSTOMERS) ===================
+// =================== 4. MÜŞTERİLER (CUSTOMERS) ===================
 
 export async function syncCustomerToFirestore(customer) {
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc } = ctx;
-    const key = customer.phone || customer.email || `cust-${Date.now()}`;
+    const clean = cleanForFirestore(customer);
+    const key = clean.phone || clean.email || `cust-${Date.now()}`;
     const custRef = doc(db, "customers", key);
     await setDoc(custRef, {
-      ...customer,
+      ...clean,
       _updatedAt: new Date().toISOString()
     }, { merge: true });
     return true;
@@ -192,7 +264,7 @@ export async function deleteCustomerFromFirestore(phone) {
   }
 }
 
-// =================== 4. STOK (STOCK) ===================
+// =================== 5. STOK (STOCK) ===================
 
 export async function syncStockToFirestore(stockItems) {
   try {

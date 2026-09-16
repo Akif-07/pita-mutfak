@@ -2,7 +2,7 @@
 import { orderService, formatDeliveryCode } from '../services/orderService.js';
 
 export function renderCourierPanel(container, state, onStateChange) {
-  const orders = orderService.getOrders();
+  const orders = state.orders || orderService.getOrders();
   const courierFilter = state.courierFilter || 'active'; // 'active' | 'completed'
 
   // Kuryenin teslim edeceği aktif siparişler: SADECE admin "Yola Çıkar" dediğinde (on_the_way)

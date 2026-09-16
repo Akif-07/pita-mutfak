@@ -12,6 +12,9 @@ import {
   deleteCustomerFromFirestore,
   syncStockToFirestore,
   subscribeFirestoreStock,
+  syncRestaurantSettingsToFirestore,
+  subscribeFirestoreSettings,
+  getRestaurantSettingsFromFirestore,
   isFirebaseActive 
 } from '../firebase/firebaseService.js';
 
@@ -19,26 +22,88 @@ const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
 const STORAGE_MY_ORDERS_KEY = 'pita_my_order_ids';
 const STORAGE_REVIEWS_KEY = 'pita_mutfak_reviews';
+const STORAGE_RESTAURANT_SETTINGS_KEY = 'pita_restaurant_settings';
 const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
 
-// Başlangıç Müşteri Yorumları (Offline / Fallback)
-export const initialReviews = [
-  { id: 1, customer_name: "Ahmet Yılmaz", customer_email: "ahmet@gmail.com", product_id: "pilav-tavuk-klasik", product_name: "Klasik Didilmiş Tavuk Pilav", rating: 5, comment: "Tavuk pilav gerçekten efsane! Tavuğu bol, pilavı tane tane ve tereyağlıydı. Kesinlikle tavsiye ederim.", created_at: "2026-09-12T14:20:00" },
-  { id: 2, customer_name: "Selin Demir", customer_email: "selin@gmail.com", product_id: "kuru-fasulye-guvec", product_name: "Güveçte Kuru Fasulye", rating: 5, comment: "Güveçte kuru fasulye sıcacık geldi, yanındaki turşu ve pilavla tam anne yemeği lezzeti. Ellerinize sağlık.", created_at: "2026-09-12T18:45:00" },
-  { id: 3, customer_name: "Mehmet Kaya", customer_email: "mehmet@gmail.com", product_id: "makarna-penne-tavuk", product_name: "Kremalı Tavuklu Penne", rating: 5, comment: "Fesleğenli kremalı makarna çok lezzetliydi, porsiyon da oldukça doyurucu. Kurye de çok nazikti.", created_at: "2026-09-13T12:10:00" },
-  { id: 4, customer_name: "Ayşe K.", customer_email: "ayse@gmail.com", product_id: "", product_name: "Pita Mutfak Genel", rating: 5, comment: "Sipariş 25 dakikada dumanı üstünde kapıma geldi. Kurye arkadaş çok güler yüzlüydü. Teşekkürler!", created_at: "2026-09-13T13:30:00" }
-];
+// Varsayılan Restoran Durumu & Çalışma Saatleri
+export const DEFAULT_RESTAURANT_SETTINGS = {
+  isOpen: true,
+  openingHours: '10:00 - 23:00',
+  closedMessage: 'Şu anda kapalıyız. Çalışma saatlerimiz: 10:00 - 23:00'
+};
+
+export function getRestaurantSettings() {
+  try {
+    const saved = localStorage.getItem(STORAGE_RESTAURANT_SETTINGS_KEY);
+    if (saved) return { ...DEFAULT_RESTAURANT_SETTINGS, ...JSON.parse(saved) };
+  } catch (e) {}
+  return DEFAULT_RESTAURANT_SETTINGS;
+}
+
+export function saveRestaurantSettings(settings) {
+  try {
+    localStorage.setItem(STORAGE_RESTAURANT_SETTINGS_KEY, JSON.stringify(settings));
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'RESTAURANT_SETTINGS_UPDATED', settings });
+    }
+  } catch (e) {}
+  syncRestaurantSettingsToFirestore(settings).catch(() => {});
+}
+
+export function subscribeRestaurantSettings(callback) {
+  callback(getRestaurantSettings());
+
+  let unsubFirestore = null;
+  try {
+    unsubFirestore = subscribeFirestoreSettings((cloudSettings) => {
+      if (cloudSettings) {
+        const merged = { ...DEFAULT_RESTAURANT_SETTINGS, ...cloudSettings };
+        localStorage.setItem(STORAGE_RESTAURANT_SETTINGS_KEY, JSON.stringify(merged));
+        callback(merged);
+      }
+    });
+  } catch (e) {}
+
+  const handleBroadcast = (e) => {
+    if (e.data && e.data.type === 'RESTAURANT_SETTINGS_UPDATED') {
+      callback(getRestaurantSettings());
+    }
+  };
+
+  const handleStorage = (e) => {
+    if (e.key === STORAGE_RESTAURANT_SETTINGS_KEY) {
+      callback(getRestaurantSettings());
+    }
+  };
+
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcast);
+  }
+  window.addEventListener('storage', handleStorage);
+
+  return () => {
+    if (unsubFirestore) {
+      try { unsubFirestore(); } catch(e) {}
+    }
+    if (broadcastChannel) {
+      broadcastChannel.removeEventListener('message', handleBroadcast);
+    }
+    window.removeEventListener('storage', handleStorage);
+  };
+}
+
+// Müşteri Yorumları (Örnek yorumlar temizlendi, sadece gerçek yorumlar tutulur)
+export const initialReviews = [];
 
 export function getStoredReviews() {
   try {
     const saved = localStorage.getItem(STORAGE_REVIEWS_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
-  localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(initialReviews));
-  return initialReviews;
+  return [];
 }
 
 export function saveStoredReviews(reviews, eventType = 'REVIEWS_UPDATED', newReview = null) {
@@ -662,9 +727,17 @@ export const orderService = {
     let unsubFirestore = null;
     try {
       unsubFirestore = subscribeFirestoreOrders((cloudOrders) => {
-        if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+        if (Array.isArray(cloudOrders)) {
+          const currentLocal = getStoredOrders();
+          const localIds = new Set(currentLocal.map(o => o.id));
+          const hasNewPending = cloudOrders.some(o => !localIds.has(o.id) && o.status === 'pending');
+
           localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(cloudOrders));
           callback(cloudOrders);
+
+          if (hasNewPending) {
+            playOrderSound();
+          }
         }
       });
     } catch (e) {
@@ -911,6 +984,19 @@ export const orderService = {
 
   async customerLogin(email, password) {
     return customerLogin(email, password);
+  },
+
+  // Restoran Durumu & Çalışma Saatleri Servisleri
+  getRestaurantSettings() {
+    return getRestaurantSettings();
+  },
+
+  saveRestaurantSettings(settings) {
+    return saveRestaurantSettings(settings);
+  },
+
+  subscribeRestaurantSettings(callback) {
+    return subscribeRestaurantSettings(callback);
   }
 };
 

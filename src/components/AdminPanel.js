@@ -159,13 +159,14 @@ export function renderAdminPanel(container, state, onStateChange) {
     return;
   }
 
-  const orders = orderService.getOrders();
+  const orders = state.orders || orderService.getOrders();
   const menu = orderService.getMenu();
   const customers = state.customers || [];
   const stockList = state.stockList || [];
   const customerSearchQuery = state.customerSearchQuery || '';
   const adminFilter = state.adminFilter || 'all';
   const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers'
+  const settings = state.restaurantSettings || orderService.getRestaurantSettings();
 
   // Stok haritası (ürün ID -> stok kaydı)
   const stockMap = {};
@@ -239,7 +240,7 @@ export function renderAdminPanel(container, state, onStateChange) {
 
       <!-- Header -->
       <header class="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-2xl bg-[#06C167] text-white flex items-center justify-center font-bold shadow-md shadow-[#06C167]/20">
@@ -254,13 +255,35 @@ export function renderAdminPanel(container, state, onStateChange) {
             </div>
           </div>
 
-          <!-- Sağ Butonlar (Ses Testi ve Sekmeler) -->
-          <div class="flex items-center gap-2 sm:gap-4">
+          <!-- Restoran Durumu & Çalışma Saatleri & Sekmeler -->
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             
+            <!-- Restoran Açık / Kapalı Butonu -->
+            <button 
+              id="admin-toggle-restaurant-btn" 
+              class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-xs ${settings.isOpen ? 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30' : 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-300'}"
+              title="Restoranın durumunu değiştir (Açık/Kapalı)"
+            >
+              <span class="w-2.5 h-2.5 rounded-full ${settings.isOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
+              <span>${settings.isOpen ? '🟢 Restoran Açık' : '🔴 Restoran Kapalı'}</span>
+            </button>
+
+            <!-- Çalışma Saatleri Düzenleyici -->
+            <button 
+              id="admin-edit-hours-btn" 
+              class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+              title="Açılış & Kapanış saatlerini düzenle"
+            >
+              <span>⏰</span>
+              <span class="hidden sm:inline">Saat:</span>
+              <span class="font-extrabold text-[#121212]">${settings.openingHours || '10:00 - 23:00'}</span>
+              <span class="text-gray-400 text-[10px]">✏️</span>
+            </button>
+
             <!-- Restoran Zili Ses Testi -->
             <button id="admin-test-sound-btn" class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer">
               <span>🔔</span>
-              <span class="hidden sm:inline">Zil Sesi Testi</span>
+              <span class="hidden sm:inline">Zil Sesi</span>
             </button>
 
             <!-- Sekme Seçici (Siparişler / Menü & Stok / Müşteriler) -->
@@ -1588,6 +1611,31 @@ function attachAdminEventListeners(container, state, onStateChange) {
       if (confirm("Yönetici oturumunu kapatmak istediğinize emin misiniz?")) {
         logoutAdmin();
         onStateChange({});
+      }
+    });
+  }
+
+  // Restoran Açık / Kapalı Durumu Değiştirme Butonu
+  const toggleRestBtn = container.querySelector('#admin-toggle-restaurant-btn');
+  if (toggleRestBtn) {
+    toggleRestBtn.addEventListener('click', () => {
+      const current = orderService.getRestaurantSettings();
+      const updated = { ...current, isOpen: !current.isOpen };
+      orderService.saveRestaurantSettings(updated);
+      onStateChange({ restaurantSettings: updated });
+    });
+  }
+
+  // Çalışma Saatleri Düzenleme Butonu
+  const editHoursBtn = container.querySelector('#admin-edit-hours-btn');
+  if (editHoursBtn) {
+    editHoursBtn.addEventListener('click', () => {
+      const current = orderService.getRestaurantSettings();
+      const newHours = prompt("Yeni çalışma saatlerini giriniz (Örn: 10:00 - 23:00):", current.openingHours || "10:00 - 23:00");
+      if (newHours && newHours.trim()) {
+        const updated = { ...current, openingHours: newHours.trim() };
+        orderService.saveRestaurantSettings(updated);
+        onStateChange({ restaurantSettings: updated });
       }
     });
   }

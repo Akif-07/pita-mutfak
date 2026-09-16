@@ -8,6 +8,8 @@ import { renderCourierPanel } from './components/CourierPanel.js';
 const state = {
   currentView: 'customer', // 'customer' | 'admin' | 'courier'
   currentUser: getCurrentUser(), // Oturum açmış müşteri bilgisi { name, phone }
+  restaurantSettings: orderService.getRestaurantSettings(), // Restoran açık/kapalı & çalışma saatleri
+  orders: orderService.getOrders(),
   isLoginModalOpen: false,
   isDiscountPromoOpen: false,
   firstOrderDiscountApplied: isFirstOrderDiscountAvailable(), // İlk sipariş indirimi aktif mi?
@@ -153,9 +155,10 @@ function render() {
 
 // Canlı Sipariş Senkronizasyonunu Başlat
 orderService.subscribe((orders) => {
+  state.orders = Array.isArray(orders) ? orders : [];
   // Eğer aktif takip edilen sipariş varsa durumunu canlı güncelle
   if (state.activeTrackingOrder) {
-    const updated = orders.find(o => o.id === state.activeTrackingOrder.id);
+    const updated = state.orders.find(o => o.id === state.activeTrackingOrder.id);
     if (updated) {
       state.activeTrackingOrder = updated;
     }
@@ -165,6 +168,12 @@ orderService.subscribe((orders) => {
 
 // Menü Güncelleme Senkronizasyonu
 orderService.subscribeMenu(() => {
+  render();
+});
+
+// Restoran Açık/Kapalı ve Çalışma Saatleri Canlı Senkronizasyonu
+orderService.subscribeRestaurantSettings((settings) => {
+  state.restaurantSettings = settings;
   render();
 });
 

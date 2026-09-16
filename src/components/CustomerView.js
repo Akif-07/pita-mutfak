@@ -11,11 +11,14 @@ import {
   addReview
 } from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
+import { verifyAdminCredentials, setAdminLoggedIn } from './AdminPanel.js';
 
 export function renderCustomerView(container, state, onStateChange) {
   const { cart, activeCategory, selectedProduct, activeTrackingOrder, currentUser, firstOrderDiscountApplied, discountPercentage } = state;
   const menu = orderService.getMenu();
   const myOrders = orderService.getMyOrders();
+  const restaurantSettings = state.restaurantSettings || orderService.getRestaurantSettings();
+  const isRestaurantOpen = restaurantSettings.isOpen !== false;
 
   // Backend SQLite stok haritası
   const stockMap = {};
@@ -54,21 +57,29 @@ export function renderCustomerView(container, state, onStateChange) {
   container.innerHTML = `
     <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-24">
       
-      <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
-      <div class="bg-[#06C167] text-white py-2 px-4 text-xs sm:text-sm font-medium shadow-sm">
-        <div class="max-w-6xl mx-auto flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping"></span>
-            <span>🎉 Pita Mutfak'a Hoş Geldiniz! İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
-          </div>
-          <button 
-            id="top-promo-claim-btn" 
-            class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
-          >
-            ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '🎁 İndirimi Kap'}
-          </button>
+      ${!isRestaurantOpen ? `
+        <!-- Restoran Kapalı Uyarısı Bannerı -->
+        <div class="bg-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 text-center sticky top-0 z-40">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+          <span>⚠️ Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: <strong>${restaurantSettings.openingHours || '10:00 - 23:00'}</strong>. Sipariş alımı geçici olarak durdurulmuştur.</span>
         </div>
-      </div>
+      ` : `
+        <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
+        <div class="bg-[#06C167] text-white py-2 px-4 text-xs sm:text-sm font-medium shadow-sm">
+          <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping"></span>
+              <span>🎉 Pita Mutfak'a Hoş Geldiniz! İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
+            </div>
+            <button 
+              id="top-promo-claim-btn" 
+              class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+            >
+              ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '🎁 İndirimi Kap'}
+            </button>
+          </div>
+        </div>
+      `}
 
       <!-- Ana Header / Navigasyon -->
       <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm transition-all">
@@ -88,7 +99,11 @@ export function renderCustomerView(container, state, onStateChange) {
             <div>
               <div class="flex items-center gap-2">
                 <h1 class="text-2xl font-black tracking-tight text-[#121212]">pita<span class="text-[#06C167]">mutfak</span></h1>
-                <span class="bg-[#E8F8EE] text-[#06C167] text-[11px] font-bold px-2 py-0.5 rounded-full">Açık</span>
+                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[11px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+                  <span class="w-2 h-2 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
+                  <span>${isRestaurantOpen ? 'Açık' : 'Kapalı'}</span>
+                  <span class="text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
+                </span>
               </div>
               <p class="text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Güveçte Kuru Fasulye</p>
             </div>
@@ -1710,6 +1725,14 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const identifier = formData.get('identifier').trim();
       const password = (formData.get('password') || '').trim();
 
+      // Admin Kullanıcı Adı / Şifresi Kontrolü: Doğruysa doğrudan Admin Paneline yönlendir!
+      if (verifyAdminCredentials(identifier, password)) {
+        setAdminLoggedIn(true);
+        onStateChange({ isLoginModalOpen: false });
+        window.location.hash = '#/admin';
+        return;
+      }
+
       try {
         const res = await customerLogin(identifier, password);
         if (res.ok && res.data && res.data.customer) {
@@ -2198,6 +2221,13 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (checkoutForm) {
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
+
+      const restSettings = state.restaurantSettings || orderService.getRestaurantSettings();
+      if (restSettings.isOpen === false) {
+        alert(`⚠️ Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${restSettings.openingHours || '10:00 - 23:00'}. Sipariş verilememektedir.`);
+        return;
+      }
+
       const formData = new FormData(checkoutForm);
       const customerName = formData.get('customerName');
       const customerPhone = formData.get('customerPhone');
