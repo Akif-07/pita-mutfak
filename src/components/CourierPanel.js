@@ -177,20 +177,33 @@ function renderActiveDeliveryCard(delivery, state) {
           <div class="font-semibold text-gray-800 leading-relaxed">
             <span class="font-bold text-gray-900">Adres:</span> ${delivery.deliveryAddress || delivery.tableNumber}
           </div>
-          ${delivery.orderNote ? `
-            <div class="text-amber-800 font-medium italic mt-2 bg-amber-50 p-2 rounded-lg border border-amber-200/60">
-              ⚠️ Not: "${delivery.orderNote}"
+          ${(delivery.orderNote || delivery.note || delivery.customerNote) ? `
+            <div class="text-amber-900 font-medium mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-300/80 shadow-xs">
+              <div class="flex items-center gap-1.5 text-xs font-black text-amber-800 uppercase tracking-wide mb-1">
+                <span>📝</span>
+                <span>Müşteri Sipariş Notu:</span>
+              </div>
+              <div class="text-xs text-amber-950 font-bold bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                "${delivery.orderNote || delivery.note || delivery.customerNote}"
+              </div>
             </div>
           ` : ''}
         </div>
 
         <!-- Sipariş Kalemleri ve Tahsil Edilecek Tutar -->
-        <div class="border-t border-gray-100 pt-3 flex items-center justify-between text-xs">
-          <div>
-            <span class="text-gray-500 font-medium">Sipariş İçeriği:</span>
-            <span class="font-bold text-gray-800">${delivery.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</span>
+        <div class="border-t border-gray-100 pt-3 flex items-start justify-between text-xs">
+          <div class="space-y-1">
+            <span class="text-gray-500 font-medium block">Sipariş İçeriği:</span>
+            <div class="space-y-1">
+              ${delivery.items.map(i => `
+                <div class="font-bold text-gray-800">
+                  <span>${i.quantity}x ${i.name}</span>
+                  ${i.note ? `<span class="block text-[11px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-0.5">↳ İstek: "${i.note}"</span>` : ''}
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <div class="text-right pl-3">
+          <div class="text-right pl-3 shrink-0">
             <span class="text-[10px] text-gray-400 block">${delivery.paymentMethod === 'cash' ? '💵 Kapıda Nakit Tahsilat' : '🏦 EFT/Havale ile Ödendi'}</span>
             <span class="text-base font-black text-[#06C167]">₺${delivery.totalAmount}</span>
           </div>

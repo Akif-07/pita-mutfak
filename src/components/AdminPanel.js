@@ -456,6 +456,7 @@ export function renderAdminPanel(container, state, onStateChange) {
 // Tek Sipariş Kartı
 function renderOrderCard(order) {
   const codeFormatted = formatDeliveryCode(order.deliveryCode);
+  const orderNote = order.orderNote || order.note || order.order_note || order.customerNote || '';
 
   let statusBadge = '';
   if (order.status === 'pending') {
@@ -488,6 +489,19 @@ function renderOrderCard(order) {
           </div>
           <div>${statusBadge}</div>
         </div>
+
+        <!-- MÜŞTERİ SİPARİŞ & MUTFAK NOTU (BÜYÜK & BELİRGİN KART) -->
+        ${orderNote ? `
+          <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 my-2.5 shadow-2xs">
+            <div class="flex items-center gap-1.5 text-amber-900 font-black text-xs mb-1">
+              <span class="text-base">📝</span>
+              <span>MÜŞTERİ SİPARİŞ NOTU:</span>
+            </div>
+            <p class="text-xs text-gray-900 font-extrabold bg-white p-2.5 rounded-xl border border-amber-200 leading-relaxed">
+              "${orderNote}"
+            </p>
+          </div>
+        ` : ''}
 
         <!-- MÜŞTERİ SORUN BİLDİRİMİ / DESTEK KUTUSU (Eğer müşteri sorun bildirmişse) -->
         ${order.issueReport ? `
@@ -560,19 +574,25 @@ function renderOrderCard(order) {
             <span class="text-base leading-none">📍</span>
             <span class="font-normal text-gray-700 leading-relaxed">${order.deliveryAddress}</span>
           </div>
-          ${order.orderNote ? `<div class="text-amber-700 font-medium italic mt-1.5 bg-amber-50/70 p-1.5 rounded-lg border border-amber-200/50">📝 Not: "${order.orderNote}"</div>` : ''}
         </div>
 
         <!-- Sipariş Kalemleri -->
-        <div class="space-y-1.5 mb-4 max-h-36 overflow-y-auto pr-1">
+        <div class="space-y-1.5 mb-4 max-h-48 overflow-y-auto pr-1">
           ${order.items.map(item => `
-            <div class="flex items-center justify-between text-xs py-1 border-b border-gray-50">
-              <div class="flex items-center gap-2">
-                <span class="font-black bg-[#E8F8EE] text-[#06C167] px-1.5 py-0.5 rounded-md text-[10px]">${item.quantity}x</span>
-                <span class="font-semibold text-gray-800">${item.name}</span>
-                ${item.option ? `<span class="text-[10px] text-gray-400">(${item.option.name})</span>` : ''}
+            <div class="py-1.5 border-b border-gray-50 text-xs">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="font-black bg-[#E8F8EE] text-[#06C167] px-1.5 py-0.5 rounded-md text-[10px]">${item.quantity}x</span>
+                  <span class="font-semibold text-gray-800">${item.name}</span>
+                  ${item.option ? `<span class="text-[10px] text-gray-400">(${item.option.name})</span>` : ''}
+                </div>
+                <span class="font-bold text-gray-900">₺${item.unitPrice * item.quantity}</span>
               </div>
-              <span class="font-bold text-gray-900">₺${item.unitPrice * item.quantity}</span>
+              ${item.note ? `
+                <div class="mt-1 ml-6 bg-amber-50 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-200 inline-block">
+                  👉 Özel İstek: "${item.note}"
+                </div>
+              ` : ''}
             </div>
           `).join('')}
         </div>

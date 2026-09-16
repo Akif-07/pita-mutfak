@@ -587,7 +587,7 @@ export const orderService = {
       customerName: orderInput.customerName || 'Misafir',
       customerPhone: orderInput.customerPhone || '',
       deliveryAddress: orderInput.deliveryAddress || '',
-      orderNote: orderInput.orderNote || '',
+      orderNote: orderInput.orderNote || orderInput.note || orderInput.order_note || orderInput.customerNote || '',
       paymentMethod: orderInput.paymentMethod || 'cash', // 'cash' (Kapıda Nakit) | 'eft' (EFT / Havale)
       items: orderInput.items || [],
       subtotalAmount: orderInput.subtotalAmount || orderInput.totalAmount || 0,

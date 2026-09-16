@@ -1127,12 +1127,12 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Kurye / Mutfak Notu (İsteğe bağlı)</label>
+            <label class="block text-xs font-bold text-gray-700 mb-1">📝 Mutfak & Kurye Sipariş Notunuz (İsteğe bağlı)</label>
             <input 
               type="text" 
               name="orderNote" 
-              placeholder="Örn: Zili çalmayın bebek uyuyor, kapıya asınız" 
-              class="w-full text-xs px-3.5 py-2 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+              placeholder="Örn: Zili çalmayın lütfen, turşusu bol olsun, ekstra çatal..." 
+              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
             />
           </div>
 
