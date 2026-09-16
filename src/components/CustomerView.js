@@ -2003,6 +2003,15 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           } catch (e) {
             console.warn("Google profili Firestore senkronizasyon:", e);
           }
+          
+          onStateChange({
+            currentUser: customerProfile,
+            isLoginModalOpen: false,
+            authError: '',
+            loginNotice: '',
+            pendingVerificationData: null,
+            firstOrderDiscountApplied: true
+          });
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2144,6 +2153,15 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           try {
             await syncCustomerToFirestore(user);
           } catch (e) {}
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            authMode: 'login',
+            authError: '',
+            loginNotice: '',
+            pendingVerificationData: null,
+            firstOrderDiscountApplied: true
+          });
           performSmoothReload(`🎉 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2178,6 +2196,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       if (verifyAdminCredentials(identifier, password)) {
         setAdminLoggedIn(true);
         window.location.hash = '#/admin';
+        onStateChange({ isLoginModalOpen: false, authError: '' });
         performSmoothReload('Yönetici paneline geçiliyor...');
         return;
       }
@@ -2194,6 +2213,13 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            authError: '',
+            loginNotice: '',
+            firstOrderDiscountApplied: true
+          });
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
