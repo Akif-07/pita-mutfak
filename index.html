@@ -56,9 +56,76 @@
     * {
       box-sizing: border-box;
     }
+
+    @keyframes loader-progress {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(60%); }
+      100% { transform: translateX(220%); }
+    }
+    .animate-loader-bar {
+      animation: loader-progress 1.2s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="bg-[#F7F9F8] text-[#121212] antialiased selection:bg-[#06C167] selection:text-white">
+
+  <!-- ================= GLOBAL YÜKLEME EKRANI (SPLASH & RELOAD LOADER) ================= -->
+  <div id="global-loader" class="fixed inset-0 z-[99999] bg-[#0E1511] flex flex-col items-center justify-center transition-all duration-400 ease-out">
+    <div class="relative flex flex-col items-center text-center p-6 max-w-xs">
+      
+      <!-- Parlayan Arka Plan Işığı & Logo -->
+      <div class="relative mb-5">
+        <div class="absolute -inset-4 bg-[#06C167]/30 rounded-full blur-xl animate-pulse"></div>
+        <div class="relative w-20 h-20 bg-gradient-to-tr from-[#06C167] to-[#10e27d] rounded-3xl flex items-center justify-center text-4xl shadow-2xl shadow-[#06C167]/40 ring-4 ring-white/10">
+          🍲
+        </div>
+      </div>
+      
+      <!-- Marka Başlığı -->
+      <h1 class="text-2xl font-black text-white tracking-tight mb-1.5 flex items-center gap-1">
+        <span>Pita</span>
+        <span class="text-[#06C167]">Mutfak</span>
+      </h1>
+      
+      <!-- Durum Bildirim Metni -->
+      <p id="global-loader-text" class="text-xs text-gray-300 font-medium mb-6">
+        Sıcak & taze lezzetler yükleniyor...
+      </p>
+
+      <!-- İlerleme Çubuğu -->
+      <div class="w-40 h-1.5 bg-gray-800 rounded-full overflow-hidden relative shadow-inner">
+        <div class="h-full bg-gradient-to-r from-[#06C167] to-[#25f58c] rounded-full animate-loader-bar w-1/2"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Global Yükleyici Fonksiyonları (Tüm bileşenlerden erişilebilir)
+    window.showGlobalLoader = function(text) {
+      const loader = document.getElementById('global-loader');
+      const label = document.getElementById('global-loader-text');
+      if (label && text) label.innerText = text;
+      if (loader) {
+        loader.style.display = 'flex';
+        loader.classList.remove('opacity-0', 'pointer-events-none');
+        loader.classList.add('opacity-100');
+      }
+    };
+
+    window.hideGlobalLoader = function() {
+      const loader = document.getElementById('global-loader');
+      if (loader) {
+        loader.classList.remove('opacity-100');
+        loader.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+          if (loader.classList.contains('opacity-0')) {
+            loader.style.display = 'none';
+          }
+        }, 400);
+      }
+    };
+  </script>
 
   <!-- Ana Uygulama Alanı -->
   <div id="app-content"></div>

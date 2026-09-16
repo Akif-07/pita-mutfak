@@ -204,6 +204,13 @@ window.addEventListener('hashchange', () => {
 
 // Başlangıç Yüklemesi
 syncViewFromHash();
+render();
 loadBackendData();
 loadCustomerMessages();
-render();
+
+// Sayfa ilk yüklendiğinde yükleme ekranını yumuşakça kaldır
+setTimeout(() => {
+  if (typeof window.hideGlobalLoader === 'function') {
+    window.hideGlobalLoader();
+  }
+}, 350);

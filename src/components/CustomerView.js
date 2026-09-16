@@ -1666,6 +1666,16 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
   }
 
+  // Yardımcı: Şık Yükleme Ekranı ile Sayfa Yenileme
+  function performSmoothReload(message = 'Giriş yapıldı, yükleniyor...') {
+    if (typeof window.showGlobalLoader === 'function') {
+      window.showGlobalLoader(message);
+    }
+    setTimeout(() => {
+      window.location.reload();
+    }, 350);
+  }
+
   // Google ile Hızlı Giriş Butonu
   const googleBtn = container.querySelector('#google-signin-btn');
   if (googleBtn) {
@@ -1678,8 +1688,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.user) {
           const user = res.user;
           setCurrentUser(user);
-          // Bildirim / alert göstermeden sayfayı doğrudan yenile
-          window.location.reload();
+          performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
           googleBtn.disabled = false;
@@ -1783,8 +1792,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
-          // Bildirim / alert göstermeden sayfayı doğrudan yenile
-          window.location.reload();
+          performSmoothReload(`🎉 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
           if (submitBtn) {
@@ -1801,8 +1809,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           is_verified: 1
         };
         setCurrentUser(fallbackUser);
-        // Bildirim / alert göstermeden sayfayı doğrudan yenile
-        window.location.reload();
+        performSmoothReload(`👋 Hoş geldiniz, ${fallbackUser.name}!`);
         return;
       }
     });
@@ -1821,7 +1828,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       if (verifyAdminCredentials(identifier, password)) {
         setAdminLoggedIn(true);
         window.location.hash = '#/admin';
-        window.location.reload();
+        performSmoothReload('Yönetici paneline geçiliyor...');
         return;
       }
 
@@ -1830,8 +1837,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
-          // Bildirim / alert göstermeden sayfayı doğrudan yenile
-          window.location.reload();
+          performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         }
       } catch (e) {}
@@ -1842,8 +1848,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       setCurrentUser(user);
       registerCustomer(fallbackName, identifier).catch(() => {});
 
-      // Bildirim / alert göstermeden sayfayı doğrudan yenile
-      window.location.reload();
+      performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
     });
   }
 
@@ -2043,7 +2048,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
       setCurrentUser(null);
-      onStateChange({ currentUser: null, firstOrderDiscountApplied: false });
+      performSmoothReload('Çıkış yapılıyor...');
     });
   }
 
