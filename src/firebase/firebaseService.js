@@ -223,7 +223,8 @@ export async function syncCustomerToFirestore(customer) {
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc } = ctx;
     const clean = cleanForFirestore(customer);
-    const key = clean.phone || clean.email || `cust-${Date.now()}`;
+    const rawKey = clean.phone || clean.email || clean.uid || `cust-${Date.now()}`;
+    const key = String(rawKey).replace(/[\/\#\$\[\]]/g, '_');
     const custRef = doc(db, "customers", key);
     await setDoc(custRef, {
       ...clean,
@@ -256,7 +257,8 @@ export async function deleteCustomerFromFirestore(phone) {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, deleteDoc } = ctx;
-    await deleteDoc(doc(db, "customers", phone));
+    const key = String(phone).replace(/[\/\#\$\[\]]/g, '_');
+    await deleteDoc(doc(db, "customers", key));
     return true;
   } catch (e) {
     console.warn("Firestore müşteri silme:", e);

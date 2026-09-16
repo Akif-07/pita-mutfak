@@ -346,6 +346,50 @@ export function markFirstOrderDiscountUsed() {
   localStorage.setItem('pita_first_order_used', 'true');
 }
 
+// =================== MÜŞTERİ VERİTABANI YÖNETİMİ ===================
+const STORAGE_CUSTOMERS_KEY = 'pita_customers_db';
+
+export function getStoredCustomers() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOMERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredCustomers(customers) {
+  try {
+    localStorage.setItem(STORAGE_CUSTOMERS_KEY, JSON.stringify(customers));
+  } catch (e) {}
+}
+
+export function saveCustomerLocally(customer) {
+  if (!customer) return;
+  const current = getStoredCustomers();
+  const cPhone = (customer.phone || '').trim();
+  const cEmail = (customer.email || '').trim().toLowerCase();
+  const cUid = customer.uid;
+
+  const index = current.findIndex(c => 
+    (cPhone && (c.phone === cPhone || (c.phone && cPhone && c.phone.replace(/\D/g,'').slice(-10) === cPhone.replace(/\D/g,'').slice(-10)))) ||
+    (cEmail && c.email && c.email.toLowerCase() === cEmail) ||
+    (cUid && c.uid === cUid)
+  );
+
+  const clean = {
+    ...customer,
+    _updatedAt: new Date().toISOString()
+  };
+
+  if (index >= 0) {
+    current[index] = { ...current[index], ...clean };
+  } else {
+    current.unshift(clean);
+  }
+  saveStoredCustomers(current);
+}
+
 // =================== BACKEND API FONKSİYONLARI ===================
 
 const API_BASE = '/api';
@@ -479,50 +523,85 @@ export async function verifyAndRegister(payload) {
   const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
 
   let res = await apiCall('/auth/verify-and-register', 'POST', payload);
-  if (res.ok && res.data && res.data.user) {
-    setCurrentUser(res.data.user);
-    syncCustomerToFirestore(res.data.user).catch(() => {});
-    return res;
-  }
-
-  // Fallback doğrulaması: üretilen kod veya varsayılan 123456 kodu kabul edilir
-  if (inputCode === storedCode || inputCode === '123456') {
-    const isEmail = identifier.includes('@');
-    const user = {
-      name: payload.name || (isEmail ? identifier.split('@')[0] : 'Misafir'),
-      email: payload.email || (isEmail ? identifier : ''),
-      phone: payload.phone || (!isEmail ? identifier : ''),
-      registered_at: new Date().toISOString()
-    };
+  if (res.ok && res.data && (res.data.user || res.data.customer)) {
+    const user = res.data.user || res.data.customer;
     setCurrentUser(user);
+    saveCustomerLocally(user);
     syncCustomerToFirestore(user).catch(() => {});
     return { ok: true, data: { user } };
   }
 
-  return { ok: false, data: { error: 'Geçersiz doğrulama kodu.' } };
-}
-
-// E-posta / Telefon / Şifre ile Giriş Yap
-export async function customerLogin(identifier, password) {
-  const cleanId = (identifier || '').trim();
-  const res = await apiCall('/auth/login', 'POST', { identifier: cleanId, password });
-  if (res.ok && res.data && res.data.user) {
-    setCurrentUser(res.data.user);
-    syncCustomerToFirestore(res.data.user).catch(() => {});
-    return res;
+  // Doğrulama kontrolü: üretilen kod veya varsayılan 123456 kabul edilir
+  if (inputCode === storedCode || inputCode === '123456') {
+    const isEmail = identifier.includes('@');
+    const user = {
+      name: payload.name || (isEmail ? identifier.split('@')[0] : 'Pita Misafiri'),
+      email: payload.email || (isEmail ? identifier : ''),
+      phone: payload.phone || (!isEmail ? identifier : ''),
+      password: payload.password || '',
+      auth_provider: isEmail ? 'email' : 'phone',
+      registered_at: new Date().toISOString()
+    };
+    setCurrentUser(user);
+    saveCustomerLocally(user);
+    syncCustomerToFirestore(user).catch(() => {});
+    return { ok: true, data: { user } };
   }
 
-  // Local / Client fallback
-  const isEmail = cleanId.includes('@');
-  const user = {
-    name: isEmail ? cleanId.split('@')[0] : 'Misafir',
-    email: isEmail ? cleanId : '',
-    phone: !isEmail ? cleanId : '',
-    registered_at: new Date().toISOString()
-  };
-  setCurrentUser(user);
-  syncCustomerToFirestore(user).catch(() => {});
-  return { ok: true, data: { user } };
+  return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
+}
+
+// E-posta / Telefon / Şifre ile Giriş Yap (Kayıtlı Olmayan Müşteriyi Reddet)
+export async function customerLogin(identifier, password) {
+  const cleanId = (identifier || '').trim();
+  if (!cleanId) {
+    return { ok: false, error: 'Lütfen telefon numarası veya e-posta adresinizi giriniz.' };
+  }
+
+  // 1. Backend API dene (varsa)
+  try {
+    const res = await apiCall('/auth/login', 'POST', { identifier: cleanId, password });
+    if (res.ok && res.data && (res.data.user || res.data.customer)) {
+      const user = res.data.user || res.data.customer;
+      setCurrentUser(user);
+      saveCustomerLocally(user);
+      syncCustomerToFirestore(user).catch(() => {});
+      return { ok: true, data: { user } };
+    }
+  } catch (e) {}
+
+  // 2. Veritabanındaki (Firestore & Local) kayıtlı müşterileri tara
+  const allCustomers = await orderService.getCustomers();
+  const cleanLower = cleanId.toLowerCase();
+  const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+  const inputNormPhone = normPhone(cleanId);
+
+  const foundCustomer = allCustomers.find(c => {
+    if (c.email && c.email.toLowerCase() === cleanLower) return true;
+    if (c.phone && (c.phone === cleanId || (inputNormPhone.length >= 7 && normPhone(c.phone) === inputNormPhone))) return true;
+    if (c.identifier && c.identifier.toLowerCase() === cleanLower) return true;
+    return false;
+  });
+
+  if (!foundCustomer) {
+    return { 
+      ok: false, 
+      error: 'Bu telefon numarası veya e-posta ile kayıtlı müşteri bulunamadı. Lütfen önce "Kayıt Ol" sekmesinden hesap açınız.' 
+    };
+  }
+
+  // Şifre kontrolü
+  if (foundCustomer.password) {
+    if (!password || password !== foundCustomer.password) {
+      return { ok: false, error: 'Girdiğiniz şifre hatalı! Lütfen kontrol ediniz.' };
+    }
+  }
+
+  // Başarılı giriş
+  setCurrentUser(foundCustomer);
+  saveCustomerLocally(foundCustomer);
+  syncCustomerToFirestore(foundCustomer).catch(() => {});
+  return { ok: true, data: { user: foundCustomer } };
 }
 
 // Müşteri Yorumlarını Getir (Backend API + LocalStorage Hibrit)
@@ -988,20 +1067,43 @@ export const orderService = {
     };
   },
 
-  // Backend Müşteri Yönetimi
+  // Backend & Firestore Müşteri Yönetimi
   async getCustomers() {
+    let cloudCust = [];
+    try {
+      cloudCust = await getCustomersFromFirestore();
+    } catch (e) {
+      console.warn("Firestore müşteri çekme hatası:", e);
+    }
+
+    const localCust = getStoredCustomers();
+
+    // Firestore ve Local verileri tek çatı altında birleştir
+    const map = new Map();
+    [...localCust, ...cloudCust].forEach(c => {
+      const key = (c.phone || c.email || c.uid || c.id || '').trim();
+      if (key) {
+        map.set(key, { ...map.get(key), ...c });
+      }
+    });
+
+    const merged = Array.from(map.values());
+    if (merged.length > 0) {
+      saveStoredCustomers(merged);
+      return merged;
+    }
+
     const res = await getRegisteredCustomers();
     if (res.ok && res.data && res.data.length > 0) return res.data;
-    try {
-      const cloudCust = await getCustomersFromFirestore();
-      if (cloudCust && cloudCust.length > 0) return cloudCust;
-    } catch (e) {}
-    return res.ok ? res.data : [];
+    return [];
   },
 
   async deleteCustomer(phone) {
     const res = await deleteCustomer(phone);
     deleteCustomerFromFirestore(phone).catch(() => {});
+    const current = getStoredCustomers();
+    const updated = current.filter(c => c.phone !== phone && c.email !== phone && c.id !== phone);
+    saveStoredCustomers(updated);
     if (broadcastChannel) {
       broadcastChannel.postMessage({ type: 'CUSTOMER_DELETED', phone });
     }

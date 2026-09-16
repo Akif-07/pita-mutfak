@@ -9,6 +9,8 @@ import {
   verifyAndRegister,
   customerLogin,
   signInWithGoogle,
+  syncCustomerToFirestore,
+  saveCustomerLocally,
   addReview
 } from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
@@ -454,6 +456,13 @@ function renderLoginModal(state) {
           </div>
           <button id="close-login-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
         </div>
+
+        ${state.authError ? `
+          <div class="bg-red-50 border border-red-300 text-red-900 rounded-2xl p-3.5 my-3 text-xs flex items-start gap-2.5 animate-in fade-in duration-200 shadow-xs">
+            <span class="text-base shrink-0 leading-none">⚠️</span>
+            <div class="font-bold leading-relaxed">${state.authError}</div>
+          </div>
+        ` : ''}
 
         ${loginNotice ? `
           <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-3 my-3 text-xs flex items-center gap-2">
@@ -1626,12 +1635,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   // Giriş Yap Modalını Açma / Kapatma
   const openLoginBtn = container.querySelector('#open-login-btn');
   if (openLoginBtn) {
-    openLoginBtn.addEventListener('click', () => onStateChange({ isLoginModalOpen: true }));
+    openLoginBtn.addEventListener('click', () => onStateChange({ isLoginModalOpen: true, authError: '' }));
   }
 
   const closeLoginBtn = container.querySelector('#close-login-btn');
   if (closeLoginBtn) {
-    closeLoginBtn.addEventListener('click', () => onStateChange({ isLoginModalOpen: false }));
+    closeLoginBtn.addEventListener('click', () => onStateChange({ isLoginModalOpen: false, authError: '', loginNotice: '' }));
   }
 
   // İndirimi Kap Butonları (Banner ve Hero)
@@ -1639,7 +1648,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const topPromoClaimBtn = container.querySelector('#top-promo-claim-btn');
   const handleClaim = () => {
     if (!state.currentUser) {
-      onStateChange({ isLoginModalOpen: true });
+      onStateChange({ isLoginModalOpen: true, authError: '' });
     } else {
       onStateChange({ firstOrderDiscountApplied: true, isCartOpen: true });
       alert("🎉 Tebrikler! İlk siparişinize özel %20 indirim sepetinize uygulandı!");
@@ -1653,17 +1662,17 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   // Sekme Değiştirme Butonları
   const tabBtnLogin = container.querySelector('#tab-btn-login');
   if (tabBtnLogin) {
-    tabBtnLogin.addEventListener('click', () => onStateChange({ authMode: 'login', pendingVerificationData: null }));
+    tabBtnLogin.addEventListener('click', () => onStateChange({ authMode: 'login', authError: '', pendingVerificationData: null }));
   }
 
   const tabBtnRegister = container.querySelector('#tab-btn-register');
   if (tabBtnRegister) {
-    tabBtnRegister.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
+    tabBtnRegister.addEventListener('click', () => onStateChange({ authMode: 'register', authError: '', pendingVerificationData: null }));
   }
 
   const switchToRegisterLink = container.querySelector('#switch-to-register-link');
   if (switchToRegisterLink) {
-    switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
+    switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', authError: '', pendingVerificationData: null }));
   }
 
   // Yardımcı: Şık Yükleme Ekranı ile Sayfa Yenileme
@@ -1687,17 +1696,36 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         const res = await signInWithGoogle();
         if (res.ok && res.user) {
           const user = res.user;
-          setCurrentUser(user);
+          const customerProfile = {
+            name: user.name,
+            email: user.email || '',
+            phone: user.phone || '',
+            uid: user.uid,
+            photoURL: user.photoURL || '',
+            auth_provider: 'google',
+            registered_at: new Date().toISOString()
+          };
+          setCurrentUser(customerProfile);
+          saveCustomerLocally(customerProfile);
+          try {
+            await syncCustomerToFirestore(customerProfile);
+          } catch (e) {
+            console.warn("Google profili Firestore senkronizasyon:", e);
+          }
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
           googleBtn.disabled = false;
           googleBtn.innerHTML = originalHTML;
+          if (res.error && !res.error.includes('popup-closed') && !res.error.includes('user-cancelled')) {
+            onStateChange({ authError: res.error || 'Google ile giriş yapılamadı.' });
+          }
         }
       } catch (err) {
         console.warn("Google login error:", err);
         googleBtn.disabled = false;
         googleBtn.innerHTML = originalHTML;
+        onStateChange({ authError: 'Google ile bağlanırken bir hata oluştu.' });
       }
     });
   }
@@ -1726,6 +1754,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         
         onStateChange({
           authMode: 'verify',
+          authError: '',
           pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: codeHint
         });
@@ -1733,6 +1762,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         console.warn("Doğrulama kodu gönderme:", err);
         onStateChange({
           authMode: 'verify',
+          authError: '',
           pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: '123456'
         });
@@ -1755,7 +1785,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const backToRegisterBtn = container.querySelector('#back-to-register-btn');
   if (backToRegisterBtn) {
     backToRegisterBtn.addEventListener('click', () => {
-      onStateChange({ authMode: 'register', pendingVerificationData: null });
+      onStateChange({ authMode: 'register', authError: '', pendingVerificationData: null });
     });
   }
 
@@ -1768,6 +1798,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const inputCode = codeInput ? codeInput.value.trim() : '';
 
       if (!inputCode) {
+        onStateChange({ authError: 'Lütfen 6 haneli doğrulama kodunu giriniz.' });
         return;
       }
 
@@ -1792,9 +1823,15 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+          saveCustomerLocally(user);
+          try {
+            await syncCustomerToFirestore(user);
+          } catch (e) {}
           performSmoothReload(`🎉 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
+          const errText = res.error || (res.data && res.data.error) || 'Doğrulama kodu hatalı! Lütfen kontrol ediniz.';
+          onStateChange({ authError: errText });
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerText = "Doğrula & Giriş Yap";
@@ -1802,20 +1839,16 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         }
       } catch (err) {
         console.warn("Doğrulama hatası:", err);
-        const fallbackUser = {
-          name: pending.name || 'Pita Misafiri',
-          email: pending.email || '',
-          phone: pending.phone || '',
-          is_verified: 1
-        };
-        setCurrentUser(fallbackUser);
-        performSmoothReload(`👋 Hoş geldiniz, ${fallbackUser.name}!`);
-        return;
+        onStateChange({ authError: 'Doğrulama sırasında bir hata oluştu.' });
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Doğrula & Giriş Yap";
+        }
       }
     });
   }
 
-  // 3. Giriş Yap Formu
+  // 3. Giriş Yap Formu (Kayıtlı Olmayan Müşteriyi Kesinlikle Kabul Etme)
   const loginForm = container.querySelector('#customer-login-form');
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -1832,6 +1865,13 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         return;
       }
 
+      const submitBtn = loginForm.querySelector('button[type="submit"]');
+      const originalText = submitBtn ? submitBtn.innerText : 'Giriş Yap';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Kontrol Ediliyor...";
+      }
+
       try {
         const res = await customerLogin(identifier, password);
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
@@ -1839,16 +1879,21 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           setCurrentUser(user);
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
+        } else {
+          const errText = res.error || (res.data && res.data.error) || 'Bu telefon numarası veya e-posta ile kayıtlı müşteri bulunamadı. Lütfen "Kayıt Ol" sekmesinden hesap oluşturunuz.';
+          onStateChange({ authError: errText });
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalText;
+          }
         }
-      } catch (e) {}
-
-      // Fallback: Yerel kullanıcı oluştur / giriş yap
-      const fallbackName = identifier.includes('@') ? identifier.split('@')[0] : identifier;
-      const user = { name: fallbackName, phone: identifier, email: identifier.includes('@') ? identifier : '' };
-      setCurrentUser(user);
-      registerCustomer(fallbackName, identifier).catch(() => {});
-
-      performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
+      } catch (err) {
+        onStateChange({ authError: 'Giriş yapılamadı. Lütfen bilgilerinizi kontrol ediniz.' });
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = originalText;
+        }
+      }
     });
   }
 
