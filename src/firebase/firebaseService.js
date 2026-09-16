@@ -322,7 +322,88 @@ export function subscribeFirestoreStock(callback) {
   };
 }
 
+// =================== 5.1 GİDERLER & MUHASEBE (EXPENSES) ===================
+
+export async function syncExpenseToFirestore(expense) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const clean = cleanForFirestore(expense);
+    const expId = String(clean.id || `exp-${Date.now()}`);
+    const expRef = doc(db, "expenses", expId);
+    await setDoc(expRef, {
+      ...clean,
+      id: expId,
+      _syncedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.warn("Firestore gider kaydetme:", e);
+    return false;
+  }
+}
+
+export async function deleteExpenseFromFirestore(expenseId) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
+    await deleteDoc(doc(db, "expenses", String(expenseId)));
+    return true;
+  } catch (e) {
+    console.warn("Firestore gider silme:", e);
+    return false;
+  }
+}
+
+export function subscribeFirestoreExpenses(callback) {
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, onSnapshot } = ctx;
+    try {
+      const collRef = collection(db, "expenses");
+      unsubscribe = onSnapshot(collRef, (snapshot) => {
+        const list = [];
+        snapshot.forEach(d => {
+          list.push({ id: d.id, ...d.data() });
+        });
+        list.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+        callback(list);
+      }, (error) => {
+        console.warn("Firestore gider dinleme hatası:", error);
+      });
+    } catch (e) {
+      console.warn("Firestore gider dinleyici hatası:", e);
+    }
+  }).catch(() => {});
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+
+export async function getExpensesFromFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return [];
+    const { db, collection, getDocs } = ctx;
+    const snap = await getDocs(collection(db, "expenses"));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    list.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    return list;
+  } catch (e) {
+    console.warn("Firestore giderler çekilemedi:", e);
+    return [];
+  }
+}
+
 // =================== 6. GOOGLE AUTHENTICATION ===================
+
 
 export async function signInWithGoogle() {
   try {

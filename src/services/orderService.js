@@ -20,7 +20,11 @@ import {
   getGoogleRedirectResult,
   pingPresence,
   subscribePresence,
-  removePresence
+  removePresence,
+  syncExpenseToFirestore,
+  deleteExpenseFromFirestore,
+  subscribeFirestoreExpenses,
+  getExpensesFromFirestore
 } from '../firebase/firebaseService.js';
 
 export { signInWithGoogle, getGoogleRedirectResult, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
@@ -32,7 +36,9 @@ const STORAGE_MENU_KEY = 'pita_mutfak_menu';
 const STORAGE_MY_ORDERS_KEY = 'pita_my_order_ids';
 const STORAGE_REVIEWS_KEY = 'pita_mutfak_reviews';
 const STORAGE_RESTAURANT_SETTINGS_KEY = 'pita_restaurant_settings';
+const STORAGE_EXPENSES_KEY = 'pita_mutfak_expenses';
 const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
+
 
 // Varsayılan Restoran Durumu & Çalışma Saatleri
 export const DEFAULT_RESTAURANT_SETTINGS = {
@@ -1253,7 +1259,107 @@ export const orderService = {
 
   subscribeRestaurantSettings(callback) {
     return subscribeRestaurantSettings(callback);
+  },
+
+  // Muhasebe & Gider Yönetim Servisleri
+  getExpenses() {
+    return getExpenses();
+  },
+
+  addExpense(data) {
+    return addExpense(data);
+  },
+
+  deleteExpense(expenseId) {
+    return deleteExpense(expenseId);
+  },
+
+  subscribeExpenses(callback) {
+    return subscribeExpenses(callback);
   }
 };
+
+// =================== GİDERLER & MUHASEBE YARDIMCI FONKSİYONLARI ===================
+
+export function getStoredExpenses() {
+  try {
+    const raw = localStorage.getItem(STORAGE_EXPENSES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredExpenses(expenses, broadcastType = 'EXPENSES_UPDATED') {
+  try {
+    localStorage.setItem(STORAGE_EXPENSES_KEY, JSON.stringify(expenses));
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: broadcastType, expenses, timestamp: Date.now() });
+    }
+  } catch (e) {
+    console.warn("Giderler kaydedilemedi:", e);
+  }
+}
+
+export async function getExpenses() {
+  // Önce yerel hafızadan hızlıca dön
+  const local = getStoredExpenses();
+  try {
+    const fromFirestore = await getExpensesFromFirestore();
+    if (Array.isArray(fromFirestore) && fromFirestore.length > 0) {
+      saveStoredExpenses(fromFirestore, 'EXPENSES_SYNCED');
+      return fromFirestore;
+    }
+  } catch (e) {}
+  return local;
+}
+
+export async function addExpense(expenseData) {
+  const newExp = {
+    id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    title: (expenseData.title || 'Gider').trim(),
+    category: expenseData.category || 'Malzeme',
+    amount: parseFloat(expenseData.amount) || 0,
+    date: expenseData.date || new Date().toISOString().split('T')[0],
+    note: (expenseData.note || '').trim(),
+    createdAt: new Date().toISOString()
+  };
+  const current = getStoredExpenses();
+  const updated = [newExp, ...current];
+  saveStoredExpenses(updated, 'EXPENSE_ADDED');
+  syncExpenseToFirestore(newExp).catch(() => {});
+  return { ok: true, expense: newExp };
+}
+
+export async function deleteExpense(expenseId) {
+  const current = getStoredExpenses();
+  const updated = current.filter(e => e.id !== expenseId);
+  saveStoredExpenses(updated, 'EXPENSE_DELETED');
+  deleteExpenseFromFirestore(expenseId).catch(() => {});
+  return { ok: true };
+}
+
+export function subscribeExpenses(callback) {
+  const handleBroadcast = (event) => {
+    if (event.data && (event.data.type === 'EXPENSES_UPDATED' || event.data.type === 'EXPENSE_ADDED' || event.data.type === 'EXPENSE_DELETED')) {
+      callback(getStoredExpenses());
+    }
+  };
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcast);
+  }
+  const unsubFirestore = subscribeFirestoreExpenses((firestoreExpenses) => {
+    if (Array.isArray(firestoreExpenses) && firestoreExpenses.length > 0) {
+      localStorage.setItem(STORAGE_EXPENSES_KEY, JSON.stringify(firestoreExpenses));
+      callback(firestoreExpenses);
+    }
+  });
+
+  return () => {
+    if (broadcastChannel) broadcastChannel.removeEventListener('message', handleBroadcast);
+    if (unsubFirestore) unsubFirestore();
+  };
+}
+
 
 

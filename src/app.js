@@ -45,7 +45,11 @@ const state = {
   courierFilter: 'active',
   verificationResults: {},
   activeVisitors: [], // Giriş yapmış aktif kullanıcılar
-  activeGuests: []    // Misafir (giriş yapmamış) ziyaretçiler
+  activeGuests: [],   // Misafir (giriş yapmamış) ziyaretçiler
+  adminDateFilter: 'today', // 'today' (Varsayılan Günlük!) | 'yesterday' | 'custom' | 'all'
+  adminCustomDate: '',
+  expensesList: [],
+  isAddExpenseModalOpen: false
 };
 
 
@@ -74,14 +78,17 @@ async function loadCustomerMessages() {
 // Backend Verilerini Yükleme Fonksiyonu
 async function loadBackendData() {
   try {
-    const [customers, stock, reviews] = await Promise.all([
+    const [customers, stock, reviews, expenses] = await Promise.all([
       orderService.getCustomers(),
       orderService.getStock(),
-      orderService.getReviews()
+      orderService.getReviews(),
+      orderService.getExpenses()
     ]);
     state.customers = Array.isArray(customers) ? customers : [];
     state.stockList = Array.isArray(stock) ? stock : [];
     state.reviewsList = Array.isArray(reviews) ? reviews : [];
+    state.expensesList = Array.isArray(expenses) ? expenses : [];
+
 
     // Eğer stok veritabanı henüz boşsa menüdeki ürünlerle başlat
     if (state.stockList.length === 0) {
@@ -231,6 +238,13 @@ orderService.subscribeReviews((reviews) => {
   state.reviewsList = Array.isArray(reviews) ? reviews : [];
   render();
 });
+
+// Giderler ve Muhasebe Canlı Senkronizasyonu
+orderService.subscribeExpenses((expenses) => {
+  state.expensesList = Array.isArray(expenses) ? expenses : [];
+  render();
+});
+
 
 // Canlı Ziyaretçi & Aktif Kullanıcı Senkronizasyonu (giriş yapmış + misafir ayrı)
 orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
