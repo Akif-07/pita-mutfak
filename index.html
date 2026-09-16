@@ -125,7 +125,13 @@
         }, 400);
       }
     };
+
+    // Emniyet Zamanlayıcısı: Yükleme ekranının asla takılı kalmaması için güvenlik garantisi
+    setTimeout(() => {
+      window.hideGlobalLoader();
+    }, 1500);
   </script>
+
 
   <!-- Ana Uygulama Alanı -->
   <div id="app-content"></div>

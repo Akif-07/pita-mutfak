@@ -1439,8 +1439,13 @@ function renderAdminReviewsTab(state) {
         `}
       </div>
 
+    </div>
+  `;
+}
+
 // =================== 5. MUHASEBE & GİDER YÖNETİMİ (ACCOUNTING & EXPENSES) ===================
 function renderAccountingTab(orders, expenses, state) {
+
   const accountingPeriod = state.accountingPeriod || 'month'; // 'today' | 'yesterday' | 'month' | 'all'
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
