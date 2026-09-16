@@ -396,6 +396,8 @@ function getSessionId() {
 }
 
 export async function pingPresence(user = null) {
+  // Sadece giriş yapmış kullanıcılar için ping at
+  if (!user) return false;
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
@@ -411,13 +413,27 @@ export async function pingPresence(user = null) {
     await setDoc(presenceRef, {
       id: sid,
       lastSeen: Date.now(),
-      name: user?.name || 'Ziyaretçi',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      isLoggedIn: !!user,
+      name: user.name || 'Müşteri',
+      email: user.email || '',
+      phone: user.phone || '',
+      isLoggedIn: true,
       view: viewName,
       _updatedAt: new Date().toISOString()
     }, { merge: true });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function removePresence() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
+    const sid = getSessionId();
+    const presenceRef = doc(db, "presence", sid);
+    await deleteDoc(presenceRef);
     return true;
   } catch (e) {
     return false;
@@ -436,7 +452,8 @@ export function subscribePresence(callback) {
       const activeSessions = [];
       snapshot.forEach(doc => {
         const data = doc.data();
-        if (data && data.lastSeen && data.lastSeen >= cutoff) {
+        // Sadece giriş yapmış ve son 90 saniyede aktif olan kullanıcıları göster
+        if (data && data.isLoggedIn && data.lastSeen && data.lastSeen >= cutoff) {
           activeSessions.push(data);
         }
       });

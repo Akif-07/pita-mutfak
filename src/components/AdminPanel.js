@@ -164,7 +164,8 @@ export function renderAdminPanel(container, state, onStateChange) {
   const customers = state.customers || [];
   const stockList = state.stockList || [];
   const activeVisitors = state.activeVisitors || [];
-  const activeVisitorCount = Math.max(1, activeVisitors.length);
+  const activeVisitorCount = activeVisitors.length;
+
   const customerSearchQuery = state.customerSearchQuery || '';
   const adminFilter = state.adminFilter || 'all';
   const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers'
@@ -342,8 +343,8 @@ export function renderAdminPanel(container, state, onStateChange) {
             </div>
             <div>
               <span class="text-[10px] text-emerald-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-ping"></span>
-                Canlı Ziyaretçi
+                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] ${activeVisitorCount > 0 ? 'animate-ping' : ''}"></span>
+                Aktif Müşteri
               </span>
               <div class="text-xl font-black text-[#06C167]">${activeVisitorCount} Aktif</div>
             </div>
@@ -903,7 +904,7 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
 
   const totalOrders = customers.reduce((sum, c) => sum + (c.total_orders || 0), 0);
   const totalSpent = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
-  const activeCount = Math.max(1, activeVisitors.length);
+  const activeCount = activeVisitors.length;
 
   return `
     <div class="space-y-6">
@@ -917,13 +918,13 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h3 class="font-black text-base text-white">Sitede Şu An Bulunan Canlı Kullanıcılar</h3>
-                <span class="bg-[#06C167] text-white text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                <h3 class="font-black text-base text-white">Sitede Şu An Aktif Oturum Açmış Kullanıcılar</h3>
+                <span class="bg-[#06C167] text-white text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${activeCount > 0 ? 'animate-pulse' : ''}">
                   <span class="w-2 h-2 rounded-full bg-white"></span>
-                  ${activeCount} Canlı Bağlantı
+                  ${activeCount} Aktif
                 </span>
               </div>
-              <p class="text-xs text-gray-300">Sitenizde şu an menüye bakan, sepet oluşturan ve sipariş veren anlık ziyaretçiler</p>
+              <p class="text-xs text-gray-300">Giriş yapmış ve şu an sitenizde bulunan müşteriler</p>
             </div>
           </div>
           <div class="text-right">
@@ -935,7 +936,7 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = []) {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           ${activeVisitors.length === 0 ? `
             <div class="col-span-full py-4 text-center text-xs text-gray-400">
-              🟢 1 Aktif Oturum (Admin Masası)
+              😴 Şu an sitede aktif oturum açmış müşteri yok
             </div>
           ` : activeVisitors.map((v, i) => `
             <div class="bg-white/10 hover:bg-white/15 transition backdrop-blur-md rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">

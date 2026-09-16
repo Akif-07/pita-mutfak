@@ -1,5 +1,6 @@
 // Pita Mutfak - Ana Uygulama Yöneticisi & Router
-import { orderService, getCurrentUser, isFirstOrderDiscountAvailable } from './services/orderService.js';
+import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence } from './services/orderService.js';
+
 import { renderCustomerView } from './components/CustomerView.js';
 import { renderAdminPanel } from './components/AdminPanel.js';
 import { renderCourierPanel } from './components/CourierPanel.js';
@@ -124,6 +125,7 @@ function syncViewFromHash() {
 
 // State Güncelleme ve Yeniden Render Fonksiyonu
 function handleStateChange(newState) {
+  const prevUser = state.currentUser;
   Object.assign(state, newState);
 
   // Eğer yeni sipariş oluşturulduysa son sipariş ID'sini kaydet
@@ -134,6 +136,21 @@ function handleStateChange(newState) {
   // Eğer sekme değiştirildiyse verileri tazele
   if (newState.adminActiveTab === 'customers' || newState.adminActiveTab === 'menu') {
     loadBackendData();
+  }
+
+  // Kullanıcı giriş/çıkış değişikliği — presence'ı güncelle
+  if ('currentUser' in newState) {
+    if (newState.currentUser && !prevUser) {
+      // Giriş yaptı — presence başlat
+      startPresence();
+    } else if (!newState.currentUser && prevUser) {
+      // Çıkış yaptı — presence sil
+      if (presenceInterval) {
+        clearInterval(presenceInterval);
+        presenceInterval = null;
+      }
+      orderService.removePresence();
+    }
   }
 
   render();
@@ -190,11 +207,38 @@ orderService.subscribePresence((activeVisitors) => {
   render();
 });
 
-// Canlı Varlık Pingi (Heartbeat: Sayfa açılışında ve her 25 saniyede bir)
-orderService.pingPresence(state.currentUser);
-setInterval(() => {
+// Canlı Varlık Pingi — Sadece giriş yapmış kullanıcılar için
+let presenceInterval = null;
+function startPresence() {
+  if (!state.currentUser) return;
   orderService.pingPresence(state.currentUser);
-}, 25000);
+  if (presenceInterval) clearInterval(presenceInterval);
+  presenceInterval = setInterval(() => {
+    if (state.currentUser) {
+      orderService.pingPresence(state.currentUser);
+    } else {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+    }
+  }, 25000);
+}
+startPresence();
+
+// Sekme kapanınca veya sayfa gizlenince presence'ı Firestore'dan sil
+window.addEventListener('beforeunload', () => {
+  if (state.currentUser) {
+    orderService.removePresence();
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && state.currentUser) {
+    orderService.removePresence();
+  } else if (document.visibilityState === 'visible' && state.currentUser) {
+    orderService.pingPresence(state.currentUser);
+  }
+});
+
 
 // Hash Değişimi Dinleyici
 window.addEventListener('hashchange', () => {

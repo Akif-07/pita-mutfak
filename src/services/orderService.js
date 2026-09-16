@@ -18,10 +18,12 @@ import {
   isFirebaseActive,
   signInWithGoogle,
   pingPresence,
-  subscribePresence
+  subscribePresence,
+  removePresence
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle, syncCustomerToFirestore, pingPresence, subscribePresence };
+export { signInWithGoogle, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
+
 
 const STORAGE_ORDERS_KEY = 'pita_mutfak_orders';
 const STORAGE_MENU_KEY = 'pita_mutfak_menu';
@@ -1234,6 +1236,10 @@ export const orderService = {
     return subscribePresence(callback);
   },
 
+  removePresence() {
+    return removePresence();
+  },
+
   // Restoran Durumu & Çalışma Saatleri Servisleri
   getRestaurantSettings() {
     return getRestaurantSettings();
@@ -1247,4 +1253,5 @@ export const orderService = {
     return subscribeRestaurantSettings(callback);
   }
 };
+
 
