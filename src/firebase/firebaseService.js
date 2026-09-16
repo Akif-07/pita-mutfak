@@ -504,15 +504,16 @@ try {
 
 export async function pingPresence(user = null) {
   try {
-    // Admin paneli açıkken admin kullanıcısı ziyaretçi/müşteri olarak sayılmaz
-    if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+    const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
+    
+    // Admin paneli ve Kurye paneli açıkken işletme personeli ziyaretçi/müşteri olarak sayılmaz
+    if (hash.includes('admin') || hash.includes('kurye') || hash.includes('courier')) {
       return false;
     }
 
     const sid = getSessionId();
-    const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
     let viewName = 'Menüde';
-    if (hash.includes('kurye') || hash.includes('courier')) viewName = 'Kurye Paneli';
+
 
     const presenceData = {
       id: sid,

@@ -272,18 +272,23 @@ orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
   }
 });
 
-// Canlı Varlık Pingi — her kullanıcı için (misafir dahil), 15 saniyede bir
+// Yardımcı: Personel/İç Panel Kontrolü (Admin & Kurye Masası ziyaretçi sayılmaz)
+function isInternalPanel() {
+  const hash = typeof window !== 'undefined' ? (window.location.hash || '#/') : '#/';
+  return hash.includes('admin') || hash.includes('kurye') || hash.includes('courier');
+}
+
+// Canlı Varlık Pingi — her müşteri/ziyaretçi için (admin & kurye personeli hariç), 15 saniyede bir
 let presenceInterval = null;
 function startPresence() {
-  // Admin paneli açıkken admin kullanıcısı ziyaretçi/müşteri olarak sayılmaz
-  if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+  if (isInternalPanel()) {
     orderService.removePresence();
     return;
   }
   orderService.pingPresence(state.currentUser || null);
   if (presenceInterval) clearInterval(presenceInterval);
   presenceInterval = setInterval(() => {
-    if (typeof window !== 'undefined' && window.location.hash.includes('admin')) {
+    if (isInternalPanel()) {
       orderService.removePresence();
       return;
     }
@@ -311,14 +316,15 @@ document.addEventListener('visibilitychange', () => {
 // Hash Değişimi Dinleyici
 window.addEventListener('hashchange', () => {
   syncViewFromHash();
-  // Eğer admin paneline geçildiyse presence'tan düş, müşteri arayüzüne dönüldüyse ping başlat
-  if (window.location.hash.includes('admin')) {
+  // Eğer admin veya kurye paneline geçildiyse presence'tan düş, müşteri menüsüne dönüldüyse ping başlat
+  if (isInternalPanel()) {
     orderService.removePresence();
   } else {
     startPresence();
   }
   render();
 });
+
 
 
 // Başlangıç Yüklemesi
