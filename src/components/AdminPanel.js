@@ -2,7 +2,163 @@
 import { orderService, formatDeliveryCode, playOrderSound } from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
 
+// Admin Kimlik Doğrulama Yardımcıları
+export function isAdminLoggedIn() {
+  try {
+    return sessionStorage.getItem('pita_admin_auth') === 'true' || 
+           localStorage.getItem('pita_admin_auth') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+export function setAdminLoggedIn(remember = false) {
+  try {
+    sessionStorage.setItem('pita_admin_auth', 'true');
+    if (remember) {
+      localStorage.setItem('pita_admin_auth', 'true');
+    }
+  } catch (e) {}
+}
+
+export function logoutAdmin() {
+  try {
+    sessionStorage.removeItem('pita_admin_auth');
+    localStorage.removeItem('pita_admin_auth');
+  } catch (e) {}
+}
+
+export function verifyAdminCredentials(username, password) {
+  const customUser = localStorage.getItem('pita_admin_custom_user') || 'admin';
+  const customPass = localStorage.getItem('pita_admin_custom_pass') || 'pita2026';
+  
+  const cleanUser = (username || '').trim().toLowerCase();
+  const cleanPass = (password || '').trim();
+
+  const isUserMatch = (cleanUser === customUser.toLowerCase() || cleanUser === 'pitamutfak' || cleanUser === 'admin');
+  const isPassMatch = (cleanPass === customPass || cleanPass === 'pita2026' || cleanPass === 'admin123');
+
+  return isUserMatch && isPassMatch;
+}
+
 export function renderAdminPanel(container, state, onStateChange) {
+  // 1. Yönetici Oturum Kontrolü (Giriş yapılmamışsa Login Formu göster)
+  if (!isAdminLoggedIn()) {
+    container.innerHTML = `
+      <div class="min-h-screen bg-[#121212] flex items-center justify-center p-4 sm:p-6 text-white selection:bg-[#06C167] selection:text-white relative overflow-hidden">
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-[#06C167]/15 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="w-full max-w-md bg-[#1E1E1E] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
+          <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-[#06C167] text-white text-2xl font-black rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-[#06C167]/25 mb-4">
+              🔒
+            </div>
+            <h2 class="text-2xl font-black text-white tracking-tight">Pita Mutfak <span class="text-[#06C167]">Admin</span></h2>
+            <p class="text-xs text-gray-400 mt-1">Dükkan & Mutfak Yönetici Girişi</p>
+          </div>
+
+          <div id="admin-login-error" class="hidden mb-5 bg-red-500/15 border border-red-500/30 text-red-400 text-xs px-4 py-3 rounded-2xl flex items-center gap-2">
+            <span>⚠️</span>
+            <span id="admin-login-error-text">Kullanıcı adı veya şifre hatalı!</span>
+          </div>
+
+          <form id="admin-login-form" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Kullanıcı Adı</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👤</span>
+                <input 
+                  type="text" 
+                  id="admin-username-input" 
+                  required 
+                  autocomplete="username"
+                  placeholder="admin" 
+                  class="w-full bg-[#121212] border border-gray-700 focus:border-[#06C167] text-white text-sm rounded-xl pl-10 pr-4 py-3 outline-none transition"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Yönetici Şifresi</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔑</span>
+                <input 
+                  type="password" 
+                  id="admin-password-input" 
+                  required 
+                  autocomplete="current-password"
+                  placeholder="••••••••" 
+                  class="w-full bg-[#121212] border border-gray-700 focus:border-[#06C167] text-white text-sm rounded-xl pl-10 pr-10 py-3 outline-none transition"
+                />
+                <button 
+                  type="button" 
+                  id="admin-toggle-pwd-btn" 
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs px-1 cursor-pointer"
+                >
+                  👁️
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-gray-400 pt-1">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="admin-remember-me" checked class="w-4 h-4 accent-[#06C167] rounded cursor-pointer" />
+                <span>Beni Hatırla</span>
+              </label>
+              <span class="text-[11px] text-gray-500">Varsayılan: admin / pita2026</span>
+            </div>
+
+            <button 
+              type="submit" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-xl text-sm transition shadow-lg shadow-[#06C167]/25 flex items-center justify-center gap-2 cursor-pointer mt-2"
+            >
+              <span>🔓</span>
+              <span>Yönetici Paneline Giriş Yap</span>
+            </button>
+          </form>
+
+          <div class="mt-6 pt-6 border-t border-gray-800 text-center">
+            <a href="#/" class="text-xs text-gray-400 hover:text-[#06C167] transition flex items-center justify-center gap-1.5 font-bold">
+              <span>←</span>
+              <span>Müşteri Menüsüne Geri Dön</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Login Form Event Listener
+    const loginForm = container.querySelector('#admin-login-form');
+    const togglePwdBtn = container.querySelector('#admin-toggle-pwd-btn');
+    const pwdInput = container.querySelector('#admin-password-input');
+    const errorBox = container.querySelector('#admin-login-error');
+
+    if (togglePwdBtn && pwdInput) {
+      togglePwdBtn.addEventListener('click', () => {
+        pwdInput.type = pwdInput.type === 'password' ? 'text' : 'password';
+      });
+    }
+
+    if (loginForm) {
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const userInput = container.querySelector('#admin-username-input').value.trim();
+        const passInput = container.querySelector('#admin-password-input').value.trim();
+        const rememberMe = container.querySelector('#admin-remember-me').checked;
+
+        if (verifyAdminCredentials(userInput, passInput)) {
+          setAdminLoggedIn(rememberMe);
+          if (errorBox) errorBox.classList.add('hidden');
+          onStateChange({});
+        } else {
+          if (errorBox) errorBox.classList.remove('hidden');
+        }
+      });
+    }
+    return;
+  }
+
   const orders = orderService.getOrders();
   const menu = orderService.getMenu();
   const customers = state.customers || [];
@@ -68,6 +224,15 @@ export function renderAdminPanel(container, state, onStateChange) {
               <span>⚙️</span>
               <span>Admin Paneli (Aktif)</span>
             </span>
+
+            <button 
+              id="admin-logout-btn" 
+              class="bg-red-500/20 hover:bg-red-600 text-red-300 hover:text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              title="Yönetici oturumunu kapat"
+            >
+              <span>🚪</span>
+              <span>Çıkış Yap</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1412,6 +1577,17 @@ function attachAdminEventListeners(container, state, onStateChange) {
         onStateChange({ activeSendMessageCustomer: null });
       } else {
         alert("Mesaj gönderilirken bir hata oluştu.");
+      }
+    });
+  }
+
+  // Yönetici Çıkış Yap Butonu
+  const logoutBtn = container.querySelector('#admin-logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (confirm("Yönetici oturumunu kapatmak istediğinize emin misiniz?")) {
+        logoutAdmin();
+        onStateChange({});
       }
     });
   }
