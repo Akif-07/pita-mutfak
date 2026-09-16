@@ -319,3 +319,46 @@ export function subscribeFirestoreStock(callback) {
     }
   };
 }
+
+// =================== 6. GOOGLE AUTHENTICATION ===================
+
+export async function signInWithGoogle() {
+  try {
+    const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getAuth, signInWithPopup, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+
+    let app;
+    const apps = getApps();
+    if (apps && apps.length > 0) {
+      app = apps[0];
+    } else {
+      app = initializeApp(firebaseConfig);
+    }
+
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    
+    return {
+      ok: true,
+      user: {
+        uid: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || 'Google Kullanıcısı',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        photoURL: user.photoURL || '',
+        authProvider: 'google'
+      }
+    };
+  } catch (error) {
+    console.warn("Firebase Google Sign-In hatası:", error);
+    return {
+      ok: false,
+      error: error.message || 'Google ile giriş yapılamadı'
+    };
+  }
+}
+

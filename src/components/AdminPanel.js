@@ -1534,9 +1534,12 @@ function attachAdminEventListeners(container, state, onStateChange) {
   container.querySelectorAll('[data-reply-issue-btn]').forEach(btn => {
     btn.addEventListener('click', () => {
       const orderId = btn.getAttribute('data-reply-issue-btn');
-      const order = orders.find(o => o.id === orderId);
+      const allOrders = state.orders || orderService.getOrders();
+      const order = allOrders.find(o => String(o.id) === String(orderId)) || orderService.getOrder(orderId);
       if (order) {
         onStateChange({ activeReplyIssueOrder: order });
+      } else {
+        onStateChange({ activeReplyIssueOrder: { id: orderId, customerName: 'Müşteri', customerPhone: '', issueReport: { reason: 'Müşteri Bildirimi', message: '' } } });
       }
     });
   });

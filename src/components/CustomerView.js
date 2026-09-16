@@ -8,6 +8,7 @@ import {
   sendVerificationCode,
   verifyAndRegister,
   customerLogin,
+  signInWithGoogle,
   addReview
 } from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
@@ -426,10 +427,11 @@ export function renderCustomerView(container, state, onStateChange) {
   attachCustomerEventListeners(container, state, onStateChange, menu);
 }
 
-// Giriş Yap, Kayıt Ol & E-posta 6 Haneli Doğrulama Modalı
+// Giriş Yap, Kayıt Ol & Doğrulama Modalı
 function renderLoginModal(state) {
   const mode = state.authMode || 'login'; // 'login' | 'register' | 'verify'
   const isVerifyStep = mode === 'verify' && state.pendingVerificationData;
+  const loginNotice = state.loginNotice || '';
 
   return `
     <div id="login-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -439,23 +441,53 @@ function renderLoginModal(state) {
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <div class="flex items-center gap-2.5">
             <div class="w-9 h-9 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-base font-bold shadow-sm shadow-[#06C167]/30">
-              ${isVerifyStep ? '📧' : '🍲'}
+              ${isVerifyStep ? '📱' : '🍲'}
             </div>
             <div>
               <h3 class="font-black text-base text-gray-900">
-                ${isVerifyStep ? 'E-posta Doğrulaması' : (mode === 'register' ? 'Kayıt Ol & İndirimi Kap' : 'Müşteri Girişi')}
+                ${isVerifyStep ? 'Güvenlik Doğrulaması' : (mode === 'register' ? 'Kayıt Ol & %20 İndirim Kap' : 'Müşteri Girişi')}
               </h3>
               <p class="text-[11px] text-gray-500">
-                ${isVerifyStep ? '6 haneli kodu girerek hesabınızı aktifleştirin' : 'Pita Mutfak lezzet dünyasına hoş geldiniz'}
+                ${isVerifyStep ? 'Doğrulama kodunu girerek hesabınızı aktifleştirin' : 'Pita Mutfak lezzet dünyasına hoş geldiniz'}
               </p>
             </div>
           </div>
           <button id="close-login-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
         </div>
 
+        ${loginNotice ? `
+          <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-3 my-3 text-xs flex items-center gap-2">
+            <span class="text-base">⚠️</span>
+            <span class="font-bold">${loginNotice}</span>
+          </div>
+        ` : ''}
+
         ${!isVerifyStep ? `
+          <!-- Google ile Tek Tıkla Giriş Butonu -->
+          <div class="mt-4">
+            <button 
+              type="button" 
+              id="google-signin-btn"
+              class="w-full bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm border border-gray-300 shadow-xs transition flex items-center justify-center gap-3 cursor-pointer active:scale-98"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Google ile Hızlı Giriş Yap</span>
+            </button>
+
+            <div class="relative flex py-3 items-center">
+              <div class="flex-grow border-t border-gray-200"></div>
+              <span class="flex-shrink mx-3 text-gray-400 text-[10px] font-bold uppercase tracking-wider">veya SMS / E-posta ile</span>
+              <div class="flex-grow border-t border-gray-200"></div>
+            </div>
+          </div>
+
           <!-- Giriş / Kayıt Sekmeleri -->
-          <div class="flex bg-gray-100 p-1 rounded-2xl my-3 text-xs font-bold">
+          <div class="flex bg-gray-100 p-1 rounded-2xl mb-3 text-xs font-bold">
             <button 
               id="tab-btn-login" 
               type="button" 
@@ -474,19 +506,19 @@ function renderLoginModal(state) {
         ` : ''}
 
         ${isVerifyStep ? `
-          <!-- 6 HANELİ E-POSTA DOĞRULAMA EKRANI -->
+          <!-- 6 HANELİ DOĞRULAMA KODU EKRANI -->
           <div class="space-y-4 pt-1">
             <div class="text-center py-2">
               <span class="text-3xl block mb-1">📬</span>
               <p class="text-xs text-gray-600">
-                <strong class="text-gray-900">${state.pendingVerificationData.email}</strong> adresine 6 haneli güvenlik doğrulama kodu gönderildi.
+                <strong class="text-gray-900">${state.pendingVerificationData.phone || state.pendingVerificationData.email}</strong> adresine 6 haneli doğrulama kodu gönderildi.
               </p>
             </div>
 
             <!-- Demo Kod Bildirim Bandı -->
             <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between">
               <div>
-                <span class="block text-[11px] text-emerald-700 font-bold">💡 Demo / Test Kodu:</span>
+                <span class="block text-[11px] text-emerald-700 font-bold">💡 SMS / Demo Doğrulama Kodu:</span>
                 <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.verificationCodeHint || '123456'}</span>
               </div>
               <button 
@@ -517,7 +549,7 @@ function renderLoginModal(state) {
                 type="submit" 
                 class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Doğrula & Hesabı Aktifleştir 🎉</span>
+                <span>Doğrula & Hesabı Aç 🎉</span>
               </button>
 
               <button 
@@ -530,17 +562,17 @@ function renderLoginModal(state) {
             </form>
           </div>
         ` : (mode === 'register' ? `
-          <!-- KAYIT OL FORMU (E-POSTA İLE) -->
+          <!-- KAYIT OL FORMU (TELEFON / SMS / E-POSTA) -->
           <div>
-            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 my-3 flex items-center gap-3">
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 my-2 flex items-center gap-3">
               <span class="text-2xl">🎁</span>
               <div>
                 <span class="text-xs font-black text-emerald-900 block">%20 Hoş Geldin İndirimi</span>
-                <span class="text-[11px] text-emerald-700">E-posta ile kaydolun, ilk siparişinizde anında %20 indirim kazanın!</span>
+                <span class="text-[11px] text-emerald-700">Bilgilerinizi girerek ilk siparişinizde anında %20 indirim kazanın!</span>
               </div>
             </div>
 
-            <form id="customer-register-form" class="space-y-3">
+            <form id="customer-register-form" class="space-y-3 pt-1">
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Adınız Soyadınız *</label>
                 <input 
@@ -553,23 +585,22 @@ function renderLoginModal(state) {
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">E-posta Adresiniz (Doğrulama Kodu İçin) *</label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  required 
-                  placeholder="ornek@gmail.com" 
-                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız *</label>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız (SMS Kodu İçin) *</label>
                 <input 
                   type="tel" 
                   name="phone" 
                   required 
                   placeholder="05XX XXX XX XX" 
+                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">E-posta Adresiniz (İsteğe bağlı)</label>
+                <input 
+                  type="email" 
+                  name="email" 
+                  placeholder="ornek@gmail.com" 
                   class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
                 />
               </div>
@@ -589,7 +620,7 @@ function renderLoginModal(state) {
                 type="submit" 
                 class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
-                <span>Doğrulama Kodu Gönder ✉️</span>
+                <span>Doğrulama Kodu Al & Kaydol 📱</span>
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </button>
             </form>
@@ -598,18 +629,18 @@ function renderLoginModal(state) {
           <!-- GİRİŞ YAP FORMU -->
           <form id="customer-login-form" class="space-y-3.5 pt-1">
             <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">E-posta veya Telefon Numaranız *</label>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız veya E-posta *</label>
               <input 
                 type="text" 
                 name="identifier" 
                 required 
-                placeholder="E-posta veya 05XX XXX XX XX" 
+                placeholder="05XX XXX XX XX veya E-posta" 
                 class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
               />
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz *</label>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz (veya SMS ile Giriş) *</label>
               <input 
                 type="password" 
                 name="password" 
@@ -1635,37 +1666,74 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', pendingVerificationData: null }));
   }
 
-  // 1. E-posta ile Kayıt Ol Formu (Doğrulama Kodu İste)
+  // Google ile Hızlı Giriş Butonu
+  const googleBtn = container.querySelector('#google-signin-btn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', async () => {
+      googleBtn.disabled = true;
+      const originalHTML = googleBtn.innerHTML;
+      googleBtn.innerHTML = `<span>⏳</span><span>Google'a Bağlanılıyor...</span>`;
+      try {
+        const res = await signInWithGoogle();
+        if (res.ok && res.user) {
+          const user = res.user;
+          setCurrentUser(user);
+          const wasPendingCheckout = state.pendingCheckout;
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            loginNotice: '',
+            firstOrderDiscountApplied: true,
+            pendingCheckout: false,
+            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
+          });
+          alert(`👋 Hoş geldiniz, ${user.name}!`);
+        } else {
+          alert(res.error || "Google ile giriş tamamlanamadı.");
+          googleBtn.disabled = false;
+          googleBtn.innerHTML = originalHTML;
+        }
+      } catch (err) {
+        console.warn("Google login error:", err);
+        alert("Google ile giriş sırasında bir hata oluştu.");
+        googleBtn.disabled = false;
+        googleBtn.innerHTML = originalHTML;
+      }
+    });
+  }
+
+  // 1. Kayıt Ol Formu (Telefon / SMS / E-posta ile Doğrulama Kodu İste)
   const registerForm = container.querySelector('#customer-register-form');
   if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(registerForm);
       const name = formData.get('name').trim();
-      const email = formData.get('email').trim().toLowerCase();
+      const email = (formData.get('email') || '').trim().toLowerCase();
       const phone = formData.get('phone').trim();
       const password = formData.get('password').trim();
 
       const submitBtn = registerForm.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerText = "Kod Gönderiliyor...";
+        submitBtn.innerText = "Doğrulama Kodu Gönderiliyor...";
       }
 
+      const identifier = phone || email;
       try {
-        const res = await sendVerificationCode(email, name, phone);
+        const res = await sendVerificationCode(identifier, name, phone);
         const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
         
         onStateChange({
           authMode: 'verify',
-          pendingVerificationData: { name, email, phone, password },
+          pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: codeHint
         });
       } catch (err) {
         console.warn("Doğrulama kodu gönderme:", err);
         onStateChange({
           authMode: 'verify',
-          pendingVerificationData: { name, email, phone, password },
+          pendingVerificationData: { name, email, phone, password, identifier },
           verificationCodeHint: '123456'
         });
       }
@@ -1707,9 +1775,10 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const pending = state.pendingVerificationData || {};
       const payload = {
         email: pending.email,
+        phone: pending.phone,
+        identifier: pending.identifier || pending.phone || pending.email,
         code: inputCode,
         name: pending.name,
-        phone: pending.phone,
         password: pending.password
       };
 
@@ -1721,39 +1790,47 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
       try {
         const res = await verifyAndRegister(payload);
-        if (res.ok && res.data && res.data.customer) {
-          const user = res.data.customer;
+        if (res.ok && res.data && (res.data.customer || res.data.user)) {
+          const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+          const wasPendingCheckout = state.pendingCheckout;
           onStateChange({
             currentUser: user,
             isLoginModalOpen: false,
             authMode: 'login',
+            loginNotice: '',
             pendingVerificationData: null,
-            firstOrderDiscountApplied: true
+            firstOrderDiscountApplied: true,
+            pendingCheckout: false,
+            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
           });
-          alert(`🎉 Tebrikler ${user.name}! E-posta adresiniz doğrulandı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
+          alert(`🎉 Tebrikler ${user.name}! Hesabınız doğrulandı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
         } else {
           alert(res.data?.error || "Doğrulama kodu hatalı! Lütfen kontrol ediniz.");
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerText = "Doğrula & Hesabı Aktifleştir 🎉";
+            submitBtn.innerText = "Doğrula & Hesabı Aç 🎉";
           }
         }
       } catch (err) {
         console.warn("Doğrulama hatası:", err);
         const fallbackUser = {
           name: pending.name || 'Pita Misafiri',
-          email: pending.email,
-          phone: pending.phone,
+          email: pending.email || '',
+          phone: pending.phone || '',
           is_verified: 1
         };
         setCurrentUser(fallbackUser);
+        const wasPendingCheckout = state.pendingCheckout;
         onStateChange({
           currentUser: fallbackUser,
           isLoginModalOpen: false,
           authMode: 'login',
+          loginNotice: '',
           pendingVerificationData: null,
-          firstOrderDiscountApplied: true
+          firstOrderDiscountApplied: true,
+          pendingCheckout: false,
+          ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
         });
         alert(`🎉 Tebrikler! Hesabınız açıldı ve %20 Hoş Geldin İndiriminiz tanımlandı!`);
       }
@@ -1779,13 +1856,17 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
       try {
         const res = await customerLogin(identifier, password);
-        if (res.ok && res.data && res.data.customer) {
-          const user = res.data.customer;
+        if (res.ok && res.data && (res.data.customer || res.data.user)) {
+          const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+          const wasPendingCheckout = state.pendingCheckout;
           onStateChange({
             currentUser: user,
             isLoginModalOpen: false,
-            firstOrderDiscountApplied: true
+            loginNotice: '',
+            firstOrderDiscountApplied: true,
+            pendingCheckout: false,
+            ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
           });
           alert(`👋 Tekrar hoş geldiniz, ${user.name}!`);
           return;
@@ -1798,10 +1879,14 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       setCurrentUser(user);
       registerCustomer(fallbackName, identifier).catch(() => {});
 
+      const wasPendingCheckout = state.pendingCheckout;
       onStateChange({
         currentUser: user,
         isLoginModalOpen: false,
-        firstOrderDiscountApplied: true
+        loginNotice: '',
+        firstOrderDiscountApplied: true,
+        pendingCheckout: false,
+        ...(wasPendingCheckout ? { isCheckoutOpen: true } : {})
       });
       alert(`👋 Hoş geldiniz, ${user.name}!`);
     });
@@ -2064,9 +2149,16 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
-  // Sorun Bildirme Modalını Açma
+  // Sorun Bildirme Modalını Açma (Giriş Yapılmasını Zorunlu Kıl)
   container.querySelectorAll('[data-open-issue-btn]').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (!state.currentUser) {
+        onStateChange({ 
+          isLoginModalOpen: true, 
+          loginNotice: 'Sorun bildirebilmek için lütfen önce giriş yapınız.' 
+        });
+        return;
+      }
       const orderId = btn.getAttribute('data-open-issue-btn');
       onStateChange({ reportingOrderId: orderId });
     });
@@ -2221,11 +2313,20 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
-  // Siparişi Onayla / Checkout'a Geç Butonu
+  // Siparişi Onayla / Checkout'a Geç Butonu (Giriş Yapılmasını Zorunlu Kıl)
   const proceedBtn = container.querySelector('#proceed-checkout-btn');
   if (proceedBtn) {
     proceedBtn.addEventListener('click', () => {
-      onStateChange({ isCartOpen: false, isCheckoutOpen: true });
+      if (!state.currentUser) {
+        onStateChange({ 
+          isCartOpen: false, 
+          isLoginModalOpen: true, 
+          pendingCheckout: true,
+          loginNotice: 'Siparişinizi tamamlamak ve size ulaşabilmemiz için lütfen giriş yapın veya kayıt olun.'
+        });
+      } else {
+        onStateChange({ isCartOpen: false, isCheckoutOpen: true });
+      }
     });
   }
 
@@ -2272,12 +2373,33 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         return;
       }
 
+      if (!state.currentUser) {
+        alert("Sipariş verebilmek için lütfen önce giriş yapınız.");
+        onStateChange({ isCheckoutOpen: false, isLoginModalOpen: true, pendingCheckout: true, loginNotice: 'Siparişinizi tamamlamak için lütfen giriş yapın.' });
+        return;
+      }
+
       const formData = new FormData(checkoutForm);
-      const customerName = formData.get('customerName');
-      const customerPhone = formData.get('customerPhone');
-      const deliveryAddress = formData.get('deliveryAddress') || '';
-      const orderNote = formData.get('orderNote') || '';
+      const customerName = (formData.get('customerName') || '').trim();
+      const customerPhone = (formData.get('customerPhone') || '').trim();
+      const deliveryAddress = (formData.get('deliveryAddress') || '').trim();
+      const orderNote = (formData.get('orderNote') || '').trim();
       const paymentMethod = formData.get('paymentMethod');
+
+      if (!customerName || !customerPhone || !deliveryAddress) {
+        alert("Lütfen Ad Soyad, Telefon Numarası ve Teslimat Adresi alanlarını eksiksiz doldurunuz.");
+        return;
+      }
+
+      // Kullanıcının güncel isim/telefon bilgisini güncelle
+      const updatedUser = {
+        ...state.currentUser,
+        name: customerName,
+        phone: customerPhone
+      };
+      setCurrentUser(updatedUser);
+      state.currentUser = updatedUser;
+      registerCustomer(customerName, customerPhone).catch(() => {});
 
       const currentSubtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
       const hasCustom = state.currentUser && state.currentUser.custom_code && state.currentUser.custom_discount > 0;
@@ -2289,16 +2411,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         : 0;
       const finalTotal = Math.max(0, currentSubtotal - currentDiscount);
       const cartCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
-
-      // Kullanıcı bilgisini güncelle
-      if (!state.currentUser && customerName) {
-        const user = { name: customerName, phone: customerPhone };
-        setCurrentUser(user);
-        state.currentUser = user;
-        if (customerPhone) {
-          registerCustomer(customerName, customerPhone).catch(err => console.warn("Backend müşteri kaydı:", err));
-        }
-      }
 
       const createdOrder = orderService.createOrder({
         customerName,
