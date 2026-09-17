@@ -18,6 +18,7 @@ import {
   isFirebaseActive,
   signInWithGoogle,
   getGoogleRedirectResult,
+  initAuthListener,
   pingPresence,
   subscribePresence,
   removePresence,
@@ -27,7 +28,7 @@ import {
   getExpensesFromFirestore
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle, getGoogleRedirectResult, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
+export { signInWithGoogle, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
 
 
 
@@ -44,8 +45,129 @@ const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
 export const DEFAULT_RESTAURANT_SETTINGS = {
   isOpen: true,
   openingHours: '10:00 - 23:00',
-  closedMessage: 'Şu anda kapalıyız. Çalışma saatlerimiz: 10:00 - 23:00'
+  closedMessage: 'Şu anda kapalıyız. Çalışma saatlerimiz: 10:00 - 23:00',
+  forceOpen: false
 };
+
+// Türkiye Saati Getirme (UTC+3)
+export function getTurkeyTime() {
+  try {
+    const now = new Date();
+    const trStr = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(now);
+    const [h, m] = trStr.split(':').map(Number);
+    if (!isNaN(h) && !isNaN(m)) {
+      return { hours: h, minutes: m, totalMinutes: h * 60 + m };
+    }
+  } catch (e) {}
+  const now = new Date();
+  return { hours: now.getHours(), minutes: now.getMinutes(), totalMinutes: now.getHours() * 60 + now.getMinutes() };
+}
+
+// Çalışma Saatlerini Ayrıştırma (Örn: "10:00 - 23:00")
+export function parseOpeningHours(hoursStr = '10:00 - 23:00') {
+  if (!hoursStr || typeof hoursStr !== 'string') {
+    return { startMinutes: 10 * 60, endMinutes: 23 * 60, startStr: '10:00', endStr: '23:00' };
+  }
+  const parts = hoursStr.split('-').map(s => s.trim());
+  if (parts.length !== 2) {
+    return { startMinutes: 10 * 60, endMinutes: 23 * 60, startStr: '10:00', endStr: '23:00' };
+  }
+  const [sH, sM] = parts[0].split(':').map(Number);
+  const [eH, eM] = parts[1].split(':').map(Number);
+  const startMinutes = (isNaN(sH) ? 10 : sH) * 60 + (isNaN(sM) ? 0 : sM);
+  let endMinutes = (isNaN(eH) ? 23 : eH) * 60 + (isNaN(eM) ? 0 : eM);
+  if (endMinutes === 0 && eH === 0) {
+    endMinutes = 24 * 60;
+  }
+  return {
+    startMinutes,
+    endMinutes,
+    startStr: parts[0] || '10:00',
+    endStr: parts[1] || '23:00'
+  };
+}
+
+// Restoran Şu Anda Açık mı? (Admin Açık/Kapalı + Saat Kontrolü)
+export function isRestaurantOpenNow(settings) {
+  const current = settings || getRestaurantSettings();
+  const hoursStr = current.openingHours || '10:00 - 23:00';
+
+  // 1. Manuel olarak kapatıldıysa (Admin paneli üzerinden 'Restoran Kapalı' yapıldıysa)
+  if (current.isOpen === false) {
+    return {
+      isOpen: false,
+      reason: 'manual_closed',
+      openingHours: hoursStr,
+      message: current.closedMessage || 'Restoranımız şu anda sipariş alımına kapalıdır.'
+    };
+  }
+
+  // 2. Yönetici zorla açık tutmuşsa
+  if (current.forceOpen === true) {
+    return {
+      isOpen: true,
+      reason: 'force_open',
+      openingHours: hoursStr,
+      message: 'Restoran Açık'
+    };
+  }
+
+  // 3. Çalışma saatleri kontrolü (Varsayılan 10:00 - 23:00)
+  const now = getTurkeyTime();
+  const { startMinutes, endMinutes, startStr } = parseOpeningHours(hoursStr);
+
+  let isWithin = false;
+  if (startMinutes <= endMinutes) {
+    // Normal gün içi aralık: 10:00 - 23:00
+    isWithin = now.totalMinutes >= startMinutes && now.totalMinutes < endMinutes;
+  } else {
+    // Gece yarısını aşan aralık: örn. 18:00 - 02:00
+    isWithin = now.totalMinutes >= startMinutes || now.totalMinutes < endMinutes;
+  }
+
+  if (!isWithin) {
+    return {
+      isOpen: false,
+      reason: 'outside_hours',
+      openingHours: hoursStr,
+      message: `Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${hoursStr}. Sipariş alımı saat ${startStr}'da başlayacaktır.`
+    };
+  }
+
+  return {
+    isOpen: true,
+    reason: 'open',
+    openingHours: hoursStr,
+    message: 'Restoran Açık'
+  };
+}
+
+// =================== SEPET HAFIZASI (LOCALSTORAGE) ===================
+const STORAGE_CART_KEY = 'pita_cart';
+
+export function getStoredCart() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CART_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredCart(cart) {
+  try {
+    if (!cart || !Array.isArray(cart) || cart.length === 0) {
+      localStorage.removeItem(STORAGE_CART_KEY);
+    } else {
+      localStorage.setItem(STORAGE_CART_KEY, JSON.stringify(cart));
+    }
+  } catch (e) {}
+}
 
 export function getRestaurantSettings() {
   try {
@@ -1259,6 +1381,26 @@ export const orderService = {
 
   subscribeRestaurantSettings(callback) {
     return subscribeRestaurantSettings(callback);
+  },
+
+  isRestaurantOpenNow(settings) {
+    return isRestaurantOpenNow(settings);
+  },
+
+  getTurkeyTime() {
+    return getTurkeyTime();
+  },
+
+  parseOpeningHours(hoursStr) {
+    return parseOpeningHours(hoursStr);
+  },
+
+  getStoredCart() {
+    return getStoredCart();
+  },
+
+  saveStoredCart(cart) {
+    return saveStoredCart(cart);
   },
 
   // Muhasebe & Gider Yönetim Servisleri

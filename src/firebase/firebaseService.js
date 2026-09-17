@@ -404,11 +404,10 @@ export async function getExpensesFromFirestore() {
 
 // =================== 6. GOOGLE AUTHENTICATION ===================
 
-
 export async function signInWithGoogle() {
   try {
     const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getAuth, signInWithRedirect, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
 
     let app;
     const apps = getApps();
@@ -422,9 +421,41 @@ export async function signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    // Redirect ile giriş — sayfa Google'a yönlenecek, dönünce getGoogleRedirectResult çağrılacak
-    await signInWithRedirect(auth, provider);
-    return { ok: false, redirecting: true };
+    // 1. Önce Hızlı Popup ile Giriş Dene (Sayfayı terk etmez, sepeti korur, iPad ve mobil tarayıcılarda hızlıdır)
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result && result.user) {
+        const user = result.user;
+        return {
+          ok: true,
+          user: {
+            uid: user.uid,
+            name: user.displayName || user.email?.split('@')[0] || 'Google Kullanıcısı',
+            email: user.email || '',
+            phone: user.phoneNumber || '',
+            photoURL: user.photoURL || '',
+            authProvider: 'google'
+          }
+        };
+      }
+    } catch (popupErr) {
+      console.warn("Google popup girişi açılamadı, yönlendirme (redirect) deneniyor:", popupErr);
+      if (popupErr.code === 'auth/unauthorized-domain' || popupErr.message?.includes('unauthorized-domain')) {
+        return {
+          ok: false,
+          error: 'Yetkisiz Alan Adı: Firebase Console > Authentication > Authorized Domains\'e alan adınızı ekleyin.',
+          code: popupErr.code
+        };
+      }
+      if (popupErr.code === 'auth/popup-closed-by-user') {
+        return { ok: false, error: 'Google giriş penceresi kapatıldı.' };
+      }
+      // Popup engellendiyse redirect metoduna geç
+      await signInWithRedirect(auth, provider);
+      return { ok: false, redirecting: true };
+    }
+
+    return { ok: false, error: 'Giriş yapılamadı.' };
   } catch (error) {
     console.warn("Firebase Google Sign-In hatası:", error);
     let errorMsg = 'Google ile giriş yapılamadı.';
@@ -473,6 +504,35 @@ export async function getGoogleRedirectResult() {
     }
     return { ok: false };
   }
+}
+
+// Oturum Değişikliklerini Dinleme (Firebase Auth Persistent State)
+export function initAuthListener(onUserChanged) {
+  try {
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js").then(({ initializeApp, getApps }) => {
+      import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js").then(({ getAuth, onAuthStateChanged }) => {
+        let app;
+        const apps = getApps();
+        if (apps && apps.length > 0) app = apps[0];
+        else app = initializeApp(firebaseConfig);
+
+        const auth = getAuth(app);
+        onAuthStateChanged(auth, (firebaseUser) => {
+          if (firebaseUser && typeof onUserChanged === 'function') {
+            const profile = {
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Google Kullanıcısı',
+              email: firebaseUser.email || '',
+              phone: firebaseUser.phoneNumber || '',
+              photoURL: firebaseUser.photoURL || '',
+              auth_provider: 'google'
+            };
+            onUserChanged(profile);
+          }
+        });
+      }).catch(() => {});
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 // =================== 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ (PRESENCE) ===================

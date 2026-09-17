@@ -1,5 +1,5 @@
 // Pita Mutfak - Ana Uygulama Yöneticisi & Router
-import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, syncCustomerToFirestore } from './services/orderService.js';
+import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore } from './services/orderService.js';
 
 
 import { renderCustomerView } from './components/CustomerView.js';
@@ -17,7 +17,7 @@ const state = {
   firstOrderDiscountApplied: isFirstOrderDiscountAvailable(), // İlk sipariş indirimi aktif mi?
   discountPercentage: 20, // %20 İlk sipariş indirimi
   activeCategory: 'all',
-  cart: [],
+  cart: orderService.getStoredCart(),
   selectedProduct: null,
   isCartOpen: false,
   isCheckoutOpen: false,
@@ -127,6 +127,17 @@ async function checkGoogleRedirect() {
       saveCustomerLocally(customerProfile);
       try { await syncCustomerToFirestore(customerProfile); } catch (e) {}
       state.currentUser = customerProfile;
+
+      // Eğer kullanıcı sipariş aşamasındayken Google ile giriş yaptıysa checkout ekranını geri aç
+      const wasPending = sessionStorage.getItem('pita_pending_checkout') === 'true';
+      if (wasPending) {
+        sessionStorage.removeItem('pita_pending_checkout');
+        state.isCheckoutOpen = true;
+        state.isCartOpen = false;
+        state.isLoginModalOpen = false;
+        state.pendingCheckout = false;
+      }
+
       startPresence();
       render();
     }
@@ -169,6 +180,11 @@ function handleStateChange(newState) {
   // Eğer yeni sipariş oluşturulduysa son sipariş ID'sini kaydet
   if (newState.activeTrackingOrder) {
     localStorage.setItem('pita_last_order_id', newState.activeTrackingOrder.id);
+  }
+
+  // Eğer sepet güncellendiyse yerel hafızaya kaydet
+  if ('cart' in newState) {
+    orderService.saveStoredCart(newState.cart);
   }
 
   // Eğer sekme değiştirildiyse verileri tazele
@@ -333,6 +349,24 @@ render();
 loadBackendData();
 loadCustomerMessages();
 checkGoogleRedirect(); // Google redirect ile döndüyse giriş tamamla
+
+// Firebase Persistent Auth Dinleyicisi (Tarayıcı yenilense dahi Google oturumunu hatırla)
+initAuthListener((firebaseProfile) => {
+  if (!state.currentUser) {
+    state.currentUser = firebaseProfile;
+    orderService.setCurrentUser(firebaseProfile);
+    orderService.saveCustomerLocally(firebaseProfile);
+    startPresence();
+    render();
+  }
+});
+
+// Çalışma saatleri dakika bazlı kontrolü (saat 23:00'e veya 10:00'a ulaşıldığında anında otomatik güncellenir)
+setInterval(() => {
+  if (state.currentView === 'customer' || state.currentView === 'admin') {
+    render();
+  }
+}, 60000);
 
 // Sayfa ilk yüklendiğinde yükleme ekranını yumuşakça kaldır
 setTimeout(() => {

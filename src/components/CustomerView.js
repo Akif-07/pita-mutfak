@@ -12,18 +12,21 @@ import {
   getGoogleRedirectResult,
   syncCustomerToFirestore,
   saveCustomerLocally,
-  addReview
+  addReview,
+  isRestaurantOpenNow
 } from '../services/orderService.js';
 
 import { categories } from '../data/initialMenu.js';
 import { verifyAdminCredentials, setAdminLoggedIn } from './AdminPanel.js';
 
 export function renderCustomerView(container, state, onStateChange) {
-  const { cart, activeCategory, selectedProduct, activeTrackingOrder, currentUser, firstOrderDiscountApplied, discountPercentage } = state;
+  const currentUser = state.currentUser || getCurrentUser();
+  const { cart, activeCategory, selectedProduct, activeTrackingOrder, firstOrderDiscountApplied, discountPercentage } = state;
   const menu = orderService.getMenu();
   const myOrders = orderService.getMyOrders(state.orders);
   const restaurantSettings = state.restaurantSettings || orderService.getRestaurantSettings();
-  const isRestaurantOpen = restaurantSettings.isOpen !== false;
+  const restStatus = isRestaurantOpenNow(restaurantSettings);
+  const isRestaurantOpen = restStatus.isOpen;
 
   // Backend SQLite stok haritası
   const stockMap = {};
@@ -66,7 +69,7 @@ export function renderCustomerView(container, state, onStateChange) {
         <!-- Restoran Kapalı Uyarısı Bannerı -->
         <div class="bg-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 text-center sticky top-0 z-40">
           <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-          <span>⚠️ Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: <strong>${restaurantSettings.openingHours || '10:00 - 23:00'}</strong>. Sipariş alımı geçici olarak durdurulmuştur.</span>
+          <span>⚠️ <strong>${restStatus.message || `Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${restaurantSettings.openingHours || '10:00 - 23:00'}. Sipariş alımı geçici olarak durdurulmuştur.`}</strong></span>
         </div>
       ` : `
         <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
@@ -399,7 +402,7 @@ export function renderCustomerView(container, state, onStateChange) {
       ${selectedProduct ? renderProductModal(selectedProduct) : ''}
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
-      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser) : ''}
+      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message) : ''}
 
       <!-- Sipariş Tamamlama / Checkout Modalı -->
       ${state.isCheckoutOpen ? renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) : ''}
@@ -969,7 +972,7 @@ function renderProductModal(product) {
 }
 
 // Sepet Çekmecesi (İlk Sipariş İndirim Satırı ve Kupon Kutusu ile)
-function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser) {
+function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '') {
   return `
     <div id="cart-drawer-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-200">
@@ -981,100 +984,119 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
           </button>
         </div>
 
-        <div class="p-5 space-y-4">
+        <div class="p-5 divide-y divide-gray-100">
           ${cart.length === 0 ? `
-            <div class="text-center py-8">
-              <span class="text-5xl block mb-3">🛒</span>
-              <p class="text-sm font-bold text-gray-500">Sepetiniz boş</p>
-              <p class="text-xs text-gray-400 mt-1">Menüden lezzetli ürünler ekleyin</p>
+            <div class="text-center py-16">
+              <div class="w-20 h-20 mx-auto rounded-3xl bg-gray-50 flex items-center justify-center text-4xl mb-4 text-gray-300">
+                🛒
+              </div>
+              <h4 class="font-extrabold text-base text-gray-800">Sepetiniz Boş</h4>
+              <p class="text-xs text-gray-400 mt-1">Lezzetli ürünlerimizden eklemeye başlayın</p>
             </div>
           ` : cart.map((item, index) => `
-            <div class="flex items-start gap-3 bg-gray-50 rounded-2xl p-3 border border-gray-100">
-              <img src="${item.image}" class="w-14 h-14 rounded-xl object-cover border border-gray-200" />
+            <div class="py-4 flex items-center justify-between gap-3">
               <div class="flex-1 min-w-0">
-                <h4 class="text-xs font-extrabold text-[#121212] truncate">${item.name}</h4>
-                ${item.selectedOption ? `<p class="text-[10px] text-gray-400 font-medium truncate">+ ${item.selectedOption}</p>` : ''}
-                ${item.note ? `<p class="text-[10px] text-gray-400 italic truncate">📝 ${item.note}</p>` : ''}
-                <div class="flex items-center justify-between mt-1.5">
-                  <div class="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
-                    <button data-cart-minus="${index}" class="px-2.5 py-1 text-xs font-black text-gray-600 hover:bg-gray-100 transition cursor-pointer">−</button>
-                    <span class="px-2 text-xs font-black text-[#121212]">${item.quantity}</span>
-                    <button data-cart-plus="${index}" class="px-2.5 py-1 text-xs font-black text-[#06C167] hover:bg-[#E8F8EE] transition cursor-pointer">+</button>
-                  </div>
-                  <span class="text-sm font-black text-[#06C167]">₺${item.unitPrice * item.quantity}</span>
-                </div>
+                <h5 class="font-bold text-sm text-[#121212] truncate">${item.name}</h5>
+                ${item.option ? `<p class="text-xs text-gray-500 mt-0.5">${item.option.name}</p>` : ''}
+                ${item.note ? `<p class="text-[11px] text-amber-600 italic mt-0.5 line-clamp-1">Not: ${item.note}</p>` : ''}
+                <div class="text-xs font-black text-[#06C167] mt-1">₺${item.unitPrice * item.quantity}</div>
+              </div>
+
+              <!-- Miktar Arttır / Azalt Butonları -->
+              <div class="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+                <button 
+                  data-cart-minus="${index}" 
+                  class="w-7 h-7 rounded-lg bg-white hover:bg-gray-200 text-[#121212] flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
+                >-</button>
+                <span class="w-6 text-center text-xs font-black">${item.quantity}</span>
+                <button 
+                  data-cart-plus="${index}" 
+                  class="w-7 h-7 rounded-lg bg-[#06C167] hover:bg-[#05a557] text-white flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
+                >+</button>
               </div>
             </div>
           `).join('')}
         </div>
 
         ${cart.length > 0 ? `
-          <div class="p-5 border-t border-gray-100 bg-white space-y-3">
+          <div class="p-5 bg-gray-50/80 border-t border-gray-100 space-y-3">
             
-            <!-- İndirim Kuponu Rozeti (İlk Sipariş veya Müşteriye Özel Tanımlı Kod) -->
+            <!-- İLK SİPARİŞ İNDİRİMİ VEYA ÖZEL KOD ROZETİ (Uygula / İptal Et) -->
             ${(() => {
               const hasCustom = currentUser && currentUser.custom_code && currentUser.custom_discount > 0;
-              const couponTitle = hasCustom ? `${currentUser.custom_code} Kuponu` : 'PITA20 Kuponu';
-              const couponText = !currentUser 
-                ? 'İndirim için giriş yapın' 
-                : hasCustom 
-                  ? (firstOrderDiscountApplied ? `Size özel %${currentUser.custom_discount} indirim uygulandı` : `Size özel %${currentUser.custom_discount} indirim`) 
-                  : (firstOrderDiscountApplied ? 'İlk siparişinize özel %20 indirim uygulandı' : 'İlk sipariş indirimi');
+              const couponCode = hasCustom ? currentUser.custom_code : 'PITA20';
+              const couponDiscount = hasCustom ? currentUser.custom_discount : 20;
+              const couponText = hasCustom 
+                ? `Size Özel %${couponDiscount} İndirim (${couponCode})` 
+                : `%20 İlk Sipariş İndirimi (${couponCode})`;
 
               return `
-                <div class="${hasCustom ? 'bg-purple-50 border-purple-200' : 'bg-emerald-50 border-emerald-200'} border rounded-2xl p-3 flex items-center justify-between text-xs">
+                <div class="border ${hasCustom ? 'bg-purple-50/80 border-purple-200' : 'bg-emerald-50/80 border-emerald-200'} rounded-2xl p-3 flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="text-base">${hasCustom ? '🏷️' : '🎁'}</span>
+                    <span class="text-base">${hasCustom ? '⭐' : '🎁'}</span>
                     <div>
-                      <span class="font-extrabold ${hasCustom ? 'text-purple-950' : 'text-emerald-950'} block">${couponTitle}</span>
+                      <span class="text-xs font-black block ${hasCustom ? 'text-purple-900' : 'text-emerald-900'}">
+                        ${hasCustom ? 'Özel Müşteri Kuponunuz' : 'İlk Sipariş Fırsatı'}
+                      </span>
                       <span class="text-[11px] ${hasCustom ? 'text-purple-700' : 'text-emerald-700'}">${couponText}</span>
                     </div>
                   </div>
                   <button 
                     id="toggle-cart-discount-btn" 
-                    class="px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${!currentUser ? 'bg-gray-200 text-gray-600 border border-gray-300' : firstOrderDiscountApplied ? (hasCustom ? 'bg-purple-600 text-white' : 'bg-[#06C167] text-white') : (hasCustom ? 'bg-white border border-purple-300 text-purple-700' : 'bg-white border border-emerald-300 text-[#06C167]')}"
+                    class="px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${!currentUser ? 'bg-gray-200 text-gray-600 border border-gray-300' : firstOrderDiscountApplied ? (hasCustom ? 'bg-purple-600 text-white shadow-xs' : 'bg-[#06C167] text-white shadow-xs') : (hasCustom ? 'bg-white border border-purple-300 text-purple-700 hover:bg-purple-50' : 'bg-white border border-emerald-300 text-[#06C167] hover:bg-emerald-50')}"
                   >
-                    ${!currentUser ? '🔒 Giriş Yap' : firstOrderDiscountApplied ? '✓ Uygulandı' : 'Uygula'}
+                    ${!currentUser ? 'Giriş Yap' : firstOrderDiscountApplied ? 'Uygulandı ✓' : 'Uygula'}
                   </button>
                 </div>
               `;
             })()}
 
-            <div class="flex items-center justify-between text-xs text-gray-500">
+            <div class="flex items-center justify-between text-xs text-gray-500 pt-1">
               <span>Ara Toplam</span>
-              <span>₺${subtotal}</span>
+              <span class="font-bold text-gray-700">₺${subtotal}</span>
             </div>
 
             ${discountAmount > 0 ? `
               <div class="flex items-center justify-between text-xs text-[#06C167] font-bold">
-                <span class="flex items-center gap-1">
-                  <span>🎉</span>
-                  <span>${currentUser && currentUser.custom_code ? `Özel İndirim (%${currentUser.custom_discount})` : 'İlk Sipariş İndirimi (%20)'}</span>
-                </span>
+                <span>İndirim Tutarı</span>
                 <span>-₺${discountAmount}</span>
               </div>
             ` : ''}
 
-            <div class="flex items-center justify-between text-xs text-[#06C167] font-semibold">
+            <div class="flex items-center justify-between text-xs text-gray-500">
               <span>Teslimat Ücreti</span>
-              <span>Ücretsiz</span>
+              <span class="font-bold text-emerald-600">Ücretsiz</span>
             </div>
 
             <div class="flex items-center justify-between text-base font-black text-[#121212] pt-2 border-t border-gray-100">
-              <span>Toplam</span>
+              <span>Toplam Tutar</span>
               <div class="text-right">
                 ${discountAmount > 0 ? `<span class="text-xs text-gray-400 line-through mr-1.5">₺${subtotal}</span>` : ''}
                 <span class="text-xl text-[#06C167]">₺${cartTotal}</span>
               </div>
             </div>
 
-            <button 
-              id="proceed-checkout-btn" 
-              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 mt-3 cursor-pointer"
-            >
-              <span>Siparişi Onayla ve Gönder</span>
-              <span>• ₺${cartTotal}</span>
-            </button>
+            ${!isRestaurantOpen ? `
+              <div class="bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-2xl p-3 text-center mt-3 shadow-xs">
+                ⚠️ ${closedMessage || 'Restoranımız şu anda kapalıdır.'}
+              </div>
+              <button 
+                id="proceed-checkout-btn" 
+                disabled
+                class="w-full bg-gray-300 text-gray-500 font-bold py-3.5 rounded-2xl text-sm transition flex items-center justify-center gap-2 mt-2 cursor-not-allowed opacity-75"
+              >
+                <span>Restoran Şu Anda Kapalı</span>
+                <span>• ₺${cartTotal}</span>
+              </button>
+            ` : `
+              <button 
+                id="proceed-checkout-btn" 
+                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 mt-3 cursor-pointer"
+              >
+                <span>Siparişi Onayla ve Gönder</span>
+                <span>• ₺${cartTotal}</span>
+              </button>
+            `}
           </div>
         ` : ''}
 
@@ -1692,15 +1714,40 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (googleBtn) {
     googleBtn.addEventListener('click', async () => {
       googleBtn.disabled = true;
-      googleBtn.innerHTML = `<span>⏳</span><span>Google'a Yönlendiriliyor...</span>`;
+      googleBtn.innerHTML = `<span>⏳</span><span>Google Girişi Yapılıyor...</span>`;
+      const isPending = state.pendingCheckout || state.isCheckoutOpen;
+      if (isPending) {
+        try { sessionStorage.setItem('pita_pending_checkout', 'true'); } catch (e) {}
+      }
       try {
-        // Loader göster (redirect öncesi)
-        if (typeof window.showGlobalLoader === 'function') window.showGlobalLoader();
-        await signInWithGoogle();
-        // signInWithRedirect sayfayı yönlendirdiği için buraya normalde gelinmez
+        const res = await signInWithGoogle();
+        if (res && res.ok && res.user) {
+          // Popup ile anında giriş yaptı!
+          const user = res.user;
+          setCurrentUser(user);
+          saveCustomerLocally(user);
+          try { await syncCustomerToFirestore(user); } catch (e) {}
+
+          const wasPending = isPending || sessionStorage.getItem('pita_pending_checkout') === 'true';
+          sessionStorage.removeItem('pita_pending_checkout');
+
+          onStateChange({
+            currentUser: user,
+            isLoginModalOpen: false,
+            isCheckoutOpen: wasPending ? true : false,
+            isCartOpen: false,
+            pendingCheckout: false,
+            authError: '',
+            loginNotice: ''
+          });
+          return;
+        } else if (res && res.error) {
+          onStateChange({ authError: res.error });
+          googleBtn.disabled = false;
+          googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile Hızlı Giriş Yap</span>`;
+        }
       } catch (err) {
         console.warn("Google login error:", err);
-        if (typeof window.hideGlobalLoader === 'function') window.hideGlobalLoader();
         googleBtn.disabled = false;
         googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile Hızlı Giriş Yap</span>`;
       }
@@ -1805,6 +1852,19 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           try {
             await syncCustomerToFirestore(user);
           } catch (e) {}
+
+          if (state.pendingCheckout) {
+            onStateChange({
+              currentUser: user,
+              isLoginModalOpen: false,
+              isCheckoutOpen: true,
+              pendingCheckout: false,
+              authError: '',
+              loginNotice: ''
+            });
+            return;
+          }
+
           performSmoothReload(`🎉 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -1855,6 +1915,19 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+
+          if (state.pendingCheckout) {
+            onStateChange({
+              currentUser: user,
+              isLoginModalOpen: false,
+              isCheckoutOpen: true,
+              pendingCheckout: false,
+              authError: '',
+              loginNotice: ''
+            });
+            return;
+          }
+
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
@@ -2296,20 +2369,17 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
-  // Siparişi Onayla / Checkout'a Geç Butonu (Giriş Yapılmasını Zorunlu Kıl)
+  // Siparişi Onayla / Checkout'a Geç Butonu
   const proceedBtn = container.querySelector('#proceed-checkout-btn');
   if (proceedBtn) {
     proceedBtn.addEventListener('click', () => {
-      if (!state.currentUser) {
-        onStateChange({ 
-          isCartOpen: false, 
-          isLoginModalOpen: true, 
-          pendingCheckout: true,
-          loginNotice: 'Siparişinizi tamamlamak ve size ulaşabilmemiz için lütfen giriş yapın veya kayıt olun.'
-        });
-      } else {
-        onStateChange({ isCartOpen: false, isCheckoutOpen: true });
+      const restSettings = state.restaurantSettings || orderService.getRestaurantSettings();
+      const currentRestStatus = isRestaurantOpenNow(restSettings);
+      if (!currentRestStatus.isOpen) {
+        alert(`⚠️ ${currentRestStatus.message || 'Restoranımız şu anda kapalıdır. Sipariş verilememektedir.'}`);
+        return;
       }
+      onStateChange({ isCartOpen: false, isCheckoutOpen: true });
     });
   }
 
@@ -2351,14 +2421,9 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       e.preventDefault();
 
       const restSettings = state.restaurantSettings || orderService.getRestaurantSettings();
-      if (restSettings.isOpen === false) {
-        alert(`⚠️ Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${restSettings.openingHours || '10:00 - 23:00'}. Sipariş verilememektedir.`);
-        return;
-      }
-
-      if (!state.currentUser) {
-        alert("Sipariş verebilmek için lütfen önce giriş yapınız.");
-        onStateChange({ isCheckoutOpen: false, isLoginModalOpen: true, pendingCheckout: true, loginNotice: 'Siparişinizi tamamlamak için lütfen giriş yapın.' });
+      const currentRestStatus = isRestaurantOpenNow(restSettings);
+      if (!currentRestStatus.isOpen) {
+        alert(`⚠️ ${currentRestStatus.message || 'Restoranımız şu anda kapalıdır. Sipariş verilememektedir.'}`);
         return;
       }
 
@@ -2374,14 +2439,24 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         return;
       }
 
-      // Kullanıcının güncel isim/telefon bilgisini güncelle
-      const updatedUser = {
-        ...state.currentUser,
-        name: customerName,
-        phone: customerPhone
-      };
-      setCurrentUser(updatedUser);
-      state.currentUser = updatedUser;
+      // Kullanıcının oturumu varsa bilgilerini güncelle, yoksa formdan otomatik müşteri hesabı oluştur
+      let activeUser = state.currentUser || getCurrentUser();
+      if (!activeUser) {
+        activeUser = {
+          name: customerName,
+          phone: customerPhone,
+          registered_at: new Date().toISOString()
+        };
+      } else {
+        activeUser = {
+          ...activeUser,
+          name: customerName,
+          phone: customerPhone || activeUser.phone
+        };
+      }
+      setCurrentUser(activeUser);
+      state.currentUser = activeUser;
+      saveCustomerLocally(activeUser);
       registerCustomer(customerName, customerPhone).catch(() => {});
 
       const currentSubtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);

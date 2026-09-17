@@ -1,5 +1,5 @@
 // Pita Mutfak - Yönetim & Admin Paneli
-import { orderService, formatDeliveryCode, playOrderSound } from '../services/orderService.js';
+import { orderService, formatDeliveryCode, playOrderSound, isRestaurantOpenNow } from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
 
 // Admin Kimlik Doğrulama Yardımcıları
@@ -175,6 +175,24 @@ export function renderAdminPanel(container, state, onStateChange) {
   const adminCustomDate = state.adminCustomDate || '';
   const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers' | 'reviews' | 'accounting'
   const settings = state.restaurantSettings || orderService.getRestaurantSettings();
+  const restStatus = isRestaurantOpenNow(settings);
+  let adminBtnClass = 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30';
+  let adminDotClass = 'bg-[#06C167] animate-pulse';
+  let adminStatusText = '🟢 Restoran Açık';
+
+  if (settings.isOpen === false) {
+    adminBtnClass = 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300';
+    adminDotClass = 'bg-red-500';
+    adminStatusText = '🔴 Restoran Kapalı (Manuel)';
+  } else if (settings.forceOpen === true) {
+    adminBtnClass = 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-400';
+    adminDotClass = 'bg-emerald-500 animate-pulse';
+    adminStatusText = '⚡ Açık (Zorla Açık)';
+  } else if (!restStatus.isOpen) {
+    adminBtnClass = 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300';
+    adminDotClass = 'bg-amber-500';
+    adminStatusText = '⏰ Mesai Dışı (Kapalı)';
+  }
 
   // Stok haritası (ürün ID -> stok kaydı)
   const stockMap = {};
@@ -319,11 +337,11 @@ export function renderAdminPanel(container, state, onStateChange) {
             <!-- Restoran Açık / Kapalı Butonu -->
             <button 
               id="admin-toggle-restaurant-btn" 
-              class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-xs ${settings.isOpen ? 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30' : 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-300'}"
-              title="Restoranın durumunu değiştir (Açık/Kapalı)"
+              class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-xs ${adminBtnClass}"
+              title="Restoranın durumunu yönet (Açık/Kapalı/Zorla Açık)"
             >
-              <span class="w-2.5 h-2.5 rounded-full ${settings.isOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
-              <span>${settings.isOpen ? '🟢 Restoran Açık' : '🔴 Restoran Kapalı'}</span>
+              <span class="w-2.5 h-2.5 rounded-full ${adminDotClass}"></span>
+              <span>${adminStatusText}</span>
             </button>
 
             <!-- Çalışma Saatleri Düzenleyici -->
@@ -2634,7 +2652,23 @@ function attachAdminEventListeners(container, state, onStateChange) {
   if (toggleRestBtn) {
     toggleRestBtn.addEventListener('click', () => {
       const current = orderService.getRestaurantSettings();
-      const updated = { ...current, isOpen: !current.isOpen };
+      let updated;
+      if (current.isOpen === false) {
+        // Kapalıysa aç
+        const statusCheck = isRestaurantOpenNow({ ...current, isOpen: true, forceOpen: false });
+        if (!statusCheck.isOpen) {
+          const wantForce = confirm(`Şu anda mesai saatleri (${current.openingHours || '10:00 - 23:00'}) dışındasınız.\n\nRestoranı mesai saatleri dışında da sipariş alması için ZORLA AÇIK tutmak ister misiniz?\n\n(Tamam: Zorla Açık, İptal: Otomatik Mesai Saati Kuralına Bağla)`);
+          updated = { ...current, isOpen: true, forceOpen: wantForce };
+        } else {
+          updated = { ...current, isOpen: true, forceOpen: false };
+        }
+      } else if (current.forceOpen === true) {
+        // Zorla açıksa kapat
+        updated = { ...current, isOpen: false, forceOpen: false };
+      } else {
+        // Açıksa kapat
+        updated = { ...current, isOpen: false, forceOpen: false };
+      }
       orderService.saveRestaurantSettings(updated);
       onStateChange({ restaurantSettings: updated });
     });
