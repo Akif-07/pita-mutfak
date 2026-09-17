@@ -433,6 +433,73 @@ export async function getExpensesFromFirestore() {
   }
 }
 
+// =================== 5.2 GÜN SONU KAPANIPLARI & Z-RAPORU ===================
+
+export async function syncDailyClosingToFirestore(closing) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const clean = cleanForFirestore(closing);
+    const closeId = String(clean.date || clean.id || `close-${Date.now()}`);
+    const ref = doc(db, "daily_closings", closeId);
+    await setDoc(ref, {
+      ...clean,
+      id: closeId,
+      _syncedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.warn("Firestore gün sonu kaydetme hatası:", e);
+    return false;
+  }
+}
+
+export function subscribeFirestoreDailyClosings(callback) {
+  let unsubscribe = null;
+  getFirestoreContext().then((ctx) => {
+    if (!ctx || !ctx.db) return;
+    const { db, collection, onSnapshot } = ctx;
+    try {
+      const collRef = collection(db, "daily_closings");
+      unsubscribe = onSnapshot(collRef, (snapshot) => {
+        const list = [];
+        snapshot.forEach(d => {
+          list.push({ id: d.id, ...d.data() });
+        });
+        list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        callback(list);
+      }, (error) => {
+        console.warn("Firestore gün sonu dinleme:", error);
+      });
+    } catch (e) {
+      console.warn("Firestore gün sonu dinleyici:", e);
+    }
+  }).catch(() => {});
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+
+export async function getDailyClosingsFromFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return [];
+    const { db, collection, getDocs } = ctx;
+    const snap = await getDocs(collection(db, "daily_closings"));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    return list;
+  } catch (e) {
+    console.warn("Firestore gün sonu listesi alınamadı:", e);
+    return [];
+  }
+}
+
 // =================== 6. GOOGLE AUTHENTICATION ===================
 
 export async function signInWithGoogle() {

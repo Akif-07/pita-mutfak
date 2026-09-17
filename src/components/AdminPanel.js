@@ -1494,243 +1494,277 @@ function renderAdminReviewsTab(state) {
 
 // =================== 5. MUHASEBE & GİDER YÖNETİMİ (ACCOUNTING & EXPENSES) ===================
 function renderAccountingTab(orders, expenses, state) {
+  const accountingPeriod = state.accountingPeriod || 'today';
+  const customStart = state.accountingCustomStart || '';
+  const customEnd = state.accountingCustomEnd || '';
+  const expenseCategoryFilter = state.expenseCategoryFilter || 'all';
 
-  const accountingPeriod = state.accountingPeriod || 'month'; // 'today' | 'yesterday' | 'month' | 'all'
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const yestObj = new Date(Date.now() - 86400000);
-  const yesterdayStr = `${yestObj.getFullYear()}-${String(yestObj.getMonth() + 1).padStart(2, '0')}-${String(yestObj.getDate()).padStart(2, '0')}`;
+  const kpis = orderService.calculateAccountingKPIs(orders, expenses, accountingPeriod, customStart, customEnd);
+  const dailyLedgerRows = orderService.getDailyLedger(orders, expenses);
 
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-  const monthName = now.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-
-  function getDateStr(iso) {
-    if (!iso) return '';
-    try {
-      const d = new Date(iso);
-      if (!isNaN(d.getTime())) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      }
-    } catch (e) {}
-    return '';
+  // Gider listesi için kategori filtresi
+  let displayedExpenses = kpis.periodExpenses;
+  if (expenseCategoryFilter !== 'all') {
+    displayedExpenses = displayedExpenses.filter(e => (e.category || 'Malzeme') === expenseCategoryFilter);
   }
 
-  // Filtrelenecek sipariş ve giderler
-  let periodOrders = orders;
-  let periodExpenses = expenses;
-  let periodLabel = 'Bu Ay (' + monthName + ')';
-
-  if (accountingPeriod === 'today') {
-    periodLabel = 'Bugün (' + now.toLocaleDateString('tr-TR') + ')';
-    periodOrders = orders.filter(o => getDateStr(o.createdAt) === todayStr);
-    periodExpenses = expenses.filter(e => (e.date || getDateStr(e.createdAt)) === todayStr);
-  } else if (accountingPeriod === 'yesterday') {
-    periodLabel = 'Dün (' + yestObj.toLocaleDateString('tr-TR') + ')';
-    periodOrders = orders.filter(o => getDateStr(o.createdAt) === yesterdayStr);
-    periodExpenses = expenses.filter(e => (e.date || getDateStr(e.createdAt)) === yesterdayStr);
-  } else if (accountingPeriod === 'month') {
-    periodLabel = 'Bu Ay (' + monthName + ')';
-    periodOrders = orders.filter(o => {
-      const d = o.createdAt ? new Date(o.createdAt) : null;
-      return d && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-    });
-    periodExpenses = expenses.filter(e => {
-      const dStr = e.date || getDateStr(e.createdAt);
-      if (!dStr) return false;
-      const d = new Date(dStr);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-    });
-  } else if (accountingPeriod === 'all') {
-    periodLabel = 'Tüm Zamanlar Genel Muhasebe';
-    periodOrders = orders;
-    periodExpenses = expenses;
-  }
-
-  // Finansal Hesaplamalar
-  const deliveredOrders = periodOrders.filter(o => o.status === 'delivered');
-  const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const totalExpense = periodExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-  const netProfit = totalRevenue - totalExpense;
-  const isProfit = netProfit >= 0;
-  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : (totalExpense > 0 ? -100 : 0);
-  const avgOrderValue = deliveredOrders.length > 0 ? (totalRevenue / deliveredOrders.length).toFixed(0) : 0;
-
-  // Ödeme Yöntemi Dağılımı
-  const cashRevenue = deliveredOrders.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const eftRevenue = deliveredOrders.filter(o => o.paymentMethod === 'eft').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
-  // Günlük döküm (Z-Raporu / Gün Sonu Defteri)
-  const dailyLedger = {};
-  orders.forEach(o => {
-    const dStr = getDateStr(o.createdAt);
-    if (!dStr) return;
-    if (!dailyLedger[dStr]) {
-      dailyLedger[dStr] = { date: dStr, totalCount: 0, deliveredCount: 0, revenue: 0, expense: 0 };
-    }
-    dailyLedger[dStr].totalCount += 1;
-    if (o.status === 'delivered') {
-      dailyLedger[dStr].deliveredCount += 1;
-      dailyLedger[dStr].revenue += (o.totalAmount || 0);
-    }
-  });
-
-  expenses.forEach(e => {
-    const dStr = e.date || getDateStr(e.createdAt);
-    if (!dStr) return;
-    if (!dailyLedger[dStr]) {
-      dailyLedger[dStr] = { date: dStr, totalCount: 0, deliveredCount: 0, revenue: 0, expense: 0 };
-    }
-    dailyLedger[dStr].expense += (parseFloat(e.amount) || 0);
-  });
-
-  const dailyLedgerRows = Object.values(dailyLedger).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const categoryOptions = [
+    { id: 'all', label: 'Tüm Harcamalar' },
+    { id: 'Malzeme', label: '🍗 Gıda & Malzeme' },
+    { id: 'Kurye', label: '🛵 Kurye & Yakıt' },
+    { id: 'Kira', label: '🏢 Dükkan Kirası' },
+    { id: 'Fatura', label: '💡 Fatura' },
+    { id: 'Personel', label: '👥 Personel' },
+    { id: 'Ambalaj', label: '📦 Ambalaj' },
+    { id: 'Diğer', label: '🏷️ Diğer' }
+  ];
 
   return `
     <div class="space-y-6">
       
       <!-- Üst Dönem Seçici & Eylem Çubuğu -->
-      <div class="bg-white rounded-3xl p-5 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="bg-white rounded-3xl p-5 border border-gray-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
-            <h3 class="text-xl font-black text-[#121212]">Muhasebe & Finansal Kasa</h3>
-            <span class="bg-emerald-100 text-[#06C167] text-[11px] font-black px-2.5 py-0.5 rounded-full">Canlı Defter</span>
+            <h3 class="text-xl font-black text-[#121212]">Restoran Muhasebe & Kasa Motoru</h3>
+            <span class="bg-[#E8F8EE] text-[#06C167] text-[11px] font-black px-2.5 py-0.5 rounded-full border border-[#06C167]/30">Açık Kaynak Standartlarında</span>
           </div>
-          <p class="text-xs text-gray-500 mt-0.5">Sipariş ciroları, malzeme/personel giderleri ve net kâr durumu otomatik hesaplanır</p>
+          <p class="text-xs text-gray-500 mt-0.5">Sipariş teslimat ciroları, dükkan giderleri ve çift kasa (Nakit & Banka/POS) dengesi anlık hesaplanır</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
           <!-- Dönem Filtreleri -->
-          <div class="bg-gray-100 p-1 rounded-2xl flex items-center gap-1">
+          <div class="bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar">
             <button 
               data-accounting-period="today" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${accountingPeriod === 'today' ? 'bg-[#06C167] text-white shadow-xs' : 'text-gray-600 hover:text-black'}"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${accountingPeriod === 'today' ? 'bg-[#06C167] text-white shadow-xs font-black' : 'text-gray-600 hover:text-black'}"
             >
               Bugün
             </button>
             <button 
               data-accounting-period="yesterday" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${accountingPeriod === 'yesterday' ? 'bg-[#121212] text-white shadow-xs' : 'text-gray-600 hover:text-black'}"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${accountingPeriod === 'yesterday' ? 'bg-[#121212] text-white shadow-xs font-black' : 'text-gray-600 hover:text-black'}"
             >
               Dün
             </button>
             <button 
+              data-accounting-period="week" 
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${accountingPeriod === 'week' ? 'bg-[#121212] text-white shadow-xs font-black' : 'text-gray-600 hover:text-black'}"
+            >
+              Son 7 Gün
+            </button>
+            <button 
               data-accounting-period="month" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${accountingPeriod === 'month' ? 'bg-[#121212] text-white shadow-xs' : 'text-gray-600 hover:text-black'}"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${accountingPeriod === 'month' ? 'bg-[#121212] text-white shadow-xs font-black' : 'text-gray-600 hover:text-black'}"
             >
               Bu Ay
             </button>
             <button 
               data-accounting-period="all" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${accountingPeriod === 'all' ? 'bg-[#121212] text-white shadow-xs' : 'text-gray-600 hover:text-black'}"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${accountingPeriod === 'all' ? 'bg-[#121212] text-white shadow-xs font-black' : 'text-gray-600 hover:text-black'}"
             >
               Tümü
             </button>
           </div>
 
-          <!-- Yeni Gider Ekle Butonu -->
-          <button 
-            id="open-add-expense-btn" 
-            class="bg-[#121212] hover:bg-emerald-700 text-white font-extrabold px-4 py-2 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>➕</span>
-            <span>Yeni Gider Ekle</span>
-          </button>
+          <!-- Özel Tarih Aralığı -->
+          <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-2xl">
+            <input 
+              type="date" 
+              id="accounting-custom-start" 
+              value="${customStart}" 
+              class="text-[11px] bg-transparent outline-none font-bold text-gray-700" 
+              title="Başlangıç Tarihi"
+            />
+            <span class="text-gray-400 text-xs">-</span>
+            <input 
+              type="date" 
+              id="accounting-custom-end" 
+              value="${customEnd}" 
+              class="text-[11px] bg-transparent outline-none font-bold text-gray-700" 
+              title="Bitiş Tarihi"
+            />
+            <button 
+              id="accounting-apply-range-btn" 
+              class="bg-gray-800 hover:bg-[#06C167] text-white text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer"
+            >
+              Filtrele
+            </button>
+          </div>
+
+          <!-- Eylem Butonları: Yeni Gider, CSV İndir, Z-Raporu Yazdır -->
+          <div class="flex items-center gap-1.5">
+            <button 
+              id="open-add-expense-btn" 
+              class="bg-[#121212] hover:bg-[#06C167] text-white font-black px-3.5 py-2 rounded-2xl text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <span>➕</span>
+              <span>Yeni Gider</span>
+            </button>
+
+            <button 
+              id="export-accounting-csv-btn" 
+              class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-3 py-2 rounded-2xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              title="Muhasebe defterini Excel / CSV olarak indir"
+            >
+              <span>📥</span>
+              <span class="hidden sm:inline">Excel / CSV</span>
+            </button>
+
+            <button 
+              id="print-accounting-report-btn" 
+              class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-3 py-2 rounded-2xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              title="Dönem Kasa & Z-Raporunu Yazdır veya PDF olarak kaydet"
+            >
+              <span>🖨️</span>
+              <span class="hidden sm:inline">Z-Raporu Yazdır</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- BÜYÜK FİNANSAL ÖZET KARTLARI -->
+      <!-- 4 BÜYÜK FİNANSAL GÖSTERGE KARTI & ÇİFT KASA BİLGİSİ -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        <!-- 1. Toplam Gelir / Ciro -->
-        <div class="bg-gradient-to-br from-[#E8F8EE] to-[#d3f5df] rounded-3xl p-6 border border-[#06C167]/30 shadow-xs relative overflow-hidden">
+        <!-- 1. Toplam Teslimat Geliri -->
+        <div class="bg-gradient-to-br from-[#E8F8EE] to-[#d3f5df] rounded-3xl p-6 border border-[#06C167]/30 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black text-emerald-900 uppercase tracking-wider">Teslim Cirosu (Gelir)</span>
+            <span class="text-xs font-black text-emerald-900 uppercase tracking-wider">Teslimat Geliri (Ciro)</span>
             <span class="w-9 h-9 rounded-xl bg-[#06C167] text-white flex items-center justify-center font-bold text-base shadow-sm">💰</span>
           </div>
-          <div class="text-3xl font-black text-[#06C167]">₺${totalRevenue.toLocaleString('tr-TR')}</div>
-          <div class="text-[11px] text-emerald-800 font-semibold mt-2 flex items-center gap-1.5">
-            <span>📦 ${deliveredOrders.length} teslimat tamamlandı</span>
+          <div class="text-3xl font-black text-[#06C167]">₺${kpis.totalRevenue.toLocaleString('tr-TR')}</div>
+          <div class="text-[11px] text-emerald-800 font-bold mt-2 pt-2 border-t border-[#06C167]/20 flex items-center justify-between">
+            <span>📦 ${kpis.deliveredCount} Teslimat (${kpis.totalOrderCount} Toplam)</span>
+            <span>Ort: ₺${kpis.avgOrderValue}</span>
           </div>
         </div>
 
-        <!-- 2. Toplam Gider -->
-        <div class="bg-gradient-to-br from-rose-50 to-rose-100 rounded-3xl p-6 border border-rose-200 shadow-xs relative overflow-hidden">
+        <!-- 2. Toplam İşletme Gideri -->
+        <div class="bg-gradient-to-br from-rose-50 to-rose-100 rounded-3xl p-6 border border-rose-200 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black text-rose-900 uppercase tracking-wider">Toplam Gider / Masraf</span>
+            <span class="text-xs font-black text-rose-900 uppercase tracking-wider">Toplam İşletme Gideri</span>
             <span class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold text-base shadow-sm">📉</span>
           </div>
-          <div class="text-3xl font-black text-rose-600">₺${totalExpense.toLocaleString('tr-TR')}</div>
-          <div class="text-[11px] text-rose-800 font-semibold mt-2 flex items-center gap-1.5">
-            <span>🧾 ${periodExpenses.length} kalem gider kaydı</span>
+          <div class="text-3xl font-black text-rose-600">₺${kpis.totalExpense.toLocaleString('tr-TR')}</div>
+          <div class="text-[11px] text-rose-800 font-bold mt-2 pt-2 border-t border-rose-200 flex items-center justify-between">
+            <span>🧾 ${kpis.periodExpenses.length} Harcama Kalemi</span>
+            <span>${kpis.categoryBreakdown.length > 0 ? kpis.categoryBreakdown[0].category : 'Gider Yok'}</span>
           </div>
         </div>
 
-        <!-- 3. Net Kâr -->
-        <div class="bg-gradient-to-br ${isProfit ? 'from-[#121212] via-[#1a2e22] to-[#121212] text-white' : 'from-red-900 to-red-950 text-white'} rounded-3xl p-6 shadow-md relative overflow-hidden">
+        <!-- 3. Net Kâr / Kasa Bakiyesi -->
+        <div class="bg-gradient-to-br ${kpis.isProfit ? 'from-[#121212] via-[#1a2e22] to-[#121212] text-white' : 'from-red-900 to-red-950 text-white'} rounded-3xl p-6 shadow-md relative overflow-hidden flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black ${isProfit ? 'text-[#06C167]' : 'text-red-300'} uppercase tracking-wider">Net Kâr / Bakiye</span>
-            <span class="w-9 h-9 rounded-xl ${isProfit ? 'bg-[#06C167]' : 'bg-red-600'} text-white flex items-center justify-center font-bold text-base shadow-sm">
-              ${isProfit ? '📈' : '📉'}
+            <span class="text-xs font-black ${kpis.isProfit ? 'text-[#06C167]' : 'text-red-300'} uppercase tracking-wider">Net Kâr / Kasa Fazlası</span>
+            <span class="w-9 h-9 rounded-xl ${kpis.isProfit ? 'bg-[#06C167]' : 'bg-red-600'} text-white flex items-center justify-center font-bold text-base shadow-sm">
+              ${kpis.isProfit ? '📈' : '📉'}
             </span>
           </div>
-          <div class="text-3xl font-black ${isProfit ? 'text-white' : 'text-red-200'}">
-            ${isProfit ? '+' : ''}₺${netProfit.toLocaleString('tr-TR')}
+          <div class="text-3xl font-black ${kpis.isProfit ? 'text-[#06C167]' : 'text-red-200'}">
+            ${kpis.isProfit ? '+' : ''}₺${kpis.netProfit.toLocaleString('tr-TR')}
           </div>
-          <div class="text-[11px] text-gray-300 font-semibold mt-2 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded-full ${isProfit ? 'bg-[#06C167]/30 text-[#06C167]' : 'bg-red-500/30 text-red-200'} font-black">
-              Kâr Marjı: %${profitMargin}
+          <div class="text-[11px] text-gray-300 font-semibold mt-2 pt-2 border-t border-gray-700/50 flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-full ${kpis.isProfit ? 'bg-[#06C167]/30 text-[#06C167]' : 'bg-red-500/30 text-red-200'} font-black">
+              Kâr Marjı: %${kpis.profitMargin}
             </span>
+            <span class="text-gray-400 font-bold">${kpis.isProfit ? '🟢 Kârlı Dönem' : '🔴 Zararda'}</span>
           </div>
         </div>
 
-        <!-- 4. Tahsilat / Ödeme Dağılımı -->
+        <!-- 4. Çift Kasa Ayrımı (Nakit Kasası & Banka/POS Kasası) -->
         <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-xs flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black text-gray-700 uppercase tracking-wider">Ödeme Dağılımı</span>
-            <span class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-base shadow-sm">💳</span>
+            <span class="text-xs font-black text-gray-800 uppercase tracking-wider">Kasa & Hesap Bakiyesi</span>
+            <span class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base shadow-xs">🏦</span>
           </div>
           <div class="space-y-2 mt-1">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-gray-500 font-bold flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Kapıda Nakit:
+            <div class="flex items-center justify-between text-xs bg-gray-50 p-2 rounded-xl">
+              <span class="text-gray-600 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 💵 Nakit Kasa:
               </span>
-              <span class="font-black text-gray-900">₺${cashRevenue.toLocaleString('tr-TR')}</span>
+              <span class="font-black ${kpis.cashBalance >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
+                ₺${kpis.cashBalance.toLocaleString('tr-TR')}
+              </span>
             </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-gray-500 font-bold flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-500"></span> Havale / EFT:
+            <div class="flex items-center justify-between text-xs bg-gray-50 p-2 rounded-xl">
+              <span class="text-gray-600 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span> 💳 Banka / POS:
               </span>
-              <span class="font-black text-gray-900">₺${eftRevenue.toLocaleString('tr-TR')}</span>
+              <span class="font-black ${kpis.bankBalance >= 0 ? 'text-blue-700' : 'text-rose-600'}">
+                ₺${kpis.bankBalance.toLocaleString('tr-TR')}
+              </span>
             </div>
           </div>
-          <div class="text-[11px] text-gray-400 font-medium pt-2 border-t border-gray-100 mt-2">
-            Ort. Sepet: <strong class="text-gray-800">₺${avgOrderValue}</strong>
+          <div class="text-[10px] text-gray-400 font-bold pt-2 border-t border-gray-100 mt-2 flex items-center justify-between">
+            <span>Nakit Ciro: ₺${kpis.cashRevenue.toLocaleString('tr-TR')}</span>
+            <span>EFT Ciro: ₺${kpis.eftRevenue.toLocaleString('tr-TR')}</span>
           </div>
         </div>
 
       </div>
 
-      <!-- İKİ BÖLÜM: 1. GİDERLER TABLOSU  2. GÜNLÜK KASA & Z-RAPORU -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <!-- SOL BÖLÜM: GİDER / MASRAF DEFTERİ (7 Kolon) -->
-        <div class="lg:col-span-7 bg-white rounded-3xl p-6 border border-gray-200 shadow-xs">
-          <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+      <!-- KATEGORİ HARCAMA DAĞILIMI (GÖRSEL ÇUBUKLAR) -->
+      ${kpis.categoryBreakdown.length > 0 ? `
+        <div class="bg-white rounded-3xl p-5 border border-gray-200 shadow-xs">
+          <div class="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
             <div>
-              <h4 class="font-black text-base text-[#121212]">İşletme Giderleri & Masraflar</h4>
-              <p class="text-xs text-gray-400">${periodLabel} kapsamındaki harcamalar</p>
+              <h4 class="font-black text-sm text-[#121212]">Harcama & Gider Dağılımı</h4>
+              <p class="text-[11px] text-gray-400">${kpis.periodLabel} içindeki masrafların kategorilere göre oranları</p>
             </div>
-            <span class="text-xs font-black bg-rose-50 text-rose-700 px-3 py-1 rounded-xl border border-rose-100">
-              Toplam: ₺${totalExpense.toLocaleString('tr-TR')}
+            <span class="text-xs font-black text-gray-700 bg-gray-100 px-3 py-1 rounded-xl">
+              Toplam ${kpis.categoryBreakdown.length} Kategori
             </span>
           </div>
 
-          ${periodExpenses.length === 0 ? `
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            ${kpis.categoryBreakdown.map(item => `
+              <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                <div class="flex items-center justify-between text-xs font-extrabold text-gray-700 mb-1">
+                  <span class="truncate">${item.category}</span>
+                  <span class="text-rose-600 font-black">%${item.percentage}</span>
+                </div>
+                <div class="text-sm font-black text-[#121212]">₺${item.amount.toLocaleString('tr-TR')}</div>
+                <div class="w-full bg-gray-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div class="bg-rose-500 h-full rounded-full" style="width: ${item.percentage}%"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- İKİ ANA TABLO: 1. İŞLETME GİDER DEFTERİ  2. GÜNLÜK KASA & Z-RAPORU -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- SOL BÖLÜM: İŞLETME GİDER DEFTERİ (7 Kolon) -->
+        <div class="lg:col-span-7 bg-white rounded-3xl p-6 border border-gray-200 shadow-xs">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-100">
+            <div>
+              <h4 class="font-black text-base text-[#121212]">İşletme Gider Defteri</h4>
+              <p class="text-xs text-gray-400">${kpis.periodLabel} kapsamındaki harcamalar</p>
+            </div>
+            
+            <!-- Kategori Filtresi -->
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <select 
+                id="admin-expense-category-filter" 
+                class="text-xs font-bold border border-gray-200 rounded-xl px-2.5 py-1.5 bg-white outline-none focus:border-[#06C167]"
+              >
+                ${categoryOptions.map(cat => `
+                  <option value="${cat.id}" ${expenseCategoryFilter === cat.id ? 'selected' : ''}>${cat.label}</option>
+                `).join('')}
+              </select>
+              <span class="text-xs font-black bg-rose-50 text-rose-700 px-3 py-1 rounded-xl border border-rose-100 whitespace-nowrap">
+                ₺${kpis.totalExpense.toLocaleString('tr-TR')}
+              </span>
+            </div>
+          </div>
+
+          ${displayedExpenses.length === 0 ? `
             <div class="py-12 text-center text-gray-400">
               <span class="text-4xl block mb-2">🧾</span>
-              <h5 class="font-black text-gray-700 text-sm">Bu dönem için kayıtlı gider yok</h5>
-              <p class="text-xs text-gray-400 mt-1">Malzeme alımı, fatura veya personel gideri eklemek için yukarıdaki "Yeni Gider Ekle" butonunu kullanabilirsiniz.</p>
+              <h5 class="font-black text-gray-700 text-sm">Bu dönem için kayıtlı gider bulunamadı</h5>
+              <p class="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Malzeme alımı, fatura veya personel gideri eklemek için yukarıdaki "Yeni Gider" butonunu kullanabilirsiniz.</p>
             </div>
           ` : `
             <div class="overflow-x-auto">
@@ -1740,12 +1774,13 @@ function renderAccountingTab(orders, expenses, state) {
                     <th class="py-2.5 px-3">Tarih</th>
                     <th class="py-2.5 px-3">Kategori</th>
                     <th class="py-2.5 px-3">Gider Kalemi</th>
+                    <th class="py-2.5 px-3 text-center">Ödeme Kasası</th>
                     <th class="py-2.5 px-3 text-right">Tutar</th>
                     <th class="py-2.5 px-3 text-right">Sil</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-xs">
-                  ${periodExpenses.map(exp => `
+                  ${displayedExpenses.map(exp => `
                     <tr class="hover:bg-gray-50/80 transition">
                       <td class="py-3 px-3 font-mono text-gray-500 whitespace-nowrap text-[11px]">
                         ${exp.date || (exp.createdAt ? exp.createdAt.split('T')[0] : '—')}
@@ -1757,7 +1792,14 @@ function renderAccountingTab(orders, expenses, state) {
                       </td>
                       <td class="py-3 px-3">
                         <div class="font-bold text-gray-900">${exp.title}</div>
-                        ${exp.note ? `<div class="text-[10px] text-gray-400 mt-0.5 font-sans">${exp.note}</div>` : ''}
+                        ${exp.note ? `<div class="text-[10px] text-gray-400 mt-0.5 font-sans">Belge/Not: ${exp.note}</div>` : ''}
+                      </td>
+                      <td class="py-3 px-3 text-center whitespace-nowrap">
+                        ${exp.payment_account === 'bank' ? `
+                          <span class="bg-blue-50 text-blue-700 font-extrabold text-[10px] px-2 py-0.5 rounded-lg border border-blue-100">💳 Banka/EFT</span>
+                        ` : `
+                          <span class="bg-emerald-50 text-emerald-800 font-extrabold text-[10px] px-2 py-0.5 rounded-lg border border-emerald-100">💵 Nakit</span>
+                        `}
                       </td>
                       <td class="py-3 px-3 text-right font-black text-rose-600 whitespace-nowrap text-sm">
                         -₺${(parseFloat(exp.amount) || 0).toLocaleString('tr-TR')}
@@ -1784,19 +1826,19 @@ function renderAccountingTab(orders, expenses, state) {
         <div class="lg:col-span-5 bg-white rounded-3xl p-6 border border-gray-200 shadow-xs">
           <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
             <div>
-              <h4 class="font-black text-base text-[#121212]">Günlük Kasa Defteri</h4>
-              <p class="text-xs text-gray-400">Son günlerin günlük ciro, gider ve kâr dökümü</p>
+              <h4 class="font-black text-base text-[#121212]">Günlük Z-Raporu Defteri</h4>
+              <p class="text-xs text-gray-400">Her günün ciro, gider ve net kâr dökümü</p>
             </div>
             <span class="text-xs font-black bg-[#E8F8EE] text-[#06C167] px-3 py-1 rounded-xl border border-emerald-200">
-              ${dailyLedgerRows.length} Gün
+              ${dailyLedgerRows.length} Gün Kayıtlı
             </span>
           </div>
 
           ${dailyLedgerRows.length === 0 ? `
             <div class="py-12 text-center text-gray-400">
               <span class="text-4xl block mb-2">📅</span>
-              <h5 class="font-black text-gray-700 text-sm">Henüz işlem kaydı yok</h5>
-              <p class="text-xs text-gray-400 mt-1">Sipariş verildikçe veya gider kaydedildikçe gün sonu raporları burada listelenecektir.</p>
+              <h5 class="font-black text-gray-700 text-sm">Henüz gün sonu kaydı yok</h5>
+              <p class="text-xs text-gray-400 mt-1">Sipariş verildikçe veya harcama yapıldıkça her günün Z-raporu burada listelenecektir.</p>
             </div>
           ` : `
             <div class="overflow-x-auto">
@@ -1805,7 +1847,7 @@ function renderAccountingTab(orders, expenses, state) {
                   <tr class="border-b border-gray-100 text-[11px] font-black text-gray-400 uppercase tracking-wider">
                     <th class="py-2.5 px-2">Tarih</th>
                     <th class="py-2.5 px-2 text-center">Sipariş</th>
-                    <th class="py-2.5 px-2 text-right">Gelir</th>
+                    <th class="py-2.5 px-2 text-right">Ciro</th>
                     <th class="py-2.5 px-2 text-right">Gider</th>
                     <th class="py-2.5 px-2 text-right">Net Kâr</th>
                   </tr>
@@ -1861,8 +1903,8 @@ function renderAddExpenseModal(state) {
               🧾
             </div>
             <div>
-              <h3 class="font-black text-base text-[#121212]">Yeni Gider / Masraf Ekle</h3>
-              <p class="text-[11px] text-gray-500">İşletme muhasebenize yeni bir harcama kaydedin</p>
+              <h3 class="font-black text-base text-[#121212]">Yeni İşletme Gideri Ekle</h3>
+              <p class="text-[11px] text-gray-500">Muhasebe ve dükkan kasasına yeni bir harcama işleyin</p>
             </div>
           </div>
           <button id="close-add-expense-btn" class="p-2 text-gray-400 hover:text-black cursor-pointer font-bold">✕</button>
@@ -1876,7 +1918,7 @@ function renderAddExpenseModal(state) {
               type="text" 
               name="title" 
               required 
-              placeholder="Örn: 20 kg Tavuk Eti, Ayçiçek Yağı, Kurye Benzin..." 
+              placeholder="Örn: 25 kg Didilmiş Tavuk Göğsü, 10 Teneke Ayçiçek Yağı, Kurye Yakıtı..." 
               class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none font-medium"
             />
           </div>
@@ -1929,16 +1971,27 @@ function renderAddExpenseModal(state) {
               <input 
                 type="text" 
                 name="note" 
-                placeholder="Örn: Fatura #1042" 
+                placeholder="Örn: Fiş #2045" 
                 class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none font-medium"
               />
             </div>
           </div>
 
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Ödeme Hesabı / Kasa *</label>
+            <select 
+              name="payment_account" 
+              class="w-full text-xs px-3 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none bg-white font-medium"
+            >
+              <option value="cash">💵 Nakit Kasası (Dükkan Kasasından Ödendi)</option>
+              <option value="bank">💳 Banka / POS / Şirket Hesabı (EFT / Kart ile Ödendi)</option>
+            </select>
+          </div>
+
           <div class="pt-2 flex items-center gap-2">
             <button 
               type="submit" 
-              class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold py-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+              class="flex-1 bg-[#121212] hover:bg-[#06C167] text-white font-extrabold py-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
             >
               <span>💾 Gideri Kaydet</span>
             </button>
@@ -2300,13 +2353,161 @@ function attachAdminEventListeners(container, state, onStateChange) {
     });
   }
 
-  // Muhasebe Sekmesi: Dönem Filtre Butonları (Bugün / Dün / Bu Ay / Tümü)
+  // Muhasebe Sekmesi: Dönem Filtre Butonları (Bugün / Dün / Son 7 Gün / Bu Ay / Tümü)
   container.querySelectorAll('[data-accounting-period]').forEach(btn => {
     btn.addEventListener('click', () => {
       const period = btn.getAttribute('data-accounting-period');
       onStateChange({ accountingPeriod: period });
     });
   });
+
+  // Muhasebe Sekmesi: Özel Tarih Aralığı Uygula
+  const applyRangeBtn = container.querySelector('#accounting-apply-range-btn');
+  if (applyRangeBtn) {
+    applyRangeBtn.addEventListener('click', () => {
+      const start = container.querySelector('#accounting-custom-start')?.value;
+      const end = container.querySelector('#accounting-custom-end')?.value;
+      if (!start || !end) {
+        alert("Lütfen başlangıç ve bitiş tarihlerini seçiniz.");
+        return;
+      }
+      onStateChange({
+        accountingPeriod: 'range',
+        accountingCustomStart: start,
+        accountingCustomEnd: end
+      });
+    });
+  }
+
+  // Muhasebe Sekmesi: Kategori Filtresi
+  const expenseCatFilter = container.querySelector('#admin-expense-category-filter');
+  if (expenseCatFilter) {
+    expenseCatFilter.addEventListener('change', (e) => {
+      onStateChange({ expenseCategoryFilter: e.target.value });
+    });
+  }
+
+  // Muhasebe Sekmesi: Excel / CSV İndir
+  const exportCsvBtn = container.querySelector('#export-accounting-csv-btn');
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      const rows = orderService.getDailyLedger(orders, expensesList);
+      const kpis = orderService.calculateAccountingKPIs(orders, expensesList, state.accountingPeriod || 'today', state.accountingCustomStart, state.accountingCustomEnd);
+      orderService.exportLedgerToCSV(rows, kpis.periodLabel);
+    });
+  }
+
+  // Muhasebe Sekmesi: Z-Raporu Yazdır
+  const printReportBtn = container.querySelector('#print-accounting-report-btn');
+  if (printReportBtn) {
+    printReportBtn.addEventListener('click', () => {
+      const kpis = orderService.calculateAccountingKPIs(orders, expensesList, state.accountingPeriod || 'today', state.accountingCustomStart, state.accountingCustomEnd);
+      const rows = orderService.getDailyLedger(orders, expensesList);
+      
+      const printWin = window.open('', '_blank');
+      if (!printWin) {
+        alert("Lütfen tarayıcınızın açılır pencere (popup) engelleyicisini kapatıp tekrar deneyiniz.");
+        return;
+      }
+      
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html lang="tr">
+        <head>
+          <meta charset="UTF-8">
+          <title>Pita Mutfak - Gün Sonu & Z-Raporu (${kpis.periodLabel})</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 24px; color: #111; max-width: 800px; margin: auto; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 16px; margin-bottom: 20px; }
+            .title { font-size: 24px; font-weight: 900; margin: 0; }
+            .subtitle { font-size: 13px; color: #666; margin-top: 4px; }
+            .period { font-size: 14px; font-weight: bold; background: #eee; display: inline-block; padding: 4px 12px; border-radius: 6px; margin-top: 10px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+            .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+            .card-title { font-size: 11px; text-transform: uppercase; color: #777; font-weight: bold; }
+            .card-val { font-size: 20px; font-weight: bold; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+            th, td { border: 1px solid #e0e0e0; padding: 8px 10px; text-align: left; }
+            th { background: #f5f5f5; font-weight: bold; }
+            .text-right { text-align: right; }
+            .profit { color: #008744; font-weight: bold; }
+            .loss { color: #d62d20; font-weight: bold; }
+            .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 10px; }
+            @media print { button { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="title">🍲 PİTA MUTFAK</h1>
+            <div class="subtitle">Finansal Kasa & Z-Raporu Çıktısı</div>
+            <div class="period">Dönem: ${kpis.periodLabel} | Tarih: ${new Date().toLocaleString('tr-TR')}</div>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <div class="card-title">Teslimat Geliri (Ciro)</div>
+              <div class="card-val">₺${kpis.totalRevenue.toLocaleString('tr-TR')}</div>
+              <div style="font-size: 11px; color: #666; margin-top: 4px;">Toplam ${kpis.deliveredCount} Teslimat (Ort: ₺${kpis.avgOrderValue})</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Toplam İşletme Gideri</div>
+              <div class="card-val" style="color: #d62d20;">₺${kpis.totalExpense.toLocaleString('tr-TR')}</div>
+              <div style="font-size: 11px; color: #666; margin-top: 4px;">${kpis.periodExpenses.length} Kalem Harcama</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Net Kâr / Zarar</div>
+              <div class="card-val ${kpis.isProfit ? 'profit' : 'loss'}">
+                ${kpis.isProfit ? '+' : ''}₺${kpis.netProfit.toLocaleString('tr-TR')}
+              </div>
+              <div style="font-size: 11px; color: #666; margin-top: 4px;">Kâr Marjı: %${kpis.profitMargin}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Kasa Ayrımı (Nakit / Banka)</div>
+              <div style="font-size: 13px; font-weight: bold; margin-top: 6px;">💵 Nakit Kasa: ₺${kpis.cashBalance.toLocaleString('tr-TR')}</div>
+              <div style="font-size: 13px; font-weight: bold; margin-top: 4px;">💳 Banka/POS: ₺${kpis.bankBalance.toLocaleString('tr-TR')}</div>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 24px; font-size: 14px;">📅 Günlük Kasa Dökümü</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th style="text-align: center;">Sipariş</th>
+                <th class="text-right">Nakit Gelir</th>
+                <th class="text-right">EFT/Kart Gelir</th>
+                <th class="text-right">Toplam Ciro</th>
+                <th class="text-right">Gider</th>
+                <th class="text-right">Net Kâr</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td><strong>${r.date}</strong></td>
+                  <td style="text-align: center;">${r.deliveredCount} / ${r.totalCount}</td>
+                  <td class="text-right">₺${(r.cashRevenue || 0).toLocaleString('tr-TR')}</td>
+                  <td class="text-right">₺${(r.eftRevenue || 0).toLocaleString('tr-TR')}</td>
+                  <td class="text-right" style="font-weight: bold;">₺${r.revenue.toLocaleString('tr-TR')}</td>
+                  <td class="text-right" style="color: #c00;">-₺${r.expense.toLocaleString('tr-TR')}</td>
+                  <td class="text-right ${r.isProfit ? 'profit' : 'loss'}">${r.isProfit ? '+' : ''}₺${r.netProfit.toLocaleString('tr-TR')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Pita Mutfak Otomasyon & Muhasebe Sistemi • Güvenli Belge
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+        </html>
+      `);
+      printWin.document.close();
+    });
+  }
 
   // Yeni Gider Modalı Aç/Kapat
   const openExpenseBtn = container.querySelector('#open-add-expense-btn');
@@ -2342,13 +2543,14 @@ function attachAdminEventListeners(container, state, onStateChange) {
       const amount = parseFloat(formData.get('amount')) || 0;
       const date = formData.get('date') || new Date().toISOString().split('T')[0];
       const note = (formData.get('note') || '').trim();
+      const payment_account = formData.get('payment_account') || 'cash';
 
       if (!title || amount <= 0) {
         alert("Lütfen geçerli bir gider açıklaması ve tutarı giriniz.");
         return;
       }
 
-      await orderService.addExpense({ title, category, amount, date, note });
+      await orderService.addExpense({ title, category, amount, date, note, payment_account });
       const updated = await orderService.getExpenses();
       alert(`✓ "₺${amount} - ${title}" gideri muhasebe defterine başarıyla işlendi.`);
       onStateChange({ isAddExpenseModalOpen: false, expensesList: updated });

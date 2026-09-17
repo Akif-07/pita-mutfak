@@ -119,6 +119,36 @@ def init_db():
             initial_reviews
         )
     
+    # 5. Giderler & Harcamalar Tablosu
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Malzeme',
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      payment_account TEXT DEFAULT 'cash',
+      created_at TEXT NOT NULL
+    )
+    ''')
+
+    # 6. Gün Sonu Z-Raporları & Kasa Kapanış Tablosu
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS daily_closings (
+      id TEXT PRIMARY KEY,
+      date TEXT UNIQUE NOT NULL,
+      total_orders INTEGER DEFAULT 0,
+      delivered_orders INTEGER DEFAULT 0,
+      revenue REAL DEFAULT 0,
+      expense REAL DEFAULT 0,
+      net_profit REAL DEFAULT 0,
+      cash_amount REAL DEFAULT 0,
+      eft_amount REAL DEFAULT 0,
+      closed_at TEXT NOT NULL
+    )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -252,6 +282,27 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     cursor.execute("SELECT * FROM reviews ORDER BY id DESC")
                 reviews = [dict(row) for row in cursor.fetchall()]
                 self.send_json(200, reviews)
+
+            elif path == '/api/expenses':
+                category = query_params.get('category', [None])[0]
+                date_filter = query_params.get('date', [None])[0]
+                sql = "SELECT * FROM expenses WHERE 1=1"
+                params = []
+                if category:
+                    sql += " AND category = ?"
+                    params.append(category)
+                if date_filter:
+                    sql += " AND date = ?"
+                    params.append(date_filter)
+                sql += " ORDER BY date DESC, created_at DESC"
+                cursor.execute(sql, tuple(params))
+                expenses = [dict(row) for row in cursor.fetchall()]
+                self.send_json(200, expenses)
+
+            elif path == '/api/daily-closings':
+                cursor.execute("SELECT * FROM daily_closings ORDER BY date DESC")
+                closings = [dict(row) for row in cursor.fetchall()]
+                self.send_json(200, closings)
             
             else:
                 self.send_json(404, {"error": "Not Found"})
@@ -518,6 +569,51 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 new_msg = cursor.fetchone()
                 self.send_json(201, dict(new_msg))
 
+            # 9. Yeni Gider Ekle (POST /api/expenses)
+            elif path == '/api/expenses':
+                title = str(body.get('title', '')).strip()
+                if not title:
+                    self.send_json(400, {"error": "title is required"})
+                    return
+                exp_id = str(body.get('id') or f"exp_{int(datetime.now().timestamp() * 1000)}_{random.randint(100, 999)}")
+                category = str(body.get('category', 'Malzeme')).strip()
+                amount = float(body.get('amount', 0))
+                date_str = str(body.get('date', datetime.now().strftime('%Y-%m-%d'))).strip()
+                note = str(body.get('note', '')).strip()
+                payment_account = str(body.get('payment_account', 'cash')).strip()
+                created_at = str(body.get('createdAt') or body.get('created_at') or datetime.now().isoformat())
+
+                cursor.execute(
+                    "INSERT OR REPLACE INTO expenses (id, title, category, amount, date, note, payment_account, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (exp_id, title, category, amount, date_str, note, payment_account, created_at)
+                )
+                conn.commit()
+                cursor.execute("SELECT * FROM expenses WHERE id = ?", (exp_id,))
+                row = cursor.fetchone()
+                self.send_json(201, dict(row) if row else {"id": exp_id, "title": title, "amount": amount})
+
+            # 10. Gün Sonu Kapanışı Kaydet (POST /api/daily-closings)
+            elif path == '/api/daily-closings':
+                date_str = str(body.get('date', datetime.now().strftime('%Y-%m-%d'))).strip()
+                closing_id = str(body.get('id') or f"close_{date_str}")
+                total_orders = int(body.get('total_orders', 0))
+                delivered_orders = int(body.get('delivered_orders', 0))
+                revenue = float(body.get('revenue', 0))
+                expense = float(body.get('expense', 0))
+                net_profit = float(body.get('net_profit', revenue - expense))
+                cash_amount = float(body.get('cash_amount', 0))
+                eft_amount = float(body.get('eft_amount', 0))
+                closed_at = str(body.get('closed_at', datetime.now().isoformat()))
+
+                cursor.execute(
+                    "INSERT OR REPLACE INTO daily_closings (id, date, total_orders, delivered_orders, revenue, expense, net_profit, cash_amount, eft_amount, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (closing_id, date_str, total_orders, delivered_orders, revenue, expense, net_profit, cash_amount, eft_amount, closed_at)
+                )
+                conn.commit()
+                cursor.execute("SELECT * FROM daily_closings WHERE id = ?", (closing_id,))
+                row = cursor.fetchone()
+                self.send_json(201, dict(row) if row else {"id": closing_id, "date": date_str})
+
             else:
                 self.send_json(404, {"error": "Not Found"})
         
@@ -670,6 +766,22 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
                 conn.commit()
                 self.send_json(200, {"message": f"Review {review_id} deleted successfully"})
+
+            # Gider Sil (DELETE /api/expenses/{id} veya DELETE /api/expenses?id=123)
+            elif path.startswith('/api/expenses'):
+                expense_id = None
+                if path.startswith('/api/expenses/'):
+                    expense_id = unquote(path.split('/')[-1])
+                elif 'id' in query_params:
+                    expense_id = query_params['id'][0]
+
+                if not expense_id:
+                    self.send_json(400, {"error": "Expense ID required"})
+                    return
+
+                cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+                conn.commit()
+                self.send_json(200, {"message": f"Expense {expense_id} deleted successfully"})
 
             else:
                 self.send_json(404, {"error": "Not Found"})

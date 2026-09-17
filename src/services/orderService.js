@@ -25,7 +25,10 @@ import {
   syncExpenseToFirestore,
   deleteExpenseFromFirestore,
   subscribeFirestoreExpenses,
-  getExpensesFromFirestore
+  getExpensesFromFirestore,
+  syncDailyClosingToFirestore,
+  subscribeFirestoreDailyClosings,
+  getDailyClosingsFromFirestore
 } from '../firebase/firebaseService.js';
 
 export { signInWithGoogle, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
@@ -38,6 +41,7 @@ const STORAGE_MY_ORDERS_KEY = 'pita_my_order_ids';
 const STORAGE_REVIEWS_KEY = 'pita_mutfak_reviews';
 const STORAGE_RESTAURANT_SETTINGS_KEY = 'pita_restaurant_settings';
 const STORAGE_EXPENSES_KEY = 'pita_mutfak_expenses';
+const STORAGE_DAILY_CLOSINGS_KEY = 'pita_mutfak_daily_closings';
 const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
 
 
@@ -1464,6 +1468,30 @@ export const orderService = {
 
   subscribeExpenses(callback) {
     return subscribeExpenses(callback);
+  },
+
+  getDailyClosings() {
+    return getDailyClosings();
+  },
+
+  saveDailyClosing(closingData) {
+    return saveDailyClosing(closingData);
+  },
+
+  subscribeDailyClosings(callback) {
+    return subscribeDailyClosings(callback);
+  },
+
+  calculateAccountingKPIs(orders, expenses, period, customStart, customEnd) {
+    return calculateAccountingKPIs(orders, expenses, period, customStart, customEnd);
+  },
+
+  getDailyLedger(orders, expenses) {
+    return getDailyLedger(orders, expenses);
+  },
+
+  exportLedgerToCSV(dailyLedgerRows, periodLabel) {
+    return exportLedgerToCSV(dailyLedgerRows, periodLabel);
   }
 };
 
@@ -1490,40 +1518,61 @@ export function saveStoredExpenses(expenses, broadcastType = 'EXPENSES_UPDATED')
 }
 
 export async function getExpenses() {
-  // Önce yerel hafızadan hızlıca dön
   const local = getStoredExpenses();
   try {
+    // 1. Önce Firestore'dan çekmeyi dene
     const fromFirestore = await getExpensesFromFirestore();
     if (Array.isArray(fromFirestore) && fromFirestore.length > 0) {
       saveStoredExpenses(fromFirestore, 'EXPENSES_SYNCED');
       return fromFirestore;
     }
   } catch (e) {}
+
+  try {
+    // 2. Python server.py varsa oradan çekmeyi dene
+    const res = await apiCall('/expenses');
+    if (res && res.ok && Array.isArray(res.data) && res.data.length > 0) {
+      saveStoredExpenses(res.data, 'EXPENSES_SYNCED');
+      return res.data;
+    }
+  } catch (e) {}
+
   return local;
 }
 
 export async function addExpense(expenseData) {
   const newExp = {
-    id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    id: expenseData.id || `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     title: (expenseData.title || 'Gider').trim(),
     category: expenseData.category || 'Malzeme',
     amount: parseFloat(expenseData.amount) || 0,
     date: expenseData.date || new Date().toISOString().split('T')[0],
     note: (expenseData.note || '').trim(),
-    createdAt: new Date().toISOString()
+    payment_account: expenseData.payment_account || 'cash', // 'cash' (Nakit Kasa) | 'bank' (Banka Kasa)
+    createdAt: expenseData.createdAt || new Date().toISOString()
   };
   const current = getStoredExpenses();
-  const updated = [newExp, ...current];
+  const updated = [newExp, ...current.filter(e => e.id !== newExp.id)];
   saveStoredExpenses(updated, 'EXPENSE_ADDED');
+
+  // Cloud Firestore senkronizasyonu
   syncExpenseToFirestore(newExp).catch(() => {});
+
+  // Yerel Python backend senkronizasyonu (varsa)
+  apiCall('/expenses', 'POST', newExp).catch(() => {});
+
   return { ok: true, expense: newExp };
 }
 
 export async function deleteExpense(expenseId) {
   const current = getStoredExpenses();
-  const updated = current.filter(e => e.id !== expenseId);
+  const updated = current.filter(e => String(e.id) !== String(expenseId));
   saveStoredExpenses(updated, 'EXPENSE_DELETED');
+
+  // Cloud Firestore ve Python backend'den temizle
   deleteExpenseFromFirestore(expenseId).catch(() => {});
+  apiCall(`/expenses/${encodeURIComponent(expenseId)}`, 'DELETE').catch(() => {});
+
   return { ok: true };
 }
 
@@ -1547,6 +1596,336 @@ export function subscribeExpenses(callback) {
     if (broadcastChannel) broadcastChannel.removeEventListener('message', handleBroadcast);
     if (unsubFirestore) unsubFirestore();
   };
+}
+
+// =================== GÜN SONU KAPANIPLARI & Z-RAPORU ===================
+
+export function getStoredDailyClosings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_DAILY_CLOSINGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredDailyClosings(closings, broadcastType = 'DAILY_CLOSINGS_UPDATED') {
+  try {
+    localStorage.setItem(STORAGE_DAILY_CLOSINGS_KEY, JSON.stringify(closings));
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: broadcastType, closings, timestamp: Date.now() });
+    }
+  } catch (e) {}
+}
+
+export async function getDailyClosings() {
+  const local = getStoredDailyClosings();
+  try {
+    const fromFirestore = await getDailyClosingsFromFirestore();
+    if (Array.isArray(fromFirestore) && fromFirestore.length > 0) {
+      saveStoredDailyClosings(fromFirestore, 'DAILY_CLOSINGS_SYNCED');
+      return fromFirestore;
+    }
+  } catch (e) {}
+
+  try {
+    const res = await apiCall('/daily-closings');
+    if (res && res.ok && Array.isArray(res.data) && res.data.length > 0) {
+      saveStoredDailyClosings(res.data, 'DAILY_CLOSINGS_SYNCED');
+      return res.data;
+    }
+  } catch (e) {}
+
+  return local;
+}
+
+export async function saveDailyClosing(closingData) {
+  const dateStr = closingData.date || new Date().toISOString().split('T')[0];
+  const newClosing = {
+    id: closingData.id || `close-${dateStr}`,
+    date: dateStr,
+    total_orders: parseInt(closingData.total_orders || 0, 10),
+    delivered_orders: parseInt(closingData.delivered_orders || 0, 10),
+    revenue: parseFloat(closingData.revenue || 0),
+    expense: parseFloat(closingData.expense || 0),
+    net_profit: parseFloat(closingData.net_profit || (closingData.revenue - closingData.expense)),
+    cash_amount: parseFloat(closingData.cash_amount || 0),
+    eft_amount: parseFloat(closingData.eft_amount || 0),
+    closed_at: closingData.closed_at || new Date().toISOString()
+  };
+
+  const current = getStoredDailyClosings();
+  const updated = [newClosing, ...current.filter(c => c.date !== dateStr)];
+  saveStoredDailyClosings(updated, 'DAILY_CLOSING_SAVED');
+
+  syncDailyClosingToFirestore(newClosing).catch(() => {});
+  apiCall('/daily-closings', 'POST', newClosing).catch(() => {});
+
+  return { ok: true, closing: newClosing };
+}
+
+export function subscribeDailyClosings(callback) {
+  const handleBroadcast = (event) => {
+    if (event.data && (event.data.type === 'DAILY_CLOSINGS_UPDATED' || event.data.type === 'DAILY_CLOSING_SAVED')) {
+      callback(getStoredDailyClosings());
+    }
+  };
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcast);
+  }
+  const unsubFirestore = subscribeFirestoreDailyClosings((firestoreClosings) => {
+    if (Array.isArray(firestoreClosings) && firestoreClosings.length > 0) {
+      localStorage.setItem(STORAGE_DAILY_CLOSINGS_KEY, JSON.stringify(firestoreClosings));
+      callback(firestoreClosings);
+    }
+  });
+
+  return () => {
+    if (broadcastChannel) broadcastChannel.removeEventListener('message', handleBroadcast);
+    if (unsubFirestore) unsubFirestore();
+  };
+}
+
+// =================== MUHASEBE HESAPLAMA MOTORU ===================
+
+export function getDateStringFromISO(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  } catch (e) {}
+  return '';
+}
+
+export function calculateAccountingKPIs(orders = [], expenses = [], period = 'today', customStart = '', customEnd = '') {
+  const now = new Date();
+  const todayStr = getDateStringFromISO(now.toISOString());
+  const yestObj = new Date(Date.now() - 86400000);
+  const yesterdayStr = getDateStringFromISO(yestObj.toISOString());
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const monthName = now.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+
+  // 7 Gün öncesi
+  const weekAgoObj = new Date(Date.now() - 7 * 86400000);
+  const weekAgoStr = getDateStringFromISO(weekAgoObj.toISOString());
+
+  let periodOrders = orders;
+  let periodExpenses = expenses;
+  let periodLabel = 'Bugün';
+
+  if (period === 'today') {
+    periodLabel = 'Bugün (' + now.toLocaleDateString('tr-TR') + ')';
+    periodOrders = orders.filter(o => getDateStringFromISO(o.createdAt) === todayStr);
+    periodExpenses = expenses.filter(e => (e.date || getDateStringFromISO(e.createdAt)) === todayStr);
+  } else if (period === 'yesterday') {
+    periodLabel = 'Dün (' + yestObj.toLocaleDateString('tr-TR') + ')';
+    periodOrders = orders.filter(o => getDateStringFromISO(o.createdAt) === yesterdayStr);
+    periodExpenses = expenses.filter(e => (e.date || getDateStringFromISO(e.createdAt)) === yesterdayStr);
+  } else if (period === 'week') {
+    periodLabel = 'Son 7 Gün';
+    periodOrders = orders.filter(o => {
+      const d = getDateStringFromISO(o.createdAt);
+      return d >= weekAgoStr && d <= todayStr;
+    });
+    periodExpenses = expenses.filter(e => {
+      const d = e.date || getDateStringFromISO(e.createdAt);
+      return d >= weekAgoStr && d <= todayStr;
+    });
+  } else if (period === 'month') {
+    periodLabel = 'Bu Ay (' + monthName + ')';
+    periodOrders = orders.filter(o => {
+      if (!o.createdAt) return false;
+      const d = new Date(o.createdAt);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+    periodExpenses = expenses.filter(e => {
+      const dStr = e.date || getDateStringFromISO(e.createdAt);
+      if (!dStr) return false;
+      const d = new Date(dStr);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+  } else if (period === 'range' && customStart && customEnd) {
+    periodLabel = `${customStart} - ${customEnd}`;
+    periodOrders = orders.filter(o => {
+      const d = getDateStringFromISO(o.createdAt);
+      return d >= customStart && d <= customEnd;
+    });
+    periodExpenses = expenses.filter(e => {
+      const d = e.date || getDateStringFromISO(e.createdAt);
+      return d >= customStart && d <= customEnd;
+    });
+  } else if (period === 'all') {
+    periodLabel = 'Tüm Zamanlar Genel Muhasebe';
+    periodOrders = orders;
+    periodExpenses = expenses;
+  }
+
+  // Sipariş ve gelir analizleri
+  const deliveredOrders = periodOrders.filter(o => o.status === 'delivered');
+  const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+  const deliveredCount = deliveredOrders.length;
+  const totalOrderCount = periodOrders.length;
+  const avgOrderValue = deliveredCount > 0 ? Math.round(totalRevenue / deliveredCount) : 0;
+
+  // Ödeme tiplerine göre gelir
+  const cashRevenue = deliveredOrders
+    .filter(o => o.paymentMethod === 'cash')
+    .reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+  const eftRevenue = deliveredOrders
+    .filter(o => o.paymentMethod === 'eft')
+    .reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+
+  // Gider analizleri
+  const totalExpense = periodExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const cashExpense = periodExpenses
+    .filter(e => e.payment_account !== 'bank')
+    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const bankExpense = periodExpenses
+    .filter(e => e.payment_account === 'bank')
+    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+  // Kasa durumları (Çift Kasa)
+  const cashBalance = cashRevenue - cashExpense; // Nakit Kasa Bakiyesi
+  const bankBalance = eftRevenue - bankExpense;  // Banka/POS Kasa Bakiyesi
+  const netProfit = totalRevenue - totalExpense;
+  const isProfit = netProfit >= 0;
+  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : (totalExpense > 0 ? -100 : 0);
+
+  // Kategori bazlı gider dağılımı
+  const categoryTotals = {};
+  periodExpenses.forEach(exp => {
+    const cat = exp.category || 'Malzeme';
+    const amt = parseFloat(exp.amount) || 0;
+    categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+  });
+
+  const categoryBreakdown = Object.keys(categoryTotals).map(cat => ({
+    category: cat,
+    amount: categoryTotals[cat],
+    percentage: totalExpense > 0 ? Math.round((categoryTotals[cat] / totalExpense) * 100) : 0
+  })).sort((a, b) => b.amount - a.amount);
+
+  return {
+    period,
+    periodLabel,
+    totalRevenue,
+    deliveredCount,
+    totalOrderCount,
+    avgOrderValue,
+    cashRevenue,
+    eftRevenue,
+    totalExpense,
+    cashExpense,
+    bankExpense,
+    cashBalance,
+    bankBalance,
+    netProfit,
+    isProfit,
+    profitMargin,
+    categoryBreakdown,
+    periodExpenses,
+    periodOrders
+  };
+}
+
+export function getDailyLedger(orders = [], expenses = []) {
+  const dailyMap = {};
+
+  orders.forEach(o => {
+    const dStr = getDateStringFromISO(o.createdAt);
+    if (!dStr) return;
+    if (!dailyMap[dStr]) {
+      dailyMap[dStr] = {
+        date: dStr,
+        totalCount: 0,
+        deliveredCount: 0,
+        revenue: 0,
+        cashRevenue: 0,
+        eftRevenue: 0,
+        expense: 0
+      };
+    }
+    dailyMap[dStr].totalCount += 1;
+    if (o.status === 'delivered') {
+      const amt = parseFloat(o.totalAmount) || 0;
+      dailyMap[dStr].deliveredCount += 1;
+      dailyMap[dStr].revenue += amt;
+      if (o.paymentMethod === 'cash') dailyMap[dStr].cashRevenue += amt;
+      if (o.paymentMethod === 'eft') dailyMap[dStr].eftRevenue += amt;
+    }
+  });
+
+  expenses.forEach(e => {
+    const dStr = e.date || getDateStringFromISO(e.createdAt);
+    if (!dStr) return;
+    if (!dailyMap[dStr]) {
+      dailyMap[dStr] = {
+        date: dStr,
+        totalCount: 0,
+        deliveredCount: 0,
+        revenue: 0,
+        cashRevenue: 0,
+        eftRevenue: 0,
+        expense: 0
+      };
+    }
+    dailyMap[dStr].expense += (parseFloat(e.amount) || 0);
+  });
+
+  return Object.values(dailyMap)
+    .map(row => ({
+      ...row,
+      netProfit: row.revenue - row.expense,
+      isProfit: (row.revenue - row.expense) >= 0
+    }))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+export function exportLedgerToCSV(dailyLedgerRows = [], periodLabel = 'Rapor') {
+  if (!dailyLedgerRows || dailyLedgerRows.length === 0) {
+    alert("Dışa aktarılacak muhasebe kaydı bulunamadı.");
+    return;
+  }
+
+  const headers = [
+    "Tarih",
+    "Toplam Siparis",
+    "Teslim Edilen",
+    "Teslimat Cirosu (TL)",
+    "Kapida Nakit (TL)",
+    "Havale / EFT (TL)",
+    "Isletme Gideri (TL)",
+    "Net Kar / Zarar (TL)",
+    "Durum"
+  ];
+
+  const rows = dailyLedgerRows.map(r => [
+    `"${r.date}"`,
+    r.totalCount,
+    r.deliveredCount,
+    `"${r.revenue.toFixed(2)}"`,
+    `"${(r.cashRevenue || 0).toFixed(2)}"`,
+    `"${(r.eftRevenue || 0).toFixed(2)}"`,
+    `"${r.expense.toFixed(2)}"`,
+    `"${r.netProfit.toFixed(2)}"`,
+    r.isProfit ? '"Karda"' : '"Zararda"'
+  ]);
+
+  const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\r\n");
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const nowStr = new Date().toISOString().split('T')[0];
+  link.setAttribute("href", url);
+  link.setAttribute("download", `Pita_Mutfak_Muhasebe_Kasa_Raporu_${nowStr}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 

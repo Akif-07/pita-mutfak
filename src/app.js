@@ -49,7 +49,11 @@ const state = {
   adminDateFilter: 'today', // 'today' (Varsayılan Günlük!) | 'yesterday' | 'custom' | 'all'
   adminCustomDate: '',
   expensesList: [],
-  isAddExpenseModalOpen: false
+  dailyClosings: [],
+  isAddExpenseModalOpen: false,
+  accountingPeriod: 'today',
+  accountingCustomStart: '',
+  accountingCustomEnd: ''
 };
 
 
@@ -78,16 +82,18 @@ async function loadCustomerMessages() {
 // Backend Verilerini Yükleme Fonksiyonu
 async function loadBackendData() {
   try {
-    const [customers, stock, reviews, expenses] = await Promise.all([
+    const [customers, stock, reviews, expenses, closings] = await Promise.all([
       orderService.getCustomers(),
       orderService.getStock(),
       orderService.getReviews(),
-      orderService.getExpenses()
+      orderService.getExpenses(),
+      orderService.getDailyClosings()
     ]);
     state.customers = Array.isArray(customers) ? customers : [];
     state.stockList = Array.isArray(stock) ? stock : [];
     state.reviewsList = Array.isArray(reviews) ? reviews : [];
     state.expensesList = Array.isArray(expenses) ? expenses : [];
+    state.dailyClosings = Array.isArray(closings) ? closings : [];
 
 
     // Eğer stok veritabanı henüz boşsa menüdeki ürünlerle başlat
@@ -260,6 +266,12 @@ orderService.subscribeReviews((reviews) => {
 // Giderler ve Muhasebe Canlı Senkronizasyonu
 orderService.subscribeExpenses((expenses) => {
   state.expensesList = Array.isArray(expenses) ? expenses : [];
+  render();
+});
+
+// Gün Sonu Z-Raporları Canlı Senkronizasyonu
+orderService.subscribeDailyClosings((closings) => {
+  state.dailyClosings = Array.isArray(closings) ? closings : [];
   render();
 });
 
