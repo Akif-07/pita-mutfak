@@ -324,14 +324,18 @@ export function renderAdminPanel(container, state, onStateChange) {
           <!-- Restoran Durumu & Çalışma Saatleri & Canlı Ziyaretçi & Sekmeler -->
           <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             
-            <!-- Canlı Ziyaretçi Rozeti (Giriş Yapmış ve Misafir Ayrı) -->
-            <div class="flex items-center gap-2 bg-[#E8F8EE] border border-[#06C167]/30 text-emerald-950 px-3 py-2 rounded-xl text-xs font-black shadow-xs">
+            <!-- Canlı Ziyaretçi Rozeti (Giriş Yapmış ve Misafir Ayrı - Tıklanabilir) -->
+            <button 
+              id="admin-presence-badge-btn"
+              class="flex items-center gap-2 bg-[#E8F8EE] hover:bg-emerald-100 border border-[#06C167]/30 text-emerald-950 px-3 py-2 rounded-xl text-xs font-black shadow-xs cursor-pointer transition"
+              title="Canlı kullanıcıları görmek için Müşteriler sekmesine git"
+            >
               <span class="relative flex h-2.5 w-2.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#06C167] opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#06C167]"></span>
               </span>
-              <span>🟢 Canlı: <strong class="text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Üye</strong>, <strong class="text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Misafir</strong></span>
-            </div>
+              <span>🟢 Canlı: <strong class="text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Üye</strong>${activeVisitors.length > 0 ? ` <span class="text-[11px] text-emerald-800 bg-white/80 px-1.5 py-0.5 rounded-md font-extrabold max-w-[130px] truncate inline-block align-bottom">(${activeVisitors.map(v => v.name).join(', ')})</span>` : ''}, <strong class="text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Misafir</strong></span>
+            </button>
 
 
             <!-- Restoran Açık / Kapalı Butonu -->
@@ -406,31 +410,39 @@ export function renderAdminPanel(container, state, onStateChange) {
         <!-- ÖZET İSTATİSTİK KARTLARI (GÜNLÜK BAZDA VE CANLI) -->
         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4 mb-6">
 
-          <!-- Aktif Müşteri Kartı (Giriş Yapmış) -->
-          <div class="bg-gradient-to-br from-[#E8F8EE] to-[#d8f6e3] rounded-2xl p-4 border border-[#06C167]/30 shadow-xs flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-md shadow-[#06C167]/20">
+          <!-- Aktif Müşteri Kartı (Giriş Yapmış - Tıklanabilir) -->
+          <div id="admin-active-customers-kpi-card" class="bg-gradient-to-br from-[#E8F8EE] to-[#d8f6e3] hover:shadow-md transition cursor-pointer rounded-2xl p-4 border border-[#06C167]/30 shadow-xs flex items-center gap-3" title="Giriş yapmış müşterileri Müşteriler sekmesinde incele">
+            <div class="w-10 h-10 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-md shadow-[#06C167]/20 shrink-0">
               👤
             </div>
-            <div>
+            <div class="min-w-0">
               <span class="text-[10px] text-emerald-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] ${activeVisitorCount > 0 ? 'animate-ping' : ''}"></span>
                 Aktif Müşteri
               </span>
               <div class="text-xl font-black text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Giriş Yaptı</div>
+              ${activeVisitors.length > 0 ? `
+                <div class="text-[11px] font-extrabold text-emerald-800 truncate max-w-[130px] sm:max-w-[160px] mt-0.5" title="${activeVisitors.map(v => `${v.name || 'Müşteri'} (${v.view || 'Menüde'})`).join(', ')}">
+                  ${activeVisitors.map(v => v.name || 'Müşteri').join(', ')}
+                </div>
+              ` : `
+                <div class="text-[10px] text-gray-400 font-medium">Şu an yok</div>
+              `}
             </div>
           </div>
 
-          <!-- Misafir Ziyaretçi Kartı -->
-          <div class="bg-gradient-to-br from-[#EEF0FF] to-[#e0e4ff] rounded-2xl p-4 border border-indigo-200 shadow-xs flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-indigo-500/20">
+          <!-- Misafir Ziyaretçi Kartı (Tıklanabilir) -->
+          <div id="admin-active-guests-kpi-card" class="bg-gradient-to-br from-[#EEF0FF] to-[#e0e4ff] hover:shadow-md transition cursor-pointer rounded-2xl p-4 border border-indigo-200 shadow-xs flex items-center gap-3" title="Misafir ziyaretçileri incele">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-indigo-500/20 shrink-0">
               👁️
             </div>
-            <div>
+            <div class="min-w-0">
               <span class="text-[10px] text-indigo-900 font-extrabold uppercase tracking-wide flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 ${activeGuestCount > 0 ? 'animate-ping' : ''}"></span>
                 Misafir
               </span>
               <div class="text-xl font-black text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Ziyaretçi</div>
+              <div class="text-[10px] text-indigo-600 font-bold mt-0.5">Sitede Gezinen</div>
             </div>
           </div>
 
@@ -1063,8 +1075,17 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
               🌐
             </div>
             <div>
-              <h3 class="font-black text-base text-white">Sitede Anlık Canlı Varlık</h3>
-              <p class="text-xs text-gray-300">Firestore heartbeat — 25 sn'de bir güncellenir, sekme kapanınca silinir</p>
+              <h3 class="font-black text-base text-white flex items-center gap-2">
+                <span>Sitede Anlık Canlı Varlık</span>
+                <span class="inline-flex items-center gap-1 bg-[#06C167]/20 border border-[#06C167]/40 text-[#06C167] text-[10px] font-black px-2 py-0.5 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-ping"></span>
+                  CANLI
+                </span>
+              </h3>
+              <p class="text-xs text-emerald-400 font-bold flex items-center gap-1.5 mt-0.5">
+                <span>⚡</span>
+                <span>Firebase Cloud Firestore — Anlık Canlı Senkronizasyon (Sekme kapandığında otomatik silinir)</span>
+              </p>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -1090,25 +1111,32 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
         <!-- Giriş yapmış kullanıcılar listesi -->
         <div class="mb-4">
           <div class="text-[11px] font-black text-[#06C167] uppercase tracking-widest mb-2 flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#06C167]"></span> Oturum Açmış Müşteriler
+            <span class="w-2 h-2 rounded-full bg-[#06C167] animate-pulse"></span> Oturum Açmış Canlı Müşteriler (${loggedInCount})
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             ${activeVisitors.length === 0 ? `
-              <div class="col-span-full py-3 text-center text-xs text-gray-500">
-                😴 Şu an oturum açmış müşteri yok
+              <div class="col-span-full py-4 text-center text-xs text-gray-400 bg-white/5 rounded-2xl border border-white/5">
+                😴 Şu an sitede oturum açmış müşteri bulunmuyor.
               </div>
             ` : activeVisitors.map((v, i) => `
-              <div class="bg-[#06C167]/10 hover:bg-[#06C167]/15 transition rounded-xl p-3 border border-[#06C167]/20 flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-[#06C167] text-white flex items-center justify-center text-xs font-black">👤</div>
-                  <div>
-                    <div class="font-bold text-xs text-white">${v.name || 'Müşteri'}</div>
-                    <div class="text-[10px] text-gray-400">${v.phone || v.email || '—'}</div>
+              <div class="bg-[#06C167]/15 hover:bg-[#06C167]/25 transition rounded-2xl p-3.5 border border-[#06C167]/30 flex items-center justify-between shadow-xs">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-9 h-9 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-sm font-black shadow-md shadow-[#06C167]/20 shrink-0">
+                    👤
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-black text-xs text-white flex items-center gap-1.5 truncate">
+                      <span>${v.name || 'Müşteri'}</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-pulse shrink-0"></span>
+                    </div>
+                    <div class="text-[10px] text-gray-300 mt-0.5 truncate">${v.phone || v.email || 'Kayıtlı Profil'}</div>
                   </div>
                 </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#06C167]/20 text-[#06C167] border border-[#06C167]/30">
-                  ${v.view || 'Menüde'}
-                </span>
+                <div class="text-right shrink-0 ml-2">
+                  <span class="text-[10px] font-black px-2.5 py-1 rounded-lg bg-black/40 text-[#06C167] border border-[#06C167]/40 shadow-xs inline-block">
+                    ${v.view || 'Menüde 🍽️'}
+                  </span>
+                </div>
               </div>
             `).join('')}
           </div>
@@ -2234,6 +2262,22 @@ function attachAdminEventListeners(container, state, onStateChange) {
   const tabAccountingBtn = container.querySelector('#tab-accounting-btn');
   if (tabAccountingBtn) {
     tabAccountingBtn.addEventListener('click', () => onStateChange({ adminActiveTab: 'accounting' }));
+  }
+
+  // Canlı Ziyaretçi Rozeti & KPI Kartları Tıklanınca Müşteriler Sekmesine Geç
+  const presenceBadgeBtn = container.querySelector('#admin-presence-badge-btn');
+  if (presenceBadgeBtn) {
+    presenceBadgeBtn.addEventListener('click', () => onStateChange({ adminActiveTab: 'customers' }));
+  }
+
+  const activeCustKpiCard = container.querySelector('#admin-active-customers-kpi-card');
+  if (activeCustKpiCard) {
+    activeCustKpiCard.addEventListener('click', () => onStateChange({ adminActiveTab: 'customers' }));
+  }
+
+  const activeGuestsKpiCard = container.querySelector('#admin-active-guests-kpi-card');
+  if (activeGuestsKpiCard) {
+    activeGuestsKpiCard.addEventListener('click', () => onStateChange({ adminActiveTab: 'customers' }));
   }
 
   // Siparişler Sekmesi: Günlük Tarih Filtreleme Butonları

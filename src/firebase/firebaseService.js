@@ -11,6 +11,19 @@ function cleanForFirestore(obj) {
   return JSON.parse(JSON.stringify(obj, (k, v) => (v === undefined ? null : v)));
 }
 
+let appInstance = null;
+async function getFirebaseApp() {
+  if (appInstance) return appInstance;
+  const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+  const apps = getApps();
+  if (apps && apps.length > 0) {
+    appInstance = apps[0];
+  } else {
+    appInstance = initializeApp(firebaseConfig);
+  }
+  return appInstance;
+}
+
 async function getFirestoreContext() {
   if (dbInstance && firestoreLib) {
     return { db: dbInstance, ...firestoreLib };
@@ -19,15 +32,15 @@ async function getFirestoreContext() {
 
   initPromise = (async () => {
     try {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      const app = await getFirebaseApp();
       const fs = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      const app = initializeApp(firebaseConfig);
       dbInstance = fs.getFirestore(app);
       firestoreLib = fs;
       console.log("🔥 [Firebase] Pita Mutfak Cloud Firestore bağlantısı aktif!");
       return { db: dbInstance, ...firestoreLib };
     } catch (err) {
       console.warn("⚠️ [Firebase] Bulut bağlantısı kurulamadı (yerel mod aktif):", err);
+      initPromise = null;
       return null;
     }
   })();
@@ -406,16 +419,8 @@ export async function getExpensesFromFirestore() {
 
 export async function signInWithGoogle() {
   try {
-    const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const app = await getFirebaseApp();
     const { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-
-    let app;
-    const apps = getApps();
-    if (apps && apps.length > 0) {
-      app = apps[0];
-    } else {
-      app = initializeApp(firebaseConfig);
-    }
 
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
@@ -470,16 +475,8 @@ export async function signInWithGoogle() {
 
 export async function getGoogleRedirectResult() {
   try {
-    const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const app = await getFirebaseApp();
     const { getAuth, getRedirectResult } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-
-    let app;
-    const apps = getApps();
-    if (apps && apps.length > 0) {
-      app = apps[0];
-    } else {
-      app = initializeApp(firebaseConfig);
-    }
 
     const auth = getAuth(app);
     const result = await getRedirectResult(auth);
@@ -509,13 +506,8 @@ export async function getGoogleRedirectResult() {
 // Oturum Değişikliklerini Dinleme (Firebase Auth Persistent State)
 export function initAuthListener(onUserChanged) {
   try {
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js").then(({ initializeApp, getApps }) => {
+    getFirebaseApp().then((app) => {
       import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js").then(({ getAuth, onAuthStateChanged }) => {
-        let app;
-        const apps = getApps();
-        if (apps && apps.length > 0) app = apps[0];
-        else app = initializeApp(firebaseConfig);
-
         const auth = getAuth(app);
         onAuthStateChanged(auth, (firebaseUser) => {
           if (firebaseUser && typeof onUserChanged === 'function') {
@@ -571,22 +563,41 @@ export async function pingPresence(user = null) {
       return false;
     }
 
-    const sid = getSessionId();
-    let viewName = 'Menüde';
+    // Kullanıcı parametre olarak verilmemişse yerel hafızadan çek
+    let activeUser = user;
+    if (!activeUser && typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('pita_current_user');
+        if (raw) activeUser = JSON.parse(raw);
+      } catch (e) {}
+    }
 
+    const sid = getSessionId();
+    let viewName = 'Menüde 🍽️';
+    if (typeof document !== 'undefined') {
+      if (document.querySelector('#checkout-modal-backdrop') || document.querySelector('#checkout-form')) {
+        viewName = 'Sipariş Veriyor 💳';
+      } else if (document.querySelector('#cart-drawer-backdrop') || document.querySelector('#cart-drawer')) {
+        viewName = 'Sepette 🛒';
+      } else if (document.querySelector('#tracking-modal') || document.querySelector('#active-order-banner')) {
+        viewName = 'Sipariş Takibinde 🛵';
+      }
+    }
+
+    const isLogged = !!(activeUser && (activeUser.name || activeUser.email || activeUser.phone || activeUser.uid));
 
     const presenceData = {
       id: sid,
       lastSeen: Date.now(),
-      name: user ? (user.name || 'Müşteri') : 'Misafir',
-      email: user ? (user.email || '') : '',
-      phone: user ? (user.phone || '') : '',
-      isLoggedIn: !!user,
+      name: isLogged ? (activeUser.name || activeUser.email?.split('@')[0] || 'Müşteri') : 'Misafir',
+      email: isLogged ? (activeUser.email || '') : '',
+      phone: isLogged ? (activeUser.phone || '') : '',
+      isLoggedIn: isLogged,
       view: viewName,
       _updatedAt: new Date().toISOString()
     };
 
-    // Aynı cihaz sekmelerine anında bildir
+    // Aynı cihaz sekmelerine anında bildir (0ms)
     if (presenceChannel) {
       try {
         presenceChannel.postMessage({ type: 'PRESENCE_PING', data: presenceData });
@@ -628,14 +639,15 @@ export async function removePresence() {
 }
 
 // subscribePresence — { loggedIn: [...], guests: [...] } objesi döndürür
-// Sayfa yenilemeye ASLA gerek kalmadan anlık ve otomatik güncellenir
+// Sayfa yenilemeye ASLA gerek kalmadan ultra-hızlı ve anlık güncellenir
 export function subscribePresence(callback) {
   let unsubscribeFirestore = () => {};
   const activeSessionsMap = new Map();
 
   function evaluateAndEmit() {
     const now = Date.now();
-    const cutoff = now - (35 * 1000); // Son 35 saniye içinde aktif olanlar
+    // Son 10 saniye içinde sinyal vermiş olanlar canlı kabul edilir (anlık tepki!)
+    const cutoff = now - (10 * 1000);
     const loggedIn = [];
     const guests = [];
 
@@ -691,10 +703,10 @@ export function subscribePresence(callback) {
   });
 
   // 3. Otomatik Zamanlayıcı: Sekme kapanınca ya da sinyal kesilince
-  // sayfa yenilemeye gerek kalmadan 2 saniyede bir süresi dolanları anında temizler
+  // sayfa yenilemeye gerek kalmadan 1 saniyede bir süresi dolanları anında temizler
   const autoCleanupTimer = setInterval(() => {
     evaluateAndEmit();
-  }, 2000);
+  }, 1000);
 
   return () => {
     if (typeof unsubscribeFirestore === 'function') {

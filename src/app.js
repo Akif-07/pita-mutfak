@@ -194,16 +194,18 @@ function handleStateChange(newState) {
 
   // Kullanıcı giriş/çıkış değişikliği — presence'ı güncelle
   if ('currentUser' in newState) {
-    if (newState.currentUser && !prevUser) {
-      // Giriş yaptı — presence başlat
+    if (newState.currentUser) {
+      // Giriş yaptı — presence hemen başlat ve anında ping gönder
       startPresence();
+      orderService.pingPresence(newState.currentUser);
     } else if (!newState.currentUser && prevUser) {
-      // Çıkış yaptı — presence sil
+      // Çıkış yaptı — presence sil ve misafir olarak yeniden başlat
       if (presenceInterval) {
         clearInterval(presenceInterval);
         presenceInterval = null;
       }
       orderService.removePresence();
+      setTimeout(() => startPresence(), 300);
     }
   }
 
@@ -282,9 +284,13 @@ orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
     });
   } catch (e) {}
 
-  // Eğer admin 'Müşteriler' sekmesindeyse veya sayı değiştiyse tabloyu tazele
-  if (state.currentView === 'admin' && (state.adminActiveTab === 'customers' || prevLoggedInCount !== loggedIn.length || prevGuestCount !== guests.length)) {
-    render();
+  // Eğer admin panelindeyse ve form inputlarında aktif yazı yazılmıyorsa ekranı anında tazele
+  if (state.currentView === 'admin') {
+    const activeTag = document.activeElement ? document.activeElement.tagName : '';
+    const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+    if (!isTyping) {
+      render();
+    }
   }
 });
 
@@ -294,22 +300,24 @@ function isInternalPanel() {
   return hash.includes('admin') || hash.includes('kurye') || hash.includes('courier');
 }
 
-// Canlı Varlık Pingi — her müşteri/ziyaretçi için (admin & kurye personeli hariç), 15 saniyede bir
+// Canlı Varlık Pingi — her müşteri/ziyaretçi için (admin & kurye personeli hariç), 3 saniyede bir anlık nabız
 let presenceInterval = null;
 function startPresence() {
   if (isInternalPanel()) {
     orderService.removePresence();
     return;
   }
-  orderService.pingPresence(state.currentUser || null);
+  const u = state.currentUser || getCurrentUser() || null;
+  orderService.pingPresence(u);
   if (presenceInterval) clearInterval(presenceInterval);
   presenceInterval = setInterval(() => {
     if (isInternalPanel()) {
       orderService.removePresence();
       return;
     }
-    orderService.pingPresence(state.currentUser || null);
-  }, 15000);
+    const currentU = state.currentUser || getCurrentUser() || null;
+    orderService.pingPresence(currentU);
+  }, 3000);
 }
 startPresence();
 

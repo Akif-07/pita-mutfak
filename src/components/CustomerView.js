@@ -1727,6 +1727,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           setCurrentUser(user);
           saveCustomerLocally(user);
           try { await syncCustomerToFirestore(user); } catch (e) {}
+          orderService.pingPresence(user);
 
           const wasPending = isPending || sessionStorage.getItem('pita_pending_checkout') === 'true';
           sessionStorage.removeItem('pita_pending_checkout');
@@ -1852,6 +1853,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           try {
             await syncCustomerToFirestore(user);
           } catch (e) {}
+          orderService.pingPresence(user);
 
           if (state.pendingCheckout) {
             onStateChange({
@@ -1915,6 +1917,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         if (res.ok && res.data && (res.data.customer || res.data.user)) {
           const user = res.data.customer || res.data.user;
           setCurrentUser(user);
+          saveCustomerLocally(user);
+          orderService.pingPresence(user);
 
           if (state.pendingCheckout) {
             onStateChange({
@@ -2144,6 +2148,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
       setCurrentUser(null);
+      orderService.removePresence();
       performSmoothReload('Çıkış yapılıyor...');
     });
   }
@@ -2457,6 +2462,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       setCurrentUser(activeUser);
       state.currentUser = activeUser;
       saveCustomerLocally(activeUser);
+      orderService.pingPresence(activeUser);
       registerCustomer(customerName, customerPhone).catch(() => {});
 
       const currentSubtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
