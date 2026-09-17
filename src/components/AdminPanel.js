@@ -1322,7 +1322,7 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
                       <td class="py-3.5 px-3 text-right">
                         <div class="flex items-center justify-end gap-1.5">
                           <button 
-                            data-open-assign-code="${customer.phone}" 
+                            data-open-assign-code="${customer.phone || customer.email || customer.id || ''}" 
                             title="Özel İndirim Kodu Tanımla"
                             class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 border border-purple-200"
                           >
@@ -1331,7 +1331,7 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
                           </button>
 
                           <button 
-                            data-open-send-message="${customer.phone}" 
+                            data-open-send-message="${customer.phone || customer.email || customer.id || ''}" 
                             title="Müşteriye Özel Mesaj Gönder"
                             class="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 border border-blue-200"
                           >
@@ -1340,8 +1340,11 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
                           </button>
 
                           <button 
-                            data-delete-customer="${customer.phone}" 
-                            data-customer-name="${customer.name}"
+                            data-delete-customer="${customer.phone || customer.email || customer.id || ''}" 
+                            data-customer-phone="${customer.phone || ''}"
+                            data-customer-email="${customer.email || ''}"
+                            data-customer-id="${customer.id || ''}"
+                            data-customer-name="${customer.name || 'Müşteri'}"
                             title="Müşteriyi Kalıcı Olarak Sil"
                             class="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 border border-red-200"
                           >
@@ -2565,8 +2568,8 @@ function attachAdminEventListeners(container, state, onStateChange) {
   // Müşteriye Özel Kod Tanımlama Modalını Aç
   container.querySelectorAll('[data-open-assign-code]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const phone = btn.getAttribute('data-open-assign-code');
-      const customer = (state.customers || []).find(c => c.phone === phone);
+      const val = btn.getAttribute('data-open-assign-code');
+      const customer = (state.customers || []).find(c => c.phone === val || c.email === val || c.id === val);
       if (customer) {
         onStateChange({ activeAssignCodeCustomer: customer });
       }
@@ -2576,8 +2579,8 @@ function attachAdminEventListeners(container, state, onStateChange) {
   // Müşteriye Özel Mesaj Gönderme Modalını Aç
   container.querySelectorAll('[data-open-send-message]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const phone = btn.getAttribute('data-open-send-message');
-      const customer = (state.customers || []).find(c => c.phone === phone);
+      const val = btn.getAttribute('data-open-send-message');
+      const customer = (state.customers || []).find(c => c.phone === val || c.email === val || c.id === val);
       if (customer) {
         onStateChange({ activeSendMessageCustomer: customer });
       }
@@ -2587,18 +2590,35 @@ function attachAdminEventListeners(container, state, onStateChange) {
   // Müşteriyi Kalıcı Olarak Sil
   container.querySelectorAll('[data-delete-customer]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const phone = btn.getAttribute('data-delete-customer');
-      const name = btn.getAttribute('data-customer-name') || phone;
-      const ok = confirm(`"${name}" (${phone}) adlı müşteriyi ve mesaj geçmişini veritabanından kalıcı olarak silmek istediğinize emin misiniz?`);
+      const identifier = btn.getAttribute('data-delete-customer');
+      const phone = btn.getAttribute('data-customer-phone') || '';
+      const email = btn.getAttribute('data-customer-email') || '';
+      const id = btn.getAttribute('data-customer-id') || '';
+      const name = btn.getAttribute('data-customer-name') || 'Müşteri';
+
+      const displayKey = phone || email || identifier;
+      const ok = confirm(`"${name}" (${displayKey}) adlı müşteriyi ve tüm kayıtlarını veritabanından kalıcı olarak silmek istediğinize emin misiniz?`);
       if (!ok) return;
 
-      const res = await orderService.deleteCustomer(phone);
-      if (res.ok) {
-        alert(`✓ "${name}" başarıyla veritabanından silindi.`);
-        const updatedCustomers = await orderService.getCustomers();
-        onStateChange({ customers: updatedCustomers });
-      } else {
-        alert("Müşteri silinirken hata oluştu.");
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳</span><span class="hidden md:inline">Siliniyor...</span>`;
+
+      try {
+        const res = await orderService.deleteCustomer(identifier, { phone, email, id, name });
+        if (res && res.ok) {
+          alert(`✓ "${name}" başarıyla veritabanından silindi.`);
+          const updatedCustomers = await orderService.getCustomers();
+          onStateChange({ customers: updatedCustomers });
+        } else {
+          alert("Müşteri silinirken bir hata oluştu.");
+          btn.disabled = false;
+          btn.innerHTML = `<span>🗑️</span><span class="hidden md:inline">Sil</span>`;
+        }
+      } catch (err) {
+        console.error("Müşteri silme hatası:", err);
+        alert("Müşteri silinirken bir hata oluştu.");
+        btn.disabled = false;
+        btn.innerHTML = `<span>🗑️</span><span class="hidden md:inline">Sil</span>`;
       }
     });
   });

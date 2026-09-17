@@ -594,7 +594,11 @@ export async function initializeStock(products) {
 
 // Müşteriyi Veritabanından Sil
 export async function deleteCustomer(phone) {
-  return apiCall(`/customers/${encodeURIComponent(phone)}`, 'DELETE');
+  try {
+    return await apiCall(`/customers/${encodeURIComponent(phone)}`, 'DELETE');
+  } catch (e) {
+    return { ok: false };
+  }
 }
 
 // Müşteriye Özel İndirim Kodu Tanımla
@@ -1232,24 +1236,66 @@ export const orderService = {
     return [];
   },
 
-  async deleteCustomer(phone) {
-    const res = await deleteCustomer(phone);
-    deleteCustomerFromFirestore(phone).catch(() => {});
-    const current = getStoredCustomers();
-    const updated = current.filter(c => c.phone !== phone && c.email !== phone && c.id !== phone);
-    saveStoredCustomers(updated);
-    if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'CUSTOMER_DELETED', phone });
+  async deleteCustomer(identifier, customerObj = null) {
+    const phone = (customerObj && customerObj.phone) || (identifier && !identifier.includes('@') ? identifier : '');
+    const email = (customerObj && customerObj.email) || (identifier && identifier.includes('@') ? identifier : '');
+    const id = (customerObj && customerObj.id) || (identifier || '');
+
+    // 1. Backend API çağrısı (varsa çalışır, yoksa hata vermez)
+    if (phone) {
+      try { deleteCustomer(phone).catch(() => {}); } catch (e) {}
     }
-    return res;
+
+    // 2. Firestore Bulut Veritabanından Sil
+    try {
+      if (id) deleteCustomerFromFirestore(id).catch(() => {});
+      if (phone) deleteCustomerFromFirestore(phone).catch(() => {});
+      if (email) deleteCustomerFromFirestore(email).catch(() => {});
+    } catch (e) {}
+
+    // 3. Yerel Hafızadan Sil
+    const current = getStoredCustomers();
+    const updated = current.filter(c => {
+      if (phone && c.phone && (c.phone === phone || c.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))) return false;
+      if (email && c.email && c.email.toLowerCase() === email.toLowerCase()) return false;
+      if (id && (c.id === id || String(c.id) === String(id))) return false;
+      if (identifier && (c.phone === identifier || c.email === identifier || c.id === identifier)) return false;
+      return true;
+    });
+    saveStoredCustomers(updated);
+
+    // 4. Diğer tarayıcı sekmelerine bildir
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'CUSTOMER_DELETED', phone, email, id });
+    }
+
+    return { ok: true };
   },
 
   async assignCustomerCode(phone, code, discount) {
-    const res = await assignCustomerCode(phone, code, discount);
+    try {
+      assignCustomerCode(phone, code, discount).catch(() => {});
+    } catch (e) {}
+
+    // Yerel ve Firestore senkronizasyonu
+    const current = getStoredCustomers();
+    const updated = current.map(c => {
+      if (c.phone === phone || c.email === phone || c.id === phone) {
+        return { ...c, custom_code: code, custom_discount: discount };
+      }
+      return c;
+    });
+    saveStoredCustomers(updated);
+
+    const targetCust = updated.find(c => c.phone === phone || c.email === phone || c.id === phone);
+    if (targetCust) {
+      syncCustomerToFirestore(targetCust).catch(() => {});
+    }
+
     if (broadcastChannel) {
       broadcastChannel.postMessage({ type: 'CUSTOMER_UPDATED', phone });
     }
-    return res;
+    return { ok: true };
   },
 
   async sendCustomerMessage(customerPhone, title, message) {

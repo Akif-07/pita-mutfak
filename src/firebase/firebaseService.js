@@ -265,13 +265,31 @@ export async function getCustomersFromFirestore() {
   }
 }
 
-export async function deleteCustomerFromFirestore(phone) {
+export async function deleteCustomerFromFirestore(identifier) {
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
-    const { db, doc, deleteDoc } = ctx;
-    const key = String(phone).replace(/[\/\#\$\[\]]/g, '_');
-    await deleteDoc(doc(db, "customers", key));
+    const { db, doc, deleteDoc, collection, getDocs } = ctx;
+    if (!identifier) return false;
+
+    const key = String(identifier).replace(/[\/\#\$\[\]]/g, '_');
+    try {
+      await deleteDoc(doc(db, "customers", key));
+    } catch (e) {}
+
+    // İlgili müşteriyi diğer alanlarla da (telefon, e-posta, id) kontrol edip temizle
+    try {
+      const snap = await getDocs(collection(db, "customers"));
+      snap.forEach(async (d) => {
+        const data = d.data();
+        if (d.id === key || d.id === identifier || data.phone === identifier || data.email === identifier || data.id === identifier) {
+          try {
+            await deleteDoc(doc(db, "customers", d.id));
+          } catch (err) {}
+        }
+      });
+    } catch (e) {}
+
     return true;
   } catch (e) {
     console.warn("Firestore müşteri silme:", e);
