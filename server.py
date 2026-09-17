@@ -21,6 +21,9 @@ DB_PATH = os.path.join(DIRECTORY, "pita_mutfak.db")
 # Geçici e-posta doğrulama kodları belleği (email.lower() -> {code, created_at, name, phone})
 VERIFICATION_CODES = {}
 
+# Canlı Varlık & Ziyaretçi Takibi Belleği (session_id -> {id, lastSeen, name, email, phone, isLoggedIn, view, _updatedAt})
+PRESENCE_SESSIONS = {}
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -249,7 +252,18 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            if path == '/api/customers':
+            if path == '/api/presence':
+                now_ms = int(datetime.now().timestamp() * 1000)
+                cutoff = now_ms - (45 * 1000)
+                expired = [k for k, v in list(PRESENCE_SESSIONS.items()) if v.get('lastSeen', 0) < cutoff]
+                for k in expired:
+                    PRESENCE_SESSIONS.pop(k, None)
+                logged_in = [v for v in PRESENCE_SESSIONS.values() if v.get('isLoggedIn')]
+                guests = [v for v in PRESENCE_SESSIONS.values() if not v.get('isLoggedIn')]
+                self.send_json(200, {"loggedIn": logged_in, "guests": guests})
+                return
+
+            elif path == '/api/customers':
                 cursor.execute("SELECT id, name, phone, email, is_verified, registered_at, total_orders, total_spent, custom_code, custom_discount FROM customers ORDER BY id DESC")
                 customers = [dict(row) for row in cursor.fetchall()]
                 self.send_json(200, customers)
@@ -321,6 +335,25 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
+            # 0. Canlı Varlık Pingi (POST /api/presence)
+            if path == '/api/presence':
+                sid = body.get('id')
+                if sid:
+                    PRESENCE_SESSIONS[sid] = {
+                        "id": sid,
+                        "lastSeen": int(datetime.now().timestamp() * 1000),
+                        "name": body.get('name', 'Misafir'),
+                        "email": body.get('email', ''),
+                        "phone": body.get('phone', ''),
+                        "isLoggedIn": bool(body.get('isLoggedIn', False)),
+                        "view": body.get('view', 'Menüde 🍽️'),
+                        "_updatedAt": datetime.now().isoformat()
+                    }
+                    self.send_json(200, {"ok": True})
+                else:
+                    self.send_json(400, {"error": "Session id required"})
+                return
+
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -733,6 +766,16 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
     # =================== API DELETE ===================
     def handle_api_delete(self, path, query_params):
         try:
+            # Canlı Varlık Silme (DELETE /api/presence?id=... veya DELETE /api/presence/...)
+            if path.startswith('/api/presence'):
+                sid = query_params.get('id', [None])[0]
+                if not sid and path.startswith('/api/presence/'):
+                    sid = unquote(path.split('/')[-1])
+                if sid:
+                    PRESENCE_SESSIONS.pop(sid, None)
+                self.send_json(200, {"ok": True})
+                return
+
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()

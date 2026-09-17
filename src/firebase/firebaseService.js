@@ -682,19 +682,32 @@ export async function pingPresence(user = null) {
       _updatedAt: new Date().toISOString()
     };
 
-    // Aynı cihaz sekmelerine anında bildir (0ms)
+    // 1. Aynı cihaz sekmelerine anında bildir (0ms gecikme)
     if (presenceChannel) {
       try {
         presenceChannel.postMessage({ type: 'PRESENCE_PING', data: presenceData });
       } catch (e) {}
     }
 
-    // Firestore bulut veritabanına yaz
-    const ctx = await getFirestoreContext();
-    if (!ctx || !ctx.db) return false;
-    const { db, doc, setDoc } = ctx;
-    const presenceRef = doc(db, "presence", sid);
-    await setDoc(presenceRef, presenceData, { merge: true });
+    // 2. Python server.py varsa yerel ağ ve farklı tarayıcılar için anında senkronize et
+    try {
+      fetch('/api/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(presenceData)
+      }).catch(() => {});
+    } catch (e) {}
+
+    // 3. Firestore bulut veritabanına yaz (Vercel & Canlı yayın)
+    try {
+      const ctx = await getFirestoreContext();
+      if (ctx && ctx.db) {
+        const { db, doc, setDoc } = ctx;
+        const presenceRef = doc(db, "presence", sid);
+        await setDoc(presenceRef, presenceData, { merge: true });
+      }
+    } catch (e) {}
+
     return true;
   } catch (e) {
     return false;
@@ -705,18 +718,28 @@ export async function removePresence() {
   try {
     const sid = getSessionId();
     
-    // Aynı cihaz sekmelerine anında silindiğini bildir
+    // 1. Aynı cihaz sekmelerine anında silindiğini bildir (0ms)
     if (presenceChannel) {
       try {
         presenceChannel.postMessage({ type: 'PRESENCE_REMOVE', id: sid });
       } catch (e) {}
     }
 
-    const ctx = await getFirestoreContext();
-    if (!ctx || !ctx.db) return false;
-    const { db, doc, deleteDoc } = ctx;
-    const presenceRef = doc(db, "presence", sid);
-    await deleteDoc(presenceRef);
+    // 2. Python server.py sunucusundan sil
+    try {
+      fetch(`/api/presence?id=${encodeURIComponent(sid)}`, { method: 'DELETE' }).catch(() => {});
+    } catch (e) {}
+
+    // 3. Firestore bulut veritabanından sil
+    try {
+      const ctx = await getFirestoreContext();
+      if (ctx && ctx.db) {
+        const { db, doc, deleteDoc } = ctx;
+        const presenceRef = doc(db, "presence", sid);
+        await deleteDoc(presenceRef);
+      }
+    } catch (e) {}
+
     return true;
   } catch (e) {
     return false;
@@ -728,16 +751,18 @@ export async function removePresence() {
 export function subscribePresence(callback) {
   let unsubscribeFirestore = () => {};
   const activeSessionsMap = new Map();
+  let lastEmitFingerprint = '';
 
   function evaluateAndEmit() {
     const now = Date.now();
-    // Son 10 saniye içinde sinyal vermiş olanlar canlı kabul edilir (anlık tepki!)
-    const cutoff = now - (10 * 1000);
+    // 45 saniye zaman aşımı: mobil arka plan, cihazlar arası saat farkı ve ağ gecikmesini güvenle tolere eder
+    const cutoff = now - (45 * 1000);
     const loggedIn = [];
     const guests = [];
 
     activeSessionsMap.forEach((data, id) => {
-      if (!data || !data.lastSeen || data.lastSeen < cutoff) {
+      const lastActive = data.localReceivedAt || data.lastSeen || 0;
+      if (!data || lastActive < cutoff) {
         activeSessionsMap.delete(id);
         return;
       }
@@ -748,7 +773,12 @@ export function subscribePresence(callback) {
       }
     });
 
-    callback({ loggedIn, guests });
+    // Parmak izi (fingerprint) kontrolü: Sadece üye veya misafir listesinde/durumunda değişiklik olunca callback tetikle
+    const fp = loggedIn.map(u => `${u.id}:${u.name}:${u.view}`).sort().join('|') + '::' + guests.map(g => `${g.id}:${g.view}`).sort().join('|');
+    if (fp !== lastEmitFingerprint) {
+      lastEmitFingerprint = fp;
+      callback({ loggedIn, guests });
+    }
   }
 
   // 1. Yerel BroadcastChannel Dinleyici (Aynı tarayıcıda 0ms tepki)
@@ -756,7 +786,7 @@ export function subscribePresence(callback) {
     const msg = event?.data;
     if (!msg) return;
     if (msg.type === 'PRESENCE_PING' && msg.data) {
-      activeSessionsMap.set(msg.data.id, msg.data);
+      activeSessionsMap.set(msg.data.id, { ...msg.data, localReceivedAt: Date.now() });
       evaluateAndEmit();
     } else if (msg.type === 'PRESENCE_REMOVE' && msg.id) {
       activeSessionsMap.delete(msg.id);
@@ -769,29 +799,58 @@ export function subscribePresence(callback) {
   }
 
   // 2. Firestore Cloud Dinleyici (Farklı cihazlar ve uzak kullanıcılar için)
-  getFirestoreContext().then(ctx => {
-    if (!ctx || !ctx.db) return;
-    const { db, collection, onSnapshot } = ctx;
-    const colRef = collection(db, "presence");
-    unsubscribeFirestore = onSnapshot(colRef, (snapshot) => {
-      activeSessionsMap.clear();
-      snapshot.forEach(d => {
-        const data = d.data();
-        if (data && data.id) {
-          activeSessionsMap.set(data.id, data);
-        }
+  try {
+    getFirestoreContext().then(ctx => {
+      if (!ctx || !ctx.db) return;
+      const { db, collection, onSnapshot } = ctx;
+      const colRef = collection(db, "presence");
+      unsubscribeFirestore = onSnapshot(colRef, (snapshot) => {
+        const currentRemoteIds = new Set();
+        snapshot.forEach(d => {
+          const data = d.data();
+          if (data && data.id) {
+            currentRemoteIds.add(data.id);
+            activeSessionsMap.set(data.id, { ...data, localReceivedAt: Date.now(), fromFirestore: true });
+          }
+        });
+        // Firestore'dan silinen eski oturumları haritadan düşür
+        activeSessionsMap.forEach((val, key) => {
+          if (val && val.fromFirestore && !currentRemoteIds.has(key)) {
+            activeSessionsMap.delete(key);
+          }
+        });
+        evaluateAndEmit();
+      }, (err) => {
+        console.warn("Presence subscription error:", err);
       });
-      evaluateAndEmit();
-    }, (err) => {
-      console.warn("Presence subscription error:", err);
-    });
-  });
+    }).catch(() => {});
+  } catch (e) {}
 
-  // 3. Otomatik Zamanlayıcı: Sekme kapanınca ya da sinyal kesilince
-  // sayfa yenilemeye gerek kalmadan 1 saniyede bir süresi dolanları anında temizler
+  // 3. Yerel Sunucu Polling (/api/presence - server.py üzerinden çapraz cihaz desteği)
+  const pollLocalServer = async () => {
+    try {
+      const res = await fetch('/api/presence');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && (Array.isArray(json.loggedIn) || Array.isArray(json.guests))) {
+          const all = [...(json.loggedIn || []), ...(json.guests || [])];
+          all.forEach(item => {
+            if (item && item.id) {
+              activeSessionsMap.set(item.id, { ...item, localReceivedAt: Date.now() });
+            }
+          });
+          evaluateAndEmit();
+        }
+      }
+    } catch (e) {}
+  };
+  pollLocalServer();
+  const localPollTimer = setInterval(pollLocalServer, 4000);
+
+  // 4. Otomatik Temizlik Zamanlayıcısı: 3 saniyede bir süresi dolanları temizle
   const autoCleanupTimer = setInterval(() => {
     evaluateAndEmit();
-  }, 1000);
+  }, 3000);
 
   return () => {
     if (typeof unsubscribeFirestore === 'function') {
@@ -800,6 +859,7 @@ export function subscribePresence(callback) {
     if (presenceChannel) {
       try { presenceChannel.removeEventListener('message', handleChannelMsg); } catch (e) {}
     }
+    clearInterval(localPollTimer);
     clearInterval(autoCleanupTimer);
   };
 }

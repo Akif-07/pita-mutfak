@@ -280,6 +280,9 @@ orderService.subscribeDailyClosings((closings) => {
 orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
   const prevLoggedInCount = (state.activeVisitors || []).length;
   const prevGuestCount = (state.activeGuests || []).length;
+  const prevNames = (state.activeVisitors || []).map(u => u.name).join(',');
+  const newNames = loggedIn.map(u => u.name).join(',');
+
   state.activeVisitors = loggedIn;       // Giriş yapmış kullanıcılar
   state.activeGuests = guests;           // Misafir ziyaretçiler
 
@@ -296,8 +299,9 @@ orderService.subscribePresence(({ loggedIn = [], guests = [] } = {}) => {
     });
   } catch (e) {}
 
-  // Eğer admin panelindeyse ve form inputlarında aktif yazı yazılmıyorsa ekranı anında tazele
-  if (state.currentView === 'admin') {
+  // Değişiklik varsa ve admin panelindeyse form girişi yapılmıyorken render et
+  const hasChanged = prevLoggedInCount !== loggedIn.length || prevGuestCount !== guests.length || prevNames !== newNames;
+  if (hasChanged && state.currentView === 'admin') {
     const activeTag = document.activeElement ? document.activeElement.tagName : '';
     const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
     if (!isTyping) {
@@ -312,7 +316,7 @@ function isInternalPanel() {
   return hash.includes('admin') || hash.includes('kurye') || hash.includes('courier');
 }
 
-// Canlı Varlık Pingi — her müşteri/ziyaretçi için (admin & kurye personeli hariç), 3 saniyede bir anlık nabız
+// Canlı Varlık Pingi — her müşteri/ziyaretçi için (admin & kurye personeli hariç), 4 saniyede bir anlık nabız
 let presenceInterval = null;
 function startPresence() {
   if (isInternalPanel()) {
@@ -329,11 +333,11 @@ function startPresence() {
     }
     const currentU = state.currentUser || getCurrentUser() || null;
     orderService.pingPresence(currentU);
-  }, 3000);
+  }, 4000);
 }
 startPresence();
 
-// Sekme kapanınca veya sayfa arka plana atılınca presence'ı temizle
+// Sekme kapanınca veya sayfa tamamen terk edilince presence'ı temizle
 window.addEventListener('beforeunload', () => {
   orderService.removePresence();
 });
@@ -341,10 +345,11 @@ window.addEventListener('pagehide', () => {
   orderService.removePresence();
 });
 
+// Sekme görünürlüğü değiştiğinde:
+// Arka plana geçildiğinde kullanıcıyı HEMEN SİLME (sekme değiştiren veya başka uygulamaya bakan müşteriyi hemen yok sayma!)
+// Sekmeye geri dönüldüğünde ise presence pingini derhal tazele
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    orderService.removePresence();
-  } else if (document.visibilityState === 'visible') {
+  if (document.visibilityState === 'visible') {
     startPresence();
   }
 });
