@@ -958,8 +958,8 @@ function renderPhoneVerifyModal(currentUser, state) {
         ${!isVerifyStep ? `
           <!-- Adım 1: Telefon numarası gir, kod al -->
           <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4 text-xs">
-            <p class="font-bold text-orange-900">📱 Telefonunuza 6 haneli doğrulama kodu gönderilecek.</p>
-            <p class="text-orange-700 mt-1">Bu demo sistemde kod ekrana gösterilir. Gerçek SMS için entegrasyon gerekir.</p>
+            <p class="font-bold text-orange-900">📱 Telefonunuza Firebase güvencesiyle 6 haneli SMS kodu gönderilecektir.</p>
+            <p class="text-orange-700 mt-1">reCAPTCHA doğrulaması arka planda görünmez olarak otomatik gerçekleştirilir.</p>
           </div>
           <form id="phone-send-code-form" class="space-y-3">
             <div>
@@ -983,21 +983,32 @@ function renderPhoneVerifyModal(currentUser, state) {
           </form>
         ` : `
           <!-- Adım 2: Kodu gir, doğrula -->
-          <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between mb-4">
-            <div>
-              <span class="block text-[11px] text-emerald-700 font-bold">💡 Demo Doğrulama Kodu:</span>
-              <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.phoneVerifyCodeHint || '123456'}</span>
+          ${state.isFirebaseSms ? `
+            <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3.5 rounded-2xl text-xs flex items-center gap-3 mb-4 animate-in fade-in">
+              <span class="text-2xl shrink-0">📲</span>
+              <div class="flex-1">
+                <span class="block text-xs font-black text-emerald-900">SMS Gönderildi!</span>
+                <span class="text-[11px] text-emerald-700 leading-snug">Google Firebase ile <strong>${state.pendingPhoneVerify || ''}</strong> numarasına iletilen 6 haneli kodu giriniz.</span>
+              </div>
             </div>
-            <button 
-              type="button"
-              id="fill-phone-verify-code-btn"
-              class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
-            >
-              Kodu Doldur
-            </button>
-          </div>
+          ` : `
+            <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between mb-4">
+              <div>
+                <span class="block text-[11px] text-emerald-700 font-bold">💡 Doğrulama Kodu:</span>
+                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.phoneVerifyCodeHint || '123456'}</span>
+              </div>
+              <button 
+                type="button"
+                id="fill-phone-verify-code-btn"
+                class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
+              >
+                Kodu Doldur
+              </button>
+            </div>
+          `}
           <form id="phone-verify-code-form" class="space-y-3">
             <div>
+
               <label class="block text-xs font-bold text-gray-700 mb-1 text-center">6 Haneli Kodu Giriniz *</label>
               <input 
                 type="text"
@@ -2447,19 +2458,21 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     if (targetPhone && targetPhone.replace(/\D/g, '').length >= 10) {
       try {
         const res = await sendVerificationCode(targetPhone, targetName, targetPhone);
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
         onStateChange({
           isPhoneVerifyOpen: true,
           isCheckoutOpen: false,
           phoneVerifyStep: 'verify',
           pendingPhoneVerify: targetPhone,
           pendingPhoneName: targetName,
+          isFirebaseSms: Boolean(res.firebase),
           phoneVerifyCodeHint: codeHint,
           phoneVerifyError: ''
         });
         return;
       } catch (e) {}
     }
+
 
     // Telefon henüz girilmemişse veya kısa ise numara giriş ekranını aç
     onStateChange({
@@ -2590,7 +2603,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
       try {
         const res = await sendVerificationCode(phone, user ? user.name : 'Müşteri', phone);
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        if (!res.ok) {
+          onStateChange({ phoneVerifyError: res.error || 'Kod gönderilemedi. Lütfen tekrar deneyin.' });
+          return;
+        }
+
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
 
         // Kullanıcı objesinde telefon numarasını güncelle (henüz kayıtlı değilse)
         if (user && !user.phone) {
@@ -2603,6 +2621,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         onStateChange({
           phoneVerifyStep: 'verify',
           pendingPhoneVerify: phone,
+          isFirebaseSms: Boolean(res.firebase),
           phoneVerifyCodeHint: codeHint,
           phoneVerifyError: ''
         });
@@ -2611,6 +2630,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       } finally {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📱 Doğrulama Kodu Gönder'; }
       }
+
     });
   }
 

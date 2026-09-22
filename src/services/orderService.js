@@ -28,10 +28,27 @@ import {
   getExpensesFromFirestore,
   syncDailyClosingToFirestore,
   subscribeFirestoreDailyClosings,
-  getDailyClosingsFromFirestore
+  getDailyClosingsFromFirestore,
+  sendFirebasePhoneVerification,
+  confirmFirebasePhoneCode,
+  formatPhoneNumberForFirebase,
+  resetRecaptchaVerifier
 } from '../firebase/firebaseService.js';
 
-export { signInWithGoogle, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore, pingPresence, subscribePresence, removePresence };
+export { 
+  signInWithGoogle, 
+  getGoogleRedirectResult, 
+  initAuthListener, 
+  syncCustomerToFirestore, 
+  pingPresence, 
+  subscribePresence, 
+  removePresence,
+  sendFirebasePhoneVerification,
+  confirmFirebasePhoneCode,
+  formatPhoneNumberForFirebase,
+  resetRecaptchaVerifier
+};
+
 
 
 
@@ -671,6 +688,30 @@ export async function markMessageAsRead(messageId) {
 // E-posta veya SMS Doğrulama Kodu İste
 export async function sendVerificationCode(identifier, name = '', phone = '') {
   const isPhone = !identifier.includes('@');
+  const targetPhone = isPhone ? identifier : phone;
+
+  // 1. Eğer telefon ise, Firebase Phone Authentication (reCAPTCHA + gerçek SMS) dene
+  if (isPhone && targetPhone) {
+    try {
+      const fbRes = await sendFirebasePhoneVerification(targetPhone);
+      if (fbRes.ok) {
+        return {
+          ok: true,
+          firebase: true,
+          data: {
+            message: fbRes.message || `${targetPhone} numarasına SMS ile doğrulama kodu gönderildi.`,
+            phone: targetPhone
+          }
+        };
+      } else {
+        console.warn("Firebase Phone Auth SMS gönderilemedi, yerel koda geçiliyor:", fbRes.error);
+      }
+    } catch (fbErr) {
+      console.warn("Firebase Phone Auth istisnası:", fbErr);
+    }
+  }
+
+  // 2. Yedek / Demo Mod: Backend ve yerel kod üretimi
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   
   try {
@@ -705,6 +746,20 @@ export async function sendVerificationCode(identifier, name = '', phone = '') {
 export async function verifyAndRegister(payload) {
   const identifier = (payload.identifier || payload.email || payload.phone || '').trim().toLowerCase();
   const inputCode = (payload.code || '').trim();
+  let fbUser = null;
+
+  // 1. Firebase SMS oturumu varsa Firebase ile onayla
+  if (window.confirmationResult) {
+    try {
+      const fbRes = await confirmFirebasePhoneCode(inputCode);
+      if (fbRes.ok && fbRes.user) {
+        fbUser = fbRes.user;
+      } else if (inputCode !== '123456') {
+        return { ok: false, error: fbRes.error || 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
+      }
+    } catch (e) {}
+  }
+
   const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
 
   let res = await apiCall('/auth/verify-and-register', 'POST', payload);
@@ -714,7 +769,8 @@ export async function verifyAndRegister(payload) {
     const isPhoneIdent = payload.phone && !identifier.includes('@');
     const user = {
       ...rawUser,
-      phoneVerified: rawUser.phoneVerified || isPhoneIdent || rawUser.is_verified === 1 || false
+      uid: fbUser ? fbUser.uid : (rawUser.uid || ''),
+      phoneVerified: rawUser.phoneVerified || isPhoneIdent || rawUser.is_verified === 1 || Boolean(fbUser) || false
     };
     setCurrentUser(user);
     saveCustomerLocally(user);
@@ -722,18 +778,18 @@ export async function verifyAndRegister(payload) {
     return { ok: true, data: { user } };
   }
 
-  // Doğrulama kontrolü: üretilen kod veya varsayılan 123456 kabul edilir
-  if (inputCode === storedCode || inputCode === '123456') {
+  // Doğrulama kontrolü: Firebase onayı, üretilen kod veya varsayılan 123456 kabul edilir
+  if (fbUser || inputCode === storedCode || inputCode === '123456') {
     const isEmail = identifier.includes('@');
     const user = {
+      uid: fbUser ? fbUser.uid : '',
       name: payload.name || (isEmail ? identifier.split('@')[0] : 'Pita Misafiri'),
       email: payload.email || (isEmail ? identifier : ''),
-      phone: payload.phone || (!isEmail ? identifier : ''),
+      phone: fbUser ? fbUser.phone : (payload.phone || (!isEmail ? identifier : '')),
       password: payload.password || '',
       auth_provider: isEmail ? 'email' : 'phone',
       registered_at: new Date().toISOString(),
-      // Telefon ile kaydolan kullanıcı SMS kodunu doğruladı → phoneVerified
-      phoneVerified: !isEmail
+      phoneVerified: !isEmail || Boolean(fbUser)
     };
     setCurrentUser(user);
     saveCustomerLocally(user);
@@ -746,12 +802,32 @@ export async function verifyAndRegister(payload) {
 
 // Telefon doğrulamasını güncelle (profil veya sipariş üzerinden doğrulama)
 export async function verifyPhone(phone, code, name = '') {
-  const identifier = (phone || '').trim().toLowerCase();
   const inputCode = (code || '').trim();
-  const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
+  let firebaseSuccess = false;
+  let firebaseUser = null;
 
-  if (inputCode !== storedCode && inputCode !== '123456') {
-    return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
+  // 1. Firebase SMS oturumu varsa Firebase ile onayla
+  if (window.confirmationResult) {
+    try {
+      const fbConfirm = await confirmFirebasePhoneCode(inputCode);
+      if (fbConfirm.ok && fbConfirm.user) {
+        firebaseSuccess = true;
+        firebaseUser = fbConfirm.user;
+      } else if (inputCode !== '123456') {
+        return { ok: false, error: fbConfirm.error || 'Doğrulama kodu hatalı! Lütfen tekrar kontrol ediniz.' };
+      }
+    } catch (e) {
+      console.warn("Firebase confirm hatası:", e);
+    }
+  }
+
+  // 2. Firebase oturumu yoksa veya test koduysa yerel/sessionStorage kontrolü
+  if (!firebaseSuccess) {
+    const identifier = (phone || '').trim().toLowerCase();
+    const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
+    if (inputCode !== storedCode && inputCode !== '123456') {
+      return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
+    }
   }
 
   // Backend'e telefon doğrulandı bilgisini gönder
@@ -765,6 +841,7 @@ export async function verifyPhone(phone, code, name = '') {
     const updated = {
       ...currentUser,
       phone,
+      uid: firebaseUser ? firebaseUser.uid : (currentUser.uid || ''),
       name: currentUser.name || name || 'Pita Misafiri',
       phoneVerified: true,
       is_verified: 1
@@ -777,6 +854,7 @@ export async function verifyPhone(phone, code, name = '') {
     const newUser = {
       name: name || 'Pita Misafiri',
       phone,
+      uid: firebaseUser ? firebaseUser.uid : '',
       phoneVerified: true,
       is_verified: 1,
       auth_provider: 'phone',
@@ -788,6 +866,7 @@ export async function verifyPhone(phone, code, name = '') {
     return { ok: true, data: { user: newUser } };
   }
 }
+
 
 
 

@@ -612,7 +612,170 @@ export function initAuthListener(onUserChanged) {
   } catch (e) {}
 }
 
+// =================== 6.1. FIREBASE PHONE AUTHENTICATION (reCAPTCHA & SMS) ===================
+
+export function formatPhoneNumberForFirebase(phone) {
+  if (!phone) return '';
+  // Rakam harici karakterleri temizle
+  let cleaned = String(phone).replace(/[^\d+]/g, '');
+  if (cleaned.startsWith('+')) {
+    return cleaned;
+  }
+  // 05xx -> 5xx
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  // 905xx (12 hane) -> +905xx
+  if (cleaned.startsWith('90') && cleaned.length === 12) {
+    return '+' + cleaned;
+  }
+  return '+90' + cleaned;
+}
+
+export function resetRecaptchaVerifier() {
+  try {
+    if (window.recaptchaVerifier) {
+      if (typeof window.recaptchaVerifier.clear === 'function') {
+        window.recaptchaVerifier.clear();
+      }
+      window.recaptchaVerifier = null;
+    }
+    const container = document.getElementById('recaptcha-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+  } catch (e) {
+    console.warn("reCAPTCHA temizleme uyarısı:", e);
+  }
+}
+
+export async function getRecaptchaVerifier(containerId = 'recaptcha-container') {
+  if (window.recaptchaVerifier) {
+    return window.recaptchaVerifier;
+  }
+
+  const app = await getFirebaseApp();
+  const { getAuth, RecaptchaVerifier } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+  const auth = getAuth(app);
+
+  let container = document.getElementById(containerId);
+  if (!container) {
+    container = document.createElement('div');
+    container.id = containerId;
+    document.body.appendChild(container);
+  }
+
+  window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'invisible',
+    callback: () => {
+      console.log('🛡️ [Firebase] reCAPTCHA doğrulaması tamamlandı.');
+    },
+    'expired-callback': () => {
+      console.warn('⚠️ [Firebase] reCAPTCHA süresi doldu, sıfırlanıyor.');
+      resetRecaptchaVerifier();
+    }
+  });
+
+  return window.recaptchaVerifier;
+}
+
+export async function sendFirebasePhoneVerification(phone) {
+  try {
+    const formatted = formatPhoneNumberForFirebase(phone);
+    if (!formatted || formatted.length < 12) {
+      return { ok: false, error: 'Lütfen geçerli bir telefon numarası giriniz (Örn: 05XX XXX XX XX).' };
+    }
+
+    const app = await getFirebaseApp();
+    const { getAuth, signInWithPhoneNumber } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const auth = getAuth(app);
+
+    const appVerifier = await getRecaptchaVerifier();
+
+    console.log(`📱 [Firebase Auth] SMS kodu talep ediliyor: ${formatted}`);
+    const confirmationResult = await signInWithPhoneNumber(auth, formatted, appVerifier);
+    window.confirmationResult = confirmationResult;
+
+    return {
+      ok: true,
+      formattedPhone: formatted,
+      message: `${formatted} numarasına SMS ile 6 haneli doğrulama kodu gönderildi.`
+    };
+  } catch (error) {
+    console.warn("⚠️ Firebase Phone Auth hatası:", error);
+    resetRecaptchaVerifier();
+
+    let errorMsg = 'SMS kodu gönderilemedi.';
+    if (error.code === 'auth/invalid-phone-number') {
+      errorMsg = 'Geçersiz telefon numarası formatı. Lütfen kontrol ediniz.';
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMsg = 'Çok fazla kod talebinde bulunuldu. Lütfen biraz bekleyiniz.';
+    } else if (error.code === 'auth/quota-exceeded') {
+      errorMsg = 'SMS kotası aşıldı. Lütfen daha sonra tekrar deneyiniz.';
+    } else if (error.code === 'auth/captcha-check-failed') {
+      errorMsg = 'Güvenlik kontrolü (reCAPTCHA) başarısız oldu. Lütfen tekrar deneyiniz.';
+    } else if (error.code === 'auth/operation-not-allowed') {
+      errorMsg = 'Firebase Console > Authentication altında Telefon ile Giriş (Phone Auth) sağlayıcısı etkinleştirilmemiş.';
+    } else if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+      errorMsg = 'Yetkisiz Alan Adı: Firebase Console > Authentication > Authorized Domains\'e alan adınızı ekleyin.';
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+
+    return {
+      ok: false,
+      error: errorMsg,
+      code: error.code
+    };
+  }
+}
+
+export async function confirmFirebasePhoneCode(code) {
+  try {
+    if (!window.confirmationResult) {
+      return { ok: false, error: 'Aktif bir SMS doğrulama oturumu bulunamadı. Lütfen tekrar kod talep ediniz.' };
+    }
+
+    const cleanCode = String(code || '').trim();
+    if (!cleanCode || cleanCode.length < 6) {
+      return { ok: false, error: 'Lütfen 6 haneli doğrulama kodunu eksiksiz giriniz.' };
+    }
+
+    const result = await window.confirmationResult.confirm(cleanCode);
+    const user = result.user; // Telefon başarıyla doğrulandı!
+
+    return {
+      ok: true,
+      user: {
+        uid: user.uid,
+        name: user.displayName || 'Pita Müşterisi',
+        phone: user.phoneNumber,
+        phoneVerified: true,
+        auth_provider: 'phone'
+      }
+    };
+  } catch (error) {
+    console.warn("⚠️ Firebase Phone Code Onay Hatası:", error);
+
+    let errorMsg = 'Doğrulama kodu hatalı!';
+    if (error.code === 'auth/invalid-verification-code') {
+      errorMsg = 'Girdiğiniz 6 haneli doğrulama kodu hatalı. Lütfen kontrol ediniz.';
+    } else if (error.code === 'auth/code-expired') {
+      errorMsg = 'Doğrulama kodunun süresi dolmuş. Lütfen yeni kod isteyiniz.';
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+
+    return {
+      ok: false,
+      error: errorMsg,
+      code: error.code
+    };
+  }
+}
+
 // =================== 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ (PRESENCE) ===================
+
 
 let currentSessionId = null;
 function getSessionId() {
