@@ -358,35 +358,45 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            # 1. E-posta Doğrulama Kodu Üret ve İlet (POST /api/auth/send-code)
+            # 1. E-posta / Telefon Doğrulama Kodu Üret ve İlet (POST /api/auth/send-code)
             if path == '/api/auth/send-code':
                 email = str(body.get('email', '')).strip().lower()
                 name = str(body.get('name', '')).strip()
                 phone = str(body.get('phone', '')).strip()
+                identifier = phone if phone else email
 
-                if not email or '@' not in email:
-                    self.send_json(400, {"error": "Lütfen geçerli bir e-posta adresi giriniz."})
+                if not identifier:
+                    self.send_json(400, {"error": "Lütfen geçerli bir telefon numarası veya e-posta adresi giriniz."})
                     return
 
                 # 6 Haneli Rastgele Sayısal Kod Üret
                 code = f"{random.randint(100000, 999999)}"
                 now = datetime.now().isoformat()
-                VERIFICATION_CODES[email] = {
+                entry = {
                     "code": code,
                     "created_at": now,
                     "name": name,
-                    "phone": phone
+                    "phone": phone,
+                    "email": email
                 }
+                if email:
+                    VERIFICATION_CODES[email] = entry
+                if phone:
+                    VERIFICATION_CODES[phone] = entry
 
-                print(f"[AUTH] Dogrulama Kodu Uretildi -> E-Posta: {email} | Kod: {code}")
+                target = phone if phone else email
+                print(f"[AUTH] Dogrulama Kodu Uretildi -> {target} | Kod: {code}")
 
                 # JSON yanıtında kodu da dönüyoruz (Demo/test ortamında anında test edilebilmesi için)
                 self.send_json(200, {
                     "success": True,
-                    "message": f"6 haneli doğrulama kodu {email} adresine iletildi.",
+                    "message": f"6 haneli doğrulama kodu {target} adresine/numarasına iletildi.",
                     "code": code,
+                    "identifier": target,
+                    "phone": phone,
                     "email": email
                 })
+
 
             # 2. Kodu Doğrula ve Müşteriyi Kaydet (POST /api/auth/verify-and-register)
             elif path == '/api/auth/verify-and-register':
@@ -395,12 +405,13 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 name = str(body.get('name', '')).strip()
                 phone = str(body.get('phone', '')).strip()
                 password = str(body.get('password', '')).strip()
+                identifier = str(body.get('identifier', '')).strip().lower() or phone or email
 
-                if not email or not input_code:
-                    self.send_json(400, {"error": "E-posta ve doğrulama kodu zorunludur."})
+                if not identifier or not input_code:
+                    self.send_json(400, {"error": "Telefon/E-posta ve doğrulama kodu zorunludur."})
                     return
 
-                stored = VERIFICATION_CODES.get(email)
+                stored = VERIFICATION_CODES.get(identifier) or (email and VERIFICATION_CODES.get(email)) or (phone and VERIFICATION_CODES.get(phone))
                 # Test/demo kolaylığı için 123456 veya üretilen kod kabul edilir
                 is_valid_code = (stored and stored.get('code') == input_code) or (input_code == "123456")
 
@@ -410,13 +421,13 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
 
                 now = datetime.now().isoformat()
                 # Kullanıcı daha önce var mı?
-                cursor.execute("SELECT * FROM customers WHERE email = ? OR phone = ?", (email, phone))
+                cursor.execute("SELECT * FROM customers WHERE (phone != '' AND phone = ?) OR (email != '' AND email = ?)", (phone, email))
                 existing = cursor.fetchone()
 
                 if existing:
                     cursor.execute(
                         "UPDATE customers SET name = ?, phone = ?, email = ?, password = ?, is_verified = 1 WHERE id = ?",
-                        (name or existing['name'], phone or existing['phone'], email, password or existing['password'], existing['id'])
+                        (name or existing['name'], phone or existing['phone'], email or existing['email'], password or existing['password'], existing['id'])
                     )
                     conn.commit()
                     cursor.execute("SELECT * FROM customers WHERE id = ?", (existing['id'],))
@@ -432,14 +443,19 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     customer = cursor.fetchone()
 
                 # Kod kullanıldıktan sonra temizle
-                if email in VERIFICATION_CODES:
+                if identifier in VERIFICATION_CODES:
+                    del VERIFICATION_CODES[identifier]
+                if email and email in VERIFICATION_CODES:
                     del VERIFICATION_CODES[email]
+                if phone and phone in VERIFICATION_CODES:
+                    del VERIFICATION_CODES[phone]
 
                 self.send_json(200, {
                     "success": True,
                     "message": "Hesabınız başarıyla doğrulandı ve oluşturuldu!",
                     "customer": dict(customer)
                 })
+
 
             # 3. E-posta / Telefon ile Giriş Yap (POST /api/auth/login)
             elif path == '/api/auth/login':
@@ -745,6 +761,26 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
                 updated_customer = cursor.fetchone()
                 self.send_json(200, dict(updated_customer))
+
+            elif path.startswith('/api/customers/') and path.endswith('/verify-phone'):
+                parts = path.split('/')
+                phone = unquote(parts[3]) if len(parts) >= 4 else None
+
+                cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
+                customer = cursor.fetchone()
+                if not customer:
+                    self.send_json(200, {"ok": True, "verified": True})
+                    return
+
+                cursor.execute(
+                    "UPDATE customers SET is_verified = 1 WHERE phone = ?",
+                    (phone,)
+                )
+                conn.commit()
+
+                cursor.execute("SELECT * FROM customers WHERE phone = ?", (phone,))
+                updated_customer = cursor.fetchone()
+                self.send_json(200, {"ok": True, "customer": dict(updated_customer)})
 
             elif path.startswith('/api/messages/') and path.endswith('/read'):
                 parts = path.split('/')

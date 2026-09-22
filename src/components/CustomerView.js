@@ -7,13 +7,17 @@ import {
   registerCustomer,
   sendVerificationCode,
   verifyAndRegister,
+  verifyPhone,
   customerLogin,
   signInWithGoogle,
   getGoogleRedirectResult,
   syncCustomerToFirestore,
   saveCustomerLocally,
   addReview,
-  isRestaurantOpenNow
+  isRestaurantOpenNow,
+  getSavedAddresses,
+  saveAddress,
+  deleteAddress
 } from '../services/orderService.js';
 
 import { categories } from '../data/initialMenu.js';
@@ -129,15 +133,29 @@ export function renderCustomerView(container, state, onStateChange) {
                 >
                   <span>👤</span>
                   <span class="max-w-[100px] truncate">${currentUser.name}</span>
+                  ${!currentUser.phoneVerified ? '<span class="text-xs">⚠️</span>' : ''}
                 </button>
-                <div class="hidden group-hover:block absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
-                  <div class="px-3 py-2 border-b border-gray-100">
+                <div class="hidden group-hover:block absolute right-0 mt-1 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
+                  <div class="px-3 py-2 border-b border-gray-100 mb-1">
                     <p class="text-xs font-bold text-gray-900 truncate">${currentUser.name}</p>
-                    <p class="text-[11px] text-gray-400 font-mono">${currentUser.phone}</p>
+                    <p class="text-[11px] text-gray-400 font-mono">${currentUser.phone || 'Telefon girilmedi'}</p>
+                    ${currentUser.phoneVerified 
+                      ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full mt-1">✓ Doğrulandı</span>'
+                      : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full mt-1">⚠️ Telefon Doğrulanmadı</span>'
+                    }
                   </div>
-                  <button id="logout-btn" class="w-full text-left text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition mt-1 cursor-pointer">
-                    Çıkış Yap
+                  <button id="open-addresses-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                    <span>📍</span><span>Adreslerim</span>
                   </button>
+                  <button id="open-phone-verify-btn" class="w-full text-left text-xs font-semibold ${currentUser.phoneVerified ? 'text-gray-700' : 'text-orange-600 font-bold'} hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                    <span>📞</span>
+                    <span>${currentUser.phoneVerified ? 'Telefonum' : 'Telefonu Doğrula!'}</span>
+                  </button>
+                  <div class="border-t border-gray-100 mt-1 pt-1">
+                    <button id="logout-btn" class="w-full text-left text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition cursor-pointer">
+                      🚪 Çıkış Yap
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -427,6 +445,12 @@ export function renderCustomerView(container, state, onStateChange) {
 
       <!-- Sipariş Değerlendirme Modalı -->
       ${state.reviewingOrderId ? renderOrderReviewModal(state.reviewingOrderId, state) : ''}
+
+      <!-- Adreslerim Modalı -->
+      ${state.isAddressesOpen ? renderAddressesModal(currentUser) : ''}
+
+      <!-- Telefon Doğrulama Modalı -->
+      ${state.isPhoneVerifyOpen ? renderPhoneVerifyModal(currentUser, state) : ''}
 
     </div>
   `;
@@ -838,6 +862,176 @@ function renderReviewsModal(state) {
   `;
 }
 
+// =================== ADRES DEFTERI MODALI ===================
+function renderAddressesModal(currentUser) {
+  const phone = currentUser ? currentUser.phone : '';
+  const addresses = phone ? getSavedAddresses(phone) : [];
+
+  return `
+    <div id="addresses-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-base font-bold">📍</div>
+            <div>
+              <h3 class="font-black text-base text-gray-900">Adreslerim</h3>
+              <p class="text-[11px] text-gray-400">Kayıtlı teslimat adresleriniz</p>
+            </div>
+          </div>
+          <button id="close-addresses-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
+        </div>
+
+        ${addresses.length === 0 ? `
+          <div class="text-center py-6 text-gray-400">
+            <p class="text-3xl mb-2">📍</p>
+            <p class="text-sm font-semibold">Henüz kayıtlı adresiniz yok</p>
+            <p class="text-xs mt-1">Aşağıya yeni adres ekleyebilirsiniz</p>
+          </div>
+        ` : `
+          <div class="space-y-2 mb-4">
+            ${addresses.map(addr => `
+              <div class="flex items-start gap-2 bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                <span class="text-[#06C167] mt-0.5 shrink-0">📍</span>
+                <p class="text-xs text-gray-700 font-medium flex-1 leading-relaxed">${addr.text}</p>
+                <button 
+                  class="delete-addr-btn text-red-400 hover:text-red-600 text-sm cursor-pointer shrink-0 transition p-1"
+                  data-addr-id="${addr.id}"
+                  title="Sil"
+                >✕</button>
+              </div>
+            `).join('')}
+          </div>
+        `}
+
+        <div class="border-t border-gray-100 pt-4">
+          <p class="text-xs font-bold text-gray-700 mb-2">Yeni Adres Ekle</p>
+          <form id="add-address-form" class="space-y-2">
+            <textarea 
+              name="newAddress"
+              id="new-address-input"
+              rows="3"
+              placeholder="Ör: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5"
+              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+              required
+            ></textarea>
+            <button 
+              type="submit"
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+            >
+              + Adresi Kaydet
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// =================== TELEFON DOĞRULAMA MODALI ===================
+function renderPhoneVerifyModal(currentUser, state) {
+  const isVerifyStep = state.phoneVerifyStep === 'verify';
+  const existingPhone = currentUser ? (currentUser.phone || '') : '';
+
+  return `
+    <div id="phone-verify-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center text-base">📞</div>
+            <div>
+              <h3 class="font-black text-base text-gray-900">${isVerifyStep ? 'Kodu Girin' : 'Telefon Doğrulama'}</h3>
+              <p class="text-[11px] text-gray-400">${isVerifyStep ? 'Telefonunuza gelen kodu giriniz' : 'Sipariş verebilmek için gerekli'}</p>
+            </div>
+          </div>
+          <button id="close-phone-verify-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
+        </div>
+
+        ${state.phoneVerifyError ? `
+          <div class="bg-red-50 border border-red-200 text-red-900 rounded-2xl p-3 mb-3 text-xs font-bold">
+            ⚠️ ${state.phoneVerifyError}
+          </div>
+        ` : ''}
+
+        ${!isVerifyStep ? `
+          <!-- Adım 1: Telefon numarası gir, kod al -->
+          <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4 text-xs">
+            <p class="font-bold text-orange-900">📱 Telefonunuza 6 haneli doğrulama kodu gönderilecek.</p>
+            <p class="text-orange-700 mt-1">Bu demo sistemde kod ekrana gösterilir. Gerçek SMS için entegrasyon gerekir.</p>
+          </div>
+          <form id="phone-send-code-form" class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız *</label>
+              <input 
+                type="tel" 
+                name="phone"
+                id="phone-verify-input"
+                required
+                value="${existingPhone}"
+                placeholder="05XX XXX XX XX"
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+              />
+            </div>
+            <button 
+              type="submit"
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3 rounded-2xl text-xs transition cursor-pointer"
+            >
+              📱 Doğrulama Kodu Gönder
+            </button>
+          </form>
+        ` : `
+          <!-- Adım 2: Kodu gir, doğrula -->
+          <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between mb-4">
+            <div>
+              <span class="block text-[11px] text-emerald-700 font-bold">💡 Demo Doğrulama Kodu:</span>
+              <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.phoneVerifyCodeHint || '123456'}</span>
+            </div>
+            <button 
+              type="button"
+              id="fill-phone-verify-code-btn"
+              class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
+            >
+              Kodu Doldur
+            </button>
+          </div>
+          <form id="phone-verify-code-form" class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1 text-center">6 Haneli Kodu Giriniz *</label>
+              <input 
+                type="text"
+                id="phone-otp-input"
+                name="code"
+                required
+                maxlength="6"
+                placeholder="000000"
+                autocomplete="one-time-code"
+                class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-2xl border-2 border-emerald-300 focus:border-[#06C167] focus:ring-2 focus:ring-[#06C167]/20 outline-none transition"
+              />
+              <input type="hidden" id="phone-verify-hidden-phone" value="${state.pendingPhoneVerify || existingPhone}" />
+            </div>
+            <button 
+              type="submit"
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3 rounded-2xl text-xs transition cursor-pointer"
+            >
+              ✓ Telefonu Doğrula 🎉
+            </button>
+            <button 
+              type="button"
+              id="back-to-phone-send-btn"
+              class="w-full text-center text-xs text-gray-400 hover:text-gray-700 font-semibold cursor-pointer"
+            >
+              ← Farklı numarayla tekrar dene
+            </button>
+          </form>
+        `}
+
+      </div>
+    </div>
+  `;
+}
+
 // Sipariş Değerlendirme Modalı (Geçmiş Siparişlerim ekranından açılır)
 function renderOrderReviewModal(orderId, state) {
   const order = orderService.getOrder(orderId);
@@ -1107,6 +1301,14 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
 
 // Sipariş Tamamlama / Checkout Modalı
 function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) {
+  // Telefon doğrulandı mı? (HERKES İÇİN ZORUNLU)
+  const isPhoneVerified = currentUser && Boolean(currentUser.phoneVerified);
+  const phoneBlocked = !isPhoneVerified;
+
+  // Kayıtlı adresler
+  const userPhone = currentUser ? currentUser.phone : '';
+  const savedAddresses = userPhone ? getSavedAddresses(userPhone) : [];
+
   return `
     <div id="checkout-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
@@ -1121,7 +1323,21 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
           </button>
         </div>
 
-        <form id="checkout-form" class="p-6 space-y-4">
+        ${phoneBlocked ? `
+          <!-- Telefon doğrulama zorunlu engel bandı -->
+          <div class="bg-orange-50 border-b border-orange-200 px-5 py-3.5 flex items-center gap-3">
+            <span class="text-2xl">📱</span>
+            <div class="flex-1">
+              <p class="text-xs font-black text-orange-900">Sipariş için telefon doğrulaması zorunludur</p>
+              <p class="text-[11px] text-orange-700 mt-0.5 leading-snug">Kurye teslimatı ve sipariş güvenliği için numaranızı onaylamanız gerekmektedir.</p>
+            </div>
+            <button id="checkout-verify-phone-btn" type="button" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-3.5 py-2 rounded-xl transition cursor-pointer whitespace-nowrap shadow-xs">
+              Doğrula 📱
+            </button>
+          </div>
+        ` : ''}
+
+        <form id="checkout-form" class="p-6 space-y-4" ${phoneBlocked ? 'data-phone-blocked="true"' : ''}>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -1129,34 +1345,68 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
               <input 
                 type="text" 
                 name="customerName" 
+                id="checkout-customer-name"
                 required 
-                value="${currentUser ? currentUser.name : ''}"
+                value="${currentUser ? (currentUser.name || '') : ''}"
                 placeholder="Örn: Ahmet Yılmaz" 
                 class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
               />
             </div>
             <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız *</label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-gray-700">
+                  Telefon Numaranız *
+                  ${isPhoneVerified ? '<span class="text-[10px] text-emerald-600 font-bold ml-1">✓ Doğrulandı</span>' : '<span class="text-[10px] text-orange-600 font-bold ml-1">⚠️ Onay Bekliyor</span>'}
+                </label>
+                ${phoneBlocked ? `
+                  <button type="button" id="checkout-inline-verify-btn" class="text-[11px] font-bold text-orange-600 hover:text-orange-700 hover:underline cursor-pointer">
+                    Doğrula 📱
+                  </button>
+                ` : ''}
+              </div>
               <input 
                 type="tel" 
                 name="customerPhone" 
+                id="checkout-customer-phone"
                 required 
-                value="${currentUser ? currentUser.phone : ''}"
+                value="${currentUser ? (currentUser.phone || '') : ''}"
                 placeholder="05XX XXX XX XX" 
-                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+                ${isPhoneVerified ? 'readonly' : ''}
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border ${phoneBlocked ? 'border-orange-300 bg-orange-50/50 focus:border-orange-500' : 'border-gray-200 focus:border-[#06C167] bg-gray-50 text-gray-600'} outline-none transition"
               />
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-gray-700 mb-1">Teslimat Adresi (Mahalle, Sokak, Bina No, Daire) *</label>
-            <textarea 
-              name="deliveryAddress" 
-              rows="3" 
-              required
-              placeholder="Örn: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5" 
-              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
-            ></textarea>
+            ${savedAddresses.length > 0 ? `
+              <div class="flex flex-wrap gap-1.5 mb-2">
+                <span class="text-[10px] text-gray-400 font-semibold flex items-center">📍 Kayıtlı:</span>
+                ${savedAddresses.map(addr => `
+                  <button 
+                    type="button" 
+                    class="saved-addr-pill text-[10px] bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-2 py-1 rounded-full font-semibold hover:bg-[#06C167] hover:text-white transition cursor-pointer max-w-[180px] truncate"
+                    data-addr="${addr.text.replace(/"/g, '&quot;')}"
+                    title="${addr.text.replace(/"/g, '&quot;')}"
+                  >${addr.text.length > 30 ? addr.text.slice(0, 30) + '…' : addr.text}</button>
+                `).join('')}
+              </div>
+            ` : ''}
+            <div class="relative">
+              <textarea 
+                name="deliveryAddress" 
+                id="delivery-address-textarea"
+                rows="3" 
+                required
+                placeholder="Örn: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5" 
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+              ></textarea>
+              ${currentUser && userPhone ? `
+                <button type="button" id="save-current-address-btn" class="absolute bottom-2 right-2 text-[10px] text-[#06C167] hover:text-[#05a557] font-bold cursor-pointer bg-white border border-[#06C167]/30 px-2 py-1 rounded-lg transition">
+                  + Kaydet
+                </button>
+              ` : ''}
+            </div>
           </div>
 
           <div>
@@ -1223,13 +1473,23 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
               <span class="text-xl font-black text-[#06C167]">₺${cartTotal}</span>
             </div>
 
-            <button 
-              type="submit" 
-              class="flex-1 bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 px-6 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Siparişi Tamamla</span>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+            ${phoneBlocked ? `
+              <button 
+                type="button"
+                id="checkout-verify-phone-btn2"
+                class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-2xl text-sm shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>📞 Telefonu Doğrula</span>
+              </button>
+            ` : `
+              <button 
+                type="submit" 
+                class="flex-1 bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 px-6 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Siparişi Tamamla</span>
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            `}
           </div>
 
         </form>
@@ -1238,6 +1498,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
     </div>
   `;
 }
+
 
 // Canlı Sipariş Takip Modalı
 function renderTrackingModal(order) {
@@ -2153,6 +2414,264 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
+  // =================== PROFİL DROPDOWN BUTONLARI ===================
+
+  // Adreslerim Modalı Aç
+  const openAddressesBtn = container.querySelector('#open-addresses-btn');
+  if (openAddressesBtn) {
+    openAddressesBtn.addEventListener('click', () => {
+      onStateChange({ isAddressesOpen: true });
+    });
+  }
+
+  // Telefon Doğrulama Modalı Aç
+  const openPhoneVerifyBtn = container.querySelector('#open-phone-verify-btn');
+  if (openPhoneVerifyBtn) {
+    openPhoneVerifyBtn.addEventListener('click', () => {
+      onStateChange({ isPhoneVerifyOpen: true, phoneVerifyStep: 'send', phoneVerifyError: '' });
+    });
+  }
+
+  // Checkout'tan Telefon Doğrula butonları (Üst banner, form içi buton ve alt buton)
+  const triggerPhoneVerification = async () => {
+    const phoneInput = container.querySelector('#checkout-customer-phone');
+    const nameInput = container.querySelector('#checkout-customer-name');
+    const typedPhone = (phoneInput?.value || '').trim();
+    const typedName = (nameInput?.value || '').trim();
+
+    const user = state.currentUser || getCurrentUser();
+    const targetPhone = (user && user.phone) ? user.phone : typedPhone;
+    const targetName = (user && user.name) ? user.name : (typedName || 'Pita Misafiri');
+
+    // Eğer 10 haneli veya daha uzun telefon girilmişse doğrudan kodu üretip SMS ekranına geç
+    if (targetPhone && targetPhone.replace(/\D/g, '').length >= 10) {
+      try {
+        const res = await sendVerificationCode(targetPhone, targetName, targetPhone);
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        onStateChange({
+          isPhoneVerifyOpen: true,
+          isCheckoutOpen: false,
+          phoneVerifyStep: 'verify',
+          pendingPhoneVerify: targetPhone,
+          pendingPhoneName: targetName,
+          phoneVerifyCodeHint: codeHint,
+          phoneVerifyError: ''
+        });
+        return;
+      } catch (e) {}
+    }
+
+    // Telefon henüz girilmemişse veya kısa ise numara giriş ekranını aç
+    onStateChange({
+      isPhoneVerifyOpen: true,
+      isCheckoutOpen: false,
+      phoneVerifyStep: 'send',
+      pendingPhoneVerify: targetPhone,
+      pendingPhoneName: targetName,
+      phoneVerifyError: ''
+    });
+  };
+
+  const checkoutVerifyPhoneBtn = container.querySelector('#checkout-verify-phone-btn');
+  if (checkoutVerifyPhoneBtn) {
+    checkoutVerifyPhoneBtn.addEventListener('click', triggerPhoneVerification);
+  }
+  const checkoutVerifyPhoneBtn2 = container.querySelector('#checkout-verify-phone-btn2');
+  if (checkoutVerifyPhoneBtn2) {
+    checkoutVerifyPhoneBtn2.addEventListener('click', triggerPhoneVerification);
+  }
+  const checkoutInlineVerifyBtn = container.querySelector('#checkout-inline-verify-btn');
+  if (checkoutInlineVerifyBtn) {
+    checkoutInlineVerifyBtn.addEventListener('click', triggerPhoneVerification);
+  }
+
+
+  // =================== ADRES DEFTERI MODALI ===================
+
+  // Modalı Kapat
+  const closeAddressesBtn = container.querySelector('#close-addresses-btn');
+  if (closeAddressesBtn) {
+    closeAddressesBtn.addEventListener('click', () => onStateChange({ isAddressesOpen: false }));
+  }
+  const addressesBackdrop = container.querySelector('#addresses-modal-backdrop');
+  if (addressesBackdrop) {
+    addressesBackdrop.addEventListener('click', (e) => {
+      if (e.target === addressesBackdrop) onStateChange({ isAddressesOpen: false });
+    });
+  }
+
+  // Adres Sil
+  container.querySelectorAll('.delete-addr-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const addrId = btn.getAttribute('data-addr-id');
+      const user = state.currentUser || getCurrentUser();
+      if (!user || !user.phone) return;
+      deleteAddress(user.phone, addrId);
+      // Modal'ı yenile
+      onStateChange({ isAddressesOpen: true });
+    });
+  });
+
+  // Adres Ekle Formu
+  const addAddressForm = container.querySelector('#add-address-form');
+  if (addAddressForm) {
+    addAddressForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = state.currentUser || getCurrentUser();
+      if (!user || !user.phone) return;
+      const newAddrInput = addAddressForm.querySelector('#new-address-input');
+      const addrText = (newAddrInput?.value || '').trim();
+      if (!addrText) return;
+      saveAddress(user.phone, addrText);
+      // Modal'ı yenile
+      onStateChange({ isAddressesOpen: true });
+    });
+  }
+
+  // Checkout'ta Adres Kaydet butonu (textarea içindeki + Kaydet)
+  const saveCurrentAddressBtn = container.querySelector('#save-current-address-btn');
+  if (saveCurrentAddressBtn) {
+    saveCurrentAddressBtn.addEventListener('click', () => {
+      const user = state.currentUser || getCurrentUser();
+      if (!user || !user.phone) return;
+      const textarea = container.querySelector('#delivery-address-textarea');
+      const addrText = (textarea?.value || '').trim();
+      if (!addrText) { alert('Önce bir adres yazınız.'); return; }
+      saveAddress(user.phone, addrText);
+      saveCurrentAddressBtn.textContent = '✓ Kaydedildi!';
+      setTimeout(() => { saveCurrentAddressBtn.textContent = '+ Kaydet'; }, 2000);
+    });
+  }
+
+  // Kayıtlı adres pill'lerine tıkla → textarea'yı doldur
+  container.querySelectorAll('.saved-addr-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const addrText = pill.getAttribute('data-addr');
+      const textarea = container.querySelector('#delivery-address-textarea');
+      if (textarea) {
+        textarea.value = addrText;
+        textarea.focus();
+      }
+    });
+  });
+
+  // =================== TELEFON DOĞRULAMA MODALI ===================
+
+  // Modalı Kapat
+  const closePhoneVerifyBtn = container.querySelector('#close-phone-verify-btn');
+  if (closePhoneVerifyBtn) {
+    closePhoneVerifyBtn.addEventListener('click', () => {
+      onStateChange({ isPhoneVerifyOpen: false, phoneVerifyStep: 'send', phoneVerifyError: '' });
+    });
+  }
+  const phoneVerifyBackdrop = container.querySelector('#phone-verify-modal-backdrop');
+  if (phoneVerifyBackdrop) {
+    phoneVerifyBackdrop.addEventListener('click', (e) => {
+      if (e.target === phoneVerifyBackdrop) {
+        onStateChange({ isPhoneVerifyOpen: false, phoneVerifyStep: 'send', phoneVerifyError: '' });
+      }
+    });
+  }
+
+  // Adım 1: Telefon numarası gir, kod gönder
+  const phoneSendCodeForm = container.querySelector('#phone-send-code-form');
+  if (phoneSendCodeForm) {
+    phoneSendCodeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const phoneInput = phoneSendCodeForm.querySelector('#phone-verify-input');
+      const phone = (phoneInput?.value || '').trim();
+      if (!phone) { return; }
+
+      // Mevcut kullanıcının telefon numarasını güncelle (henüz phone yoksa)
+      const user = state.currentUser || getCurrentUser();
+
+      const submitBtn = phoneSendCodeForm.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Gönderiliyor...'; }
+
+      try {
+        const res = await sendVerificationCode(phone, user ? user.name : 'Müşteri', phone);
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+
+        // Kullanıcı objesinde telefon numarasını güncelle (henüz kayıtlı değilse)
+        if (user && !user.phone) {
+          const updated = { ...user, phone };
+          setCurrentUser(updated);
+          saveCustomerLocally(updated);
+          state.currentUser = updated;
+        }
+
+        onStateChange({
+          phoneVerifyStep: 'verify',
+          pendingPhoneVerify: phone,
+          phoneVerifyCodeHint: codeHint,
+          phoneVerifyError: ''
+        });
+      } catch (err) {
+        onStateChange({ phoneVerifyError: 'Kod gönderilemedi. Lütfen tekrar deneyin.' });
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📱 Doğrulama Kodu Gönder'; }
+      }
+    });
+  }
+
+  // Kodu Doldur butonu
+  const fillPhoneVerifyCodeBtn = container.querySelector('#fill-phone-verify-code-btn');
+  if (fillPhoneVerifyCodeBtn) {
+    fillPhoneVerifyCodeBtn.addEventListener('click', () => {
+      const codeInput = container.querySelector('#phone-otp-input');
+      if (codeInput) codeInput.value = state.phoneVerifyCodeHint || '123456';
+    });
+  }
+
+  // Geri buton (adım 2 → adım 1)
+  const backToPhoneSendBtn = container.querySelector('#back-to-phone-send-btn');
+  if (backToPhoneSendBtn) {
+    backToPhoneSendBtn.addEventListener('click', () => {
+      onStateChange({ phoneVerifyStep: 'send', phoneVerifyError: '' });
+    });
+  }
+
+  // Adım 2: Kodu doğrula
+  const phoneVerifyCodeForm = container.querySelector('#phone-verify-code-form');
+  if (phoneVerifyCodeForm) {
+    phoneVerifyCodeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeInput = phoneVerifyCodeForm.querySelector('#phone-otp-input');
+      const phoneHidden = phoneVerifyCodeForm.querySelector('#phone-verify-hidden-phone');
+      const code = (codeInput?.value || '').trim();
+      const phone = (phoneHidden?.value || state.pendingPhoneVerify || '').trim();
+
+      const submitBtn = phoneVerifyCodeForm.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Doğrulanıyor...'; }
+
+      try {
+        const res = await verifyPhone(phone, code, state.pendingPhoneName || '');
+        if (res.ok) {
+          const updatedUser = res.data ? res.data.user : null;
+          if (updatedUser) {
+            state.currentUser = updatedUser;
+          }
+          const hasCart = state.cart && state.cart.length > 0;
+          onStateChange({
+            isPhoneVerifyOpen: false,
+            phoneVerifyStep: 'send',
+            phoneVerifyError: '',
+            isCheckoutOpen: hasCart,
+            currentUser: updatedUser || state.currentUser
+          });
+          alert('🎉 Telefon numaranız başarıyla doğrulandı! Siparişinizi tamamlayabilirsiniz.');
+        } else {
+          onStateChange({ phoneVerifyError: res.error || 'Doğrulama kodu hatalı.' });
+        }
+
+      } catch (err) {
+        onStateChange({ phoneVerifyError: 'Doğrulama başarısız. Tekrar deneyin.' });
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✓ Telefonu Doğrula 🎉'; }
+      }
+    });
+  }
+
   // Sepetteki Kupon Toggle Butonu
   const toggleDiscountBtn = container.querySelector('#toggle-cart-discount-btn');
   if (toggleDiscountBtn) {
@@ -2444,21 +2963,27 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         return;
       }
 
-      // Kullanıcının oturumu varsa bilgilerini güncelle, yoksa formdan otomatik müşteri hesabı oluştur
+      // Telefon doğrulanmış mı kontrolü (HERKES İÇİN ZORUNLU GÜVENLİK KAPISI)
       let activeUser = state.currentUser || getCurrentUser();
-      if (!activeUser) {
-        activeUser = {
-          name: customerName,
-          phone: customerPhone,
-          registered_at: new Date().toISOString()
-        };
-      } else {
-        activeUser = {
-          ...activeUser,
-          name: customerName,
-          phone: customerPhone || activeUser.phone
-        };
+      if (!activeUser || !activeUser.phoneVerified) {
+        alert("⚠️ Telefon numaranız doğrulanmadan sipariş verilemez. Lütfen numaranızı SMS ile doğrulayınız.");
+        onStateChange({
+          isCheckoutOpen: false,
+          isPhoneVerifyOpen: true,
+          phoneVerifyStep: 'send',
+          pendingPhoneVerify: customerPhone || (activeUser ? activeUser.phone : ''),
+          pendingPhoneName: customerName || (activeUser ? activeUser.name : '')
+        });
+        return;
       }
+
+      // Kullanıcı bilgilerini güncelle
+      activeUser = {
+        ...activeUser,
+        name: customerName,
+        phone: customerPhone || activeUser.phone
+      };
+
       setCurrentUser(activeUser);
       state.currentUser = activeUser;
       saveCustomerLocally(activeUser);

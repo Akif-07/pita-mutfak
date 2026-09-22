@@ -53,7 +53,9 @@ const state = {
   isAddExpenseModalOpen: false,
   accountingPeriod: 'today',
   accountingCustomStart: '',
-  accountingCustomEnd: ''
+  accountingCustomEnd: '',
+  isAddressesOpen: false,
+  isPhoneVerifyOpen: false
 };
 
 

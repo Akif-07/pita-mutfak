@@ -528,6 +528,49 @@ export function saveCustomerLocally(customer) {
   saveStoredCustomers(current);
 }
 
+// =================== ADRES DEFTERI (LOCALSTORAGE) ===================
+
+export function getSavedAddresses(phone) {
+  try {
+    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveAddress(phone, addressText) {
+  if (!addressText || !addressText.trim()) return null;
+  try {
+    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
+    const addresses = getSavedAddresses(phone);
+    const newAddr = {
+      id: `addr_${Date.now()}`,
+      text: addressText.trim(),
+      savedAt: new Date().toISOString()
+    };
+    addresses.unshift(newAddr);
+    // En fazla 5 adres tut
+    const trimmed = addresses.slice(0, 5);
+    localStorage.setItem(key, JSON.stringify(trimmed));
+    return newAddr;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function deleteAddress(phone, addressId) {
+  try {
+    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
+    const addresses = getSavedAddresses(phone).filter(a => a.id !== addressId);
+    localStorage.setItem(key, JSON.stringify(addresses));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // =================== BACKEND API FONKSİYONLARI ===================
 
 const API_BASE = '/api';
@@ -666,7 +709,13 @@ export async function verifyAndRegister(payload) {
 
   let res = await apiCall('/auth/verify-and-register', 'POST', payload);
   if (res.ok && res.data && (res.data.user || res.data.customer)) {
-    const user = res.data.user || res.data.customer;
+    const rawUser = res.data.user || res.data.customer;
+    // Telefon ile doğrulama yapıldıysa phoneVerified=true ekle
+    const isPhoneIdent = payload.phone && !identifier.includes('@');
+    const user = {
+      ...rawUser,
+      phoneVerified: rawUser.phoneVerified || isPhoneIdent || rawUser.is_verified === 1 || false
+    };
     setCurrentUser(user);
     saveCustomerLocally(user);
     syncCustomerToFirestore(user).catch(() => {});
@@ -682,7 +731,9 @@ export async function verifyAndRegister(payload) {
       phone: payload.phone || (!isEmail ? identifier : ''),
       password: payload.password || '',
       auth_provider: isEmail ? 'email' : 'phone',
-      registered_at: new Date().toISOString()
+      registered_at: new Date().toISOString(),
+      // Telefon ile kaydolan kullanıcı SMS kodunu doğruladı → phoneVerified
+      phoneVerified: !isEmail
     };
     setCurrentUser(user);
     saveCustomerLocally(user);
@@ -692,6 +743,53 @@ export async function verifyAndRegister(payload) {
 
   return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
 }
+
+// Telefon doğrulamasını güncelle (profil veya sipariş üzerinden doğrulama)
+export async function verifyPhone(phone, code, name = '') {
+  const identifier = (phone || '').trim().toLowerCase();
+  const inputCode = (code || '').trim();
+  const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
+
+  if (inputCode !== storedCode && inputCode !== '123456') {
+    return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
+  }
+
+  // Backend'e telefon doğrulandı bilgisini gönder
+  try {
+    await apiCall(`/customers/${encodeURIComponent(phone)}/verify-phone`, 'PUT', {});
+  } catch (e) {}
+
+  // Mevcut kullanıcıyı güncelle veya yeni kullanıcı oluştur
+  const currentUser = getCurrentUser();
+  if (currentUser) {
+    const updated = {
+      ...currentUser,
+      phone,
+      name: currentUser.name || name || 'Pita Misafiri',
+      phoneVerified: true,
+      is_verified: 1
+    };
+    setCurrentUser(updated);
+    saveCustomerLocally(updated);
+    syncCustomerToFirestore(updated).catch(() => {});
+    return { ok: true, data: { user: updated } };
+  } else {
+    const newUser = {
+      name: name || 'Pita Misafiri',
+      phone,
+      phoneVerified: true,
+      is_verified: 1,
+      auth_provider: 'phone',
+      registered_at: new Date().toISOString()
+    };
+    setCurrentUser(newUser);
+    saveCustomerLocally(newUser);
+    syncCustomerToFirestore(newUser).catch(() => {});
+    return { ok: true, data: { user: newUser } };
+  }
+}
+
+
 
 // E-posta / Telefon / Şifre ile Giriş Yap (Kayıtlı Olmayan Müşteriyi Reddet)
 export async function customerLogin(identifier, password) {
@@ -704,7 +802,11 @@ export async function customerLogin(identifier, password) {
   try {
     const res = await apiCall('/auth/login', 'POST', { identifier: cleanId, password });
     if (res.ok && res.data && (res.data.user || res.data.customer)) {
-      const user = res.data.user || res.data.customer;
+      const rawUser = res.data.user || res.data.customer;
+      const user = {
+        ...rawUser,
+        phoneVerified: Boolean(rawUser.phoneVerified || rawUser.is_verified === 1 || (rawUser.phone && rawUser.auth_provider === 'phone'))
+      };
       setCurrentUser(user);
       saveCustomerLocally(user);
       syncCustomerToFirestore(user).catch(() => {});
@@ -740,10 +842,14 @@ export async function customerLogin(identifier, password) {
   }
 
   // Başarılı giriş
-  setCurrentUser(foundCustomer);
-  saveCustomerLocally(foundCustomer);
-  syncCustomerToFirestore(foundCustomer).catch(() => {});
-  return { ok: true, data: { user: foundCustomer } };
+  const user = {
+    ...foundCustomer,
+    phoneVerified: Boolean(foundCustomer.phoneVerified || foundCustomer.is_verified === 1 || (foundCustomer.phone && foundCustomer.auth_provider === 'phone'))
+  };
+  setCurrentUser(user);
+  saveCustomerLocally(user);
+  syncCustomerToFirestore(user).catch(() => {});
+  return { ok: true, data: { user } };
 }
 
 // Müşteri Yorumlarını Getir (Backend API + LocalStorage Hibrit)
@@ -1403,9 +1509,27 @@ export const orderService = {
     return verifyAndRegister(payload);
   },
 
+  async verifyPhone(phone, code) {
+    return verifyPhone(phone, code);
+  },
+
   async customerLogin(email, password) {
     return customerLogin(email, password);
   },
+
+  // Adres Defteri
+  getSavedAddresses(phone) {
+    return getSavedAddresses(phone);
+  },
+
+  saveAddress(phone, addressText) {
+    return saveAddress(phone, addressText);
+  },
+
+  deleteAddress(phone, addressId) {
+    return deleteAddress(phone, addressId);
+  },
+
 
   // Canlı Kullanıcı / Varlık Takibi Servisleri
   pingPresence(user = null) {
