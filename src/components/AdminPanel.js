@@ -309,8 +309,8 @@ export function renderAdminPanel(container, state, onStateChange) {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           
           <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-2xl bg-[#06C167] text-white flex items-center justify-center font-bold shadow-md shadow-[#06C167]/20">
-              🍲
+            <div class="w-11 h-11 rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 bg-black flex-shrink-0">
+              <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
             </div>
             <div>
               <div class="flex items-center gap-2">
@@ -2438,7 +2438,7 @@ function attachAdminEventListeners(container, state, onStateChange) {
         </head>
         <body>
           <div class="header">
-            <h1 class="title">🍲 PİTA MUTFAK</h1>
+            <h1 class="title">🍕🍝🍗 PİTA MUTFAK</h1>
             <div class="subtitle">Finansal Kasa & Z-Raporu Çıktısı</div>
             <div class="period">Dönem: ${kpis.periodLabel} | Tarih: ${new Date().toLocaleString('tr-TR')}</div>
           </div>

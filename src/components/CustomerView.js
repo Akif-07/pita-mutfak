@@ -101,14 +101,8 @@ export function renderCustomerView(container, state, onStateChange) {
           
           <!-- Logo & Slogan -->
           <div class="flex items-center gap-3 cursor-pointer" id="nav-logo-btn">
-            <div class="w-12 h-12 rounded-2xl bg-[#06C167] text-white flex items-center justify-center shadow-md shadow-[#06C167]/20 transform transition hover:scale-105">
-              <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                <line x1="6" y1="1" x2="6" y2="4"></line>
-                <line x1="10" y1="1" x2="10" y2="4"></line>
-                <line x1="14" y1="1" x2="14" y2="4"></line>
-              </svg>
+            <div class="w-12 h-12 rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-black flex-shrink-0">
+              <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
             </div>
             <div>
               <div class="flex items-center gap-2">
@@ -119,7 +113,7 @@ export function renderCustomerView(container, state, onStateChange) {
                   <span class="text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
                 </span>
               </div>
-              <p class="text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Güveçte Kuru Fasulye</p>
+              <p class="text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
             </div>
           </div>
 
@@ -248,11 +242,11 @@ export function renderCustomerView(container, state, onStateChange) {
             </div>
 
             <h2 class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-3">
-              Usta Ellerden <span class="text-[#06C167]">Tavuk Pilav</span>, <span class="text-[#06C167]">Makarna</span> ve <span class="text-[#06C167]">Kuru Fasulye</span>
+              Usta Ellerden <span class="text-[#06C167]">Tavuk Pilav</span>, <span class="text-[#06C167]">Taze Makarna</span> ve <span class="text-[#06C167]">Çıtır Pizza</span>
             </h2>
 
             <p class="text-gray-300 text-sm sm:text-base mb-6 leading-relaxed">
-              Özel marine edilmiş çıtır ve tiftik tavuklar, tereyağlı tane nohutlu pilav, günlük taze hazırlanan makarnalar ve ağır ateşte güveçte pişen kuru fasulye sofranızda.
+              Özel marine edilmiş çıtır ve tiftik tavuklar, tereyağlı nohutlu pilav, günlük krema ve fesleğenli makarnalar ile taş fırında nar gibi kızaran İtalyan hamurlu çıtır pizzalar sofranızda.
             </p>
 
             <!-- İLK SİPARİŞİNE İNDİRİMİ KAP ETKİLEŞİMLİ KUTUSU -->

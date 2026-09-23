@@ -245,6 +245,71 @@ export const initialMenu = [
     badge: null,
     isAvailable: true,
     options: []
+  },
+
+  // ÇITIR PİZZA ÇEŞİTLERİ (TAŞ FIRIN)
+  {
+    id: "pz-1",
+    name: "Klasik Margherita Pizza",
+    category: "pizza",
+    categoryTitle: "Çıtır Pizza Çeşitleri",
+    price: 185,
+    description: "İtalyan domates sosu, bol mozzarella peyniri, taze fesleğen ve sızma zeytinyağı ile taş fırında ince çıtır hamur.",
+    image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=600&q=80",
+    badge: "Çok Satan",
+    isAvailable: true,
+    options: [
+      { name: "Orta Boy (28cm)", price: 0 },
+      { name: "Büyük Boy (33cm)", price: 50 },
+      { name: "Ekstra Mozzarella", price: 35 }
+    ]
+  },
+  {
+    id: "pz-2",
+    name: "Bol Malzemeli Karışık Pizza",
+    category: "pizza",
+    categoryTitle: "Çıtır Pizza Çeşitleri",
+    price: 220,
+    description: "Özel pizza sosu, mozzarella, kasap sucuk, salam, kültür mantarı, mısır, yeşil biber ve siyah zeytin ziyafeti.",
+    image: "https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&w=600&q=80",
+    badge: "Şefin Favorisi",
+    isAvailable: true,
+    options: [
+      { name: "Orta Boy (28cm)", price: 0 },
+      { name: "Büyük Boy (33cm)", price: 55 },
+      { name: "Peynirli Kenar Ekle", price: 40 }
+    ]
+  },
+  {
+    id: "pz-3",
+    name: "Barbekü Tavuklu & Mantarlı Pizza",
+    category: "pizza",
+    categoryTitle: "Çıtır Pizza Çeşitleri",
+    price: 210,
+    description: "Füme barbekü sosu, jülyen marine tavuk parçaları, mozzarella peyniri, kırmızı soğan ve taze mantar.",
+    image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=600&q=80",
+    badge: "Gurme Lezzet",
+    isAvailable: true,
+    options: [
+      { name: "Orta Boy (28cm)", price: 0 },
+      { name: "Büyük Boy (33cm)", price: 50 },
+      { name: "Ekstra Tavuk Bonfile", price: 35 }
+    ]
+  },
+  {
+    id: "pz-4",
+    name: "Acılı Kasap Sucuklu Pizza",
+    category: "pizza",
+    categoryTitle: "Çıtır Pizza Çeşitleri",
+    price: 205,
+    description: "Kayseri kasap sucuğu, bol eriyen kaşar ve mozzarella, jalapeno acı biber turşusu ve kekikli domates sosu.",
+    image: "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=600&q=80",
+    badge: "Acı Severler",
+    isAvailable: true,
+    options: [
+      { name: "Orta Boy (28cm)", price: 0 },
+      { name: "Büyük Boy (33cm)", price: 50 }
+    ]
   }
 ];
 
@@ -252,6 +317,8 @@ export const categories = [
   { id: "all", name: "Tüm Menü", icon: "Utensils" },
   { id: "tavuk-pilav", name: "Tavuk Pilav", icon: "Drumstick" },
   { id: "makarna", name: "Makarna Çeşitleri", icon: "Wheat" },
+  { id: "pizza", name: "Çıtır Pizza", icon: "Pizza" },
   { id: "kuru-fasulye", name: "Kuru Fasulye & Pilav", icon: "Flame" },
   { id: "icecek", name: "İçecek & Tatlı", icon: "Coffee" }
 ];
+

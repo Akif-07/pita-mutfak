@@ -406,7 +406,17 @@ export function getStoredMenu() {
     const saved = localStorage.getItem(STORAGE_MENU_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Eksik yeni ürünleri (örn. yeni eklenen taş fırın pizzalar) otomatik olarak menüye dahil et
+        const existingIds = new Set(parsed.map(p => p.id));
+        const missingItems = initialMenu.filter(p => !existingIds.has(p.id));
+        if (missingItems.length > 0) {
+          const merged = [...parsed, ...missingItems];
+          saveMenu(merged);
+          return merged;
+        }
+        return parsed;
+      }
     }
   } catch (e) {
     console.error("Menü yükleme hatası:", e);
