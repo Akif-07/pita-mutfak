@@ -17,8 +17,10 @@ import {
   isRestaurantOpenNow,
   getSavedAddresses,
   saveAddress,
-  deleteAddress
+  deleteAddress,
+  resetRecaptchaVerifier
 } from '../services/orderService.js';
+
 
 import { categories } from '../data/initialMenu.js';
 import { verifyAdminCredentials, setAdminLoggedIn } from './AdminPanel.js';
@@ -1029,6 +1031,20 @@ function renderPhoneVerifyModal(currentUser, state) {
             >
               ✓ Telefonu Doğrula 🎉
             </button>
+
+            <!-- 15 Saniyelik Kodu Tekrar Gönder Butonu -->
+            <div class="flex items-center justify-between px-1 py-1 text-xs">
+              <span class="text-gray-400 font-medium">Kod ulaşmadı mı?</span>
+              <button 
+                type="button" 
+                id="resend-verify-code-btn" 
+                disabled
+                class="text-xs font-bold text-gray-400 cursor-not-allowed transition hover:underline"
+              >
+                <span id="resend-btn-text">Kodu Tekrar Gönder (<span id="resend-countdown">15</span>s)</span>
+              </button>
+            </div>
+
 
             <!-- SMS Gelmedi mi / Alternatif Test Kodu Desteği -->
             <div class="p-3 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] text-gray-600 mt-2">
@@ -2591,6 +2607,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const closePhoneVerifyBtn = container.querySelector('#close-phone-verify-btn');
   if (closePhoneVerifyBtn) {
     closePhoneVerifyBtn.addEventListener('click', () => {
+      if (window._resendTimer) clearInterval(window._resendTimer);
       onStateChange({ isPhoneVerifyOpen: false, phoneVerifyStep: 'send', phoneVerifyError: '' });
     });
   }
@@ -2598,10 +2615,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (phoneVerifyBackdrop) {
     phoneVerifyBackdrop.addEventListener('click', (e) => {
       if (e.target === phoneVerifyBackdrop) {
+        if (window._resendTimer) clearInterval(window._resendTimer);
         onStateChange({ isPhoneVerifyOpen: false, phoneVerifyStep: 'send', phoneVerifyError: '' });
       }
     });
   }
+
 
   // Adım 1: Telefon numarası gir, kod gönder
   const phoneSendCodeForm = container.querySelector('#phone-send-code-form');
@@ -2672,14 +2691,73 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
+  // 15 Saniyelik Geri Sayım ve Kodu Tekrar Gönder Butonu
+  const resendBtn = container.querySelector('#resend-verify-code-btn');
+  const resendCountdownSpan = container.querySelector('#resend-countdown');
+  const resendBtnText = container.querySelector('#resend-btn-text');
+
+  if (resendBtn && resendCountdownSpan) {
+    if (window._resendTimer) clearInterval(window._resendTimer);
+    let secondsLeft = 15;
+
+    window._resendTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft > 0) {
+        if (resendCountdownSpan) resendCountdownSpan.textContent = secondsLeft;
+      } else {
+        clearInterval(window._resendTimer);
+        window._resendTimer = null;
+        resendBtn.disabled = false;
+        resendBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
+        resendBtn.classList.add('text-[#06C167]', 'cursor-pointer', 'font-black');
+        if (resendBtnText) {
+          resendBtnText.innerHTML = '🔄 Kodu Tekrar Gönder';
+        }
+      }
+    }, 1000);
+
+    resendBtn.addEventListener('click', async () => {
+      if (resendBtn.disabled) return;
+      resendBtn.disabled = true;
+      resendBtn.classList.remove('text-[#06C167]', 'cursor-pointer');
+      resendBtn.classList.add('text-gray-400', 'cursor-not-allowed');
+      if (resendBtnText) resendBtnText.textContent = 'SMS Gönderiliyor...';
+
+      const phoneHidden = container.querySelector('#phone-verify-hidden-phone');
+      const phone = (phoneHidden?.value || state.pendingPhoneVerify || '').trim();
+      const user = state.currentUser || getCurrentUser();
+
+      resetRecaptchaVerifier();
+
+      try {
+        const res = await sendVerificationCode(phone, user ? user.name : 'Müşteri', phone);
+        if (res.ok) {
+          const codeHint = (res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
+          onStateChange({
+            phoneVerifyStep: 'verify',
+            pendingPhoneVerify: phone,
+            isFirebaseSms: Boolean(res.firebase),
+            phoneVerifyCodeHint: codeHint,
+            phoneVerifyError: res.firebaseError ? `⚠️ ${res.firebaseError}` : ''
+          });
+        } else {
+          onStateChange({ phoneVerifyError: res.error || 'Kod tekrar gönderilemedi.' });
+        }
+      } catch (err) {
+        onStateChange({ phoneVerifyError: 'Bir hata oluştu. Lütfen tekrar deneyiniz.' });
+      }
+    });
+  }
 
   // Geri buton (adım 2 → adım 1)
   const backToPhoneSendBtn = container.querySelector('#back-to-phone-send-btn');
   if (backToPhoneSendBtn) {
     backToPhoneSendBtn.addEventListener('click', () => {
+      if (window._resendTimer) clearInterval(window._resendTimer);
       onStateChange({ phoneVerifyStep: 'send', phoneVerifyError: '' });
     });
   }
+
 
   // Adım 2: Kodu doğrula
   const phoneVerifyCodeForm = container.querySelector('#phone-verify-code-form');
