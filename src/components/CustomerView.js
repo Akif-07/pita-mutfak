@@ -1011,31 +1011,47 @@ function renderPhoneVerifyModal(currentUser, state) {
 
               <label class="block text-xs font-bold text-gray-700 mb-1 text-center">6 Haneli Kodu Giriniz *</label>
               <input 
-                type="text"
-                id="phone-otp-input"
-                name="code"
-                required
-                maxlength="6"
-                placeholder="000000"
-                autocomplete="one-time-code"
-                class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-2xl border-2 border-emerald-300 focus:border-[#06C167] focus:ring-2 focus:ring-[#06C167]/20 outline-none transition"
+                type="text" 
+                id="phone-otp-input" 
+                name="code" 
+                required 
+                maxlength="6" 
+                placeholder="000000" 
+                autocomplete="one-time-code" 
+                class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-2xl border-2 border-emerald-300 focus:border-[#06C167] focus:ring-2 focus:ring-[#06C167]/20 outline-none transition" 
               />
               <input type="hidden" id="phone-verify-hidden-phone" value="${state.pendingPhoneVerify || existingPhone}" />
             </div>
+
             <button 
-              type="submit"
-              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3 rounded-2xl text-xs transition cursor-pointer"
+              type="submit" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3 rounded-2xl text-xs transition cursor-pointer shadow-md shadow-[#06C167]/20" 
             >
               ✓ Telefonu Doğrula 🎉
             </button>
+
+            <!-- SMS Gelmedi mi / Alternatif Test Kodu Desteği -->
+            <div class="p-3 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] text-gray-600 mt-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-gray-800">SMS gelmedi mi?</span>
+                <button type="button" id="use-test-code-btn" class="text-[#06C167] hover:text-[#05a557] font-black underline cursor-pointer">
+                  Test Kodunu Doldur (123456)
+                </button>
+              </div>
+              <p class="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                Operatör / SMS gecikmesi durumunda veya test aşamasında <strong>123456</strong> kodunu kullanarak doğrulayabilirsiniz.
+              </p>
+            </div>
+
             <button 
-              type="button"
-              id="back-to-phone-send-btn"
-              class="w-full text-center text-xs text-gray-400 hover:text-gray-700 font-semibold cursor-pointer"
+              type="button" 
+              id="back-to-phone-send-btn" 
+              class="w-full text-center text-xs text-gray-400 hover:text-gray-700 font-semibold cursor-pointer pt-1" 
             >
               ← Farklı numarayla tekrar dene
             </button>
           </form>
+
         `}
 
       </div>
@@ -2467,9 +2483,10 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           pendingPhoneName: targetName,
           isFirebaseSms: Boolean(res.firebase),
           phoneVerifyCodeHint: codeHint,
-          phoneVerifyError: ''
+          phoneVerifyError: res.firebaseError ? `⚠️ ${res.firebaseError}` : ''
         });
         return;
+
       } catch (e) {}
     }
 
@@ -2623,7 +2640,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           pendingPhoneVerify: phone,
           isFirebaseSms: Boolean(res.firebase),
           phoneVerifyCodeHint: codeHint,
-          phoneVerifyError: ''
+          phoneVerifyError: res.firebaseError ? `⚠️ ${res.firebaseError}` : ''
         });
       } catch (err) {
         onStateChange({ phoneVerifyError: 'Kod gönderilemedi. Lütfen tekrar deneyin.' });
@@ -2642,6 +2659,19 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       if (codeInput) codeInput.value = state.phoneVerifyCodeHint || '123456';
     });
   }
+
+  // Test Kodunu Doldur butonu (123456)
+  const useTestCodeBtn = container.querySelector('#use-test-code-btn');
+  if (useTestCodeBtn) {
+    useTestCodeBtn.addEventListener('click', () => {
+      const codeInput = container.querySelector('#phone-otp-input');
+      if (codeInput) {
+        codeInput.value = '123456';
+        codeInput.focus();
+      }
+    });
+  }
+
 
   // Geri buton (adım 2 → adım 1)
   const backToPhoneSendBtn = container.querySelector('#back-to-phone-send-btn');
