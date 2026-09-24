@@ -1027,3 +1027,49 @@ export function subscribePresence(callback) {
   };
 }
 
+// =================== 8. CONTACT MESSAGES (MÜŞTERİ İLETİŞİM MESAJLARI) ===================
+
+export async function sendContactMessageToFirestore(message) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const sanitized = cleanForFirestore(message);
+    await setDoc(doc(db, 'contact_messages', message.id), sanitized);
+    return true;
+  } catch (e) {
+    console.warn('Contact message gönderme hatası:', e);
+    return false;
+  }
+}
+
+export async function getContactMessagesFromFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return [];
+    const { db, collection, getDocs, query, orderBy } = ctx;
+    const q = query(collection(db, 'contact_messages'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('Contact messages getirme hatası:', e);
+    return [];
+  }
+}
+
+export async function updateContactMessageStatus(messageId, status) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc, getDoc } = ctx;
+    const ref = doc(db, 'contact_messages', messageId);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      await setDoc(ref, { ...snap.data(), status, updatedAt: new Date().toISOString() });
+    }
+    return true;
+  } catch (e) {
+    console.warn('Contact message status güncelleme hatası:', e);
+    return false;
+  }
+}

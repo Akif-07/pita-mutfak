@@ -173,7 +173,9 @@ export function renderAdminPanel(container, state, onStateChange) {
   const adminFilter = state.adminFilter || 'all';
   const adminDateFilter = state.adminDateFilter || 'today'; // 'today' (Varsayılan Günlük!) | 'yesterday' | 'custom' | 'all'
   const adminCustomDate = state.adminCustomDate || '';
-  const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers' | 'reviews' | 'accounting'
+  const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers' | 'reviews' | 'accounting' | 'contact'
+  const contactMessages = state.contactMessages || [];
+  const unreadContactCount = contactMessages.filter(m => m.status === 'new').length;
   const settings = state.restaurantSettings || orderService.getRestaurantSettings();
   const restStatus = isRestaurantOpenNow(settings);
   let adminBtnClass = 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30';
@@ -398,6 +400,12 @@ export function renderAdminPanel(container, state, onStateChange) {
               >
                 📊 Muhasebe & Kasa
               </button>
+              <button 
+                id="tab-contact-btn" 
+                class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer whitespace-nowrap relative ${activeTab === 'contact' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-600 hover:text-black'}"
+              >
+                📩 Mesajlar${unreadContactCount > 0 ? ` <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-black flex items-center justify-center">${unreadContactCount}</span>` : ''}
+              </button>
             </div>
 
           </div>
@@ -608,6 +616,9 @@ export function renderAdminPanel(container, state, onStateChange) {
 
         <!-- =================== 5. SEKME: MUHASEBE & GİDER YÖNETİMİ =================== -->
         ${activeTab === 'accounting' ? renderAccountingTab(orders, expensesList, state) : ''}
+
+        <!-- =================== 6. SEKME: MÜŞTERİ MESAJLARI (BİZE ULAŞIN) =================== -->
+        ${activeTab === 'contact' ? renderContactMessagesTab(contactMessages, state) : ''}
 
       </main>
 
@@ -2320,6 +2331,15 @@ function attachAdminEventListeners(container, state, onStateChange) {
     tabAccountingBtn.addEventListener('click', () => onStateChange({ adminActiveTab: 'accounting' }));
   }
 
+  const tabContactBtn = container.querySelector('#tab-contact-btn');
+  if (tabContactBtn) {
+    tabContactBtn.addEventListener('click', () => {
+      // Contact mesajlarını yükle
+      loadContactMessages(onStateChange);
+      onStateChange({ adminActiveTab: 'contact' });
+    });
+  }
+
   // Canlı Ziyaretçi Rozeti & KPI Kartları Tıklanınca Müşteriler Sekmesine Geç
   const presenceBadgeBtn = container.querySelector('#admin-presence-badge-btn');
   if (presenceBadgeBtn) {
@@ -2953,4 +2973,146 @@ function attachAdminEventListeners(container, state, onStateChange) {
       }
     });
   }
+
+  // Contact Mesajları: Çözüldü Butonları
+  container.querySelectorAll('.admin-resolve-contact-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const msgId = btn.getAttribute('data-msg-id');
+      if (!msgId) return;
+      try {
+        const { markContactMessageResolved } = await import('../services/orderService.js');
+        await markContactMessageResolved(msgId);
+        // State güncelle
+        const updatedMsgs = (state.contactMessages || []).map(m =>
+          m.id === msgId ? { ...m, status: 'resolved' } : m
+        );
+        onStateChange({ contactMessages: updatedMsgs });
+      } catch (e) {
+        console.warn('Mesaj güncelleme hatası:', e);
+      }
+    });
+  });
+}
+
+// =================== CONTACT MESSAGES (MÜŞTERİ İLETİŞİM) ===================
+
+async function loadContactMessages(onStateChange) {
+  try {
+    const { getContactMessages } = await import('../services/orderService.js');
+    const msgs = await getContactMessages();
+    onStateChange({ contactMessages: Array.isArray(msgs) ? msgs : [] });
+  } catch (e) {
+    console.warn('Contact messages yüklenemedi:', e);
+  }
+}
+
+function renderContactMessagesTab(messages, state) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return `
+      <div class="text-center py-20">
+        <div class="text-6xl mb-4">📭</div>
+        <h3 class="text-lg font-black text-gray-800 mb-2">Henüz Mesaj Yok</h3>
+        <p class="text-sm text-gray-500">Müşterilerden gelen iletişim mesajları burada görünecek.</p>
+      </div>
+    `;
+  }
+
+  const statusLabel = { new: '🆕 Yeni', read: '👁️ Okundu', resolved: '✅ Çözüldü' };
+  const statusColor = { new: 'bg-red-100 text-red-700 border-red-200', read: 'bg-blue-100 text-blue-700 border-blue-200', resolved: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+  const subjectLabel = { sikayet: '😤 Şikayet', oneri: '💡 Öneri/İstek', siparis: '📦 Sipariş Sorunu', urun: '🍕 Ürün Hakkında', diger: '💬 Diğer' };
+
+  return `
+    <div class="space-y-4 pb-10">
+
+      <!-- Başlık & İstatistikler -->
+      <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl p-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-black mb-1">📩 Müşteri Mesajları</h2>
+            <p class="text-xs text-purple-200">Bize Ulaşın formundan gelen şikayet, istek ve öneriler</p>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-black">${messages.length}</div>
+            <div class="text-xs text-purple-200">Toplam Mesaj</div>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <div class="bg-white/20 rounded-xl px-3 py-2 text-center flex-1">
+            <div class="text-xl font-black">${messages.filter(m => m.status === 'new').length}</div>
+            <div class="text-[11px] text-purple-200">Yeni</div>
+          </div>
+          <div class="bg-white/20 rounded-xl px-3 py-2 text-center flex-1">
+            <div class="text-xl font-black">${messages.filter(m => m.status === 'read').length}</div>
+            <div class="text-[11px] text-purple-200">Okundu</div>
+          </div>
+          <div class="bg-white/20 rounded-xl px-3 py-2 text-center flex-1">
+            <div class="text-xl font-black">${messages.filter(m => m.status === 'resolved').length}</div>
+            <div class="text-[11px] text-purple-200">Çözüldü</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mesaj Listesi -->
+      ${messages.map(msg => `
+        <div class="bg-white rounded-2xl border ${msg.status === 'new' ? 'border-red-200 shadow-sm shadow-red-100' : 'border-gray-200'} p-5" data-contact-msg-id="${msg.id}">
+
+          <!-- Üst Kısım -->
+          <div class="flex items-start justify-between gap-4 mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-black text-sm flex-shrink-0">
+                ${(msg.senderName || '?')[0].toUpperCase()}
+              </div>
+              <div>
+                <div class="font-black text-gray-900 text-sm">${msg.senderName || 'Anonim'}</div>
+                <div class="text-xs text-gray-400 flex items-center gap-2">
+                  ${msg.senderPhone ? \`<span>📞 ${msg.senderPhone}</span>\` : ''}
+                  <span>${new Date(msg.createdAt).toLocaleString('tr-TR')}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              ${msg.subject ? \`<span class="bg-gray-100 text-gray-600 text-[11px] font-bold px-2 py-1 rounded-lg">${subjectLabel[msg.subject] || msg.subject}</span>\` : ''}
+              <span class="text-[11px] font-bold px-2 py-1 rounded-lg border ${statusColor[msg.status] || 'bg-gray-100 text-gray-600 border-gray-200'}">${statusLabel[msg.status] || msg.status}</span>
+            </div>
+          </div>
+
+          <!-- Mesaj Metni -->
+          <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 leading-relaxed mb-3">
+            ${msg.message || ''}
+          </div>
+
+          <!-- Fotoğraf (varsa) -->
+          ${msg.photoBase64 ? \`
+            <div class="mb-3">
+              <div class="text-xs font-bold text-gray-500 mb-2">📷 Ek Fotoğraf:</div>
+              <img
+                src="${msg.photoBase64}"
+                alt="Müşteri fotoğrafı"
+                class="max-w-xs max-h-48 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition"
+                onclick="window.open(this.src, '_blank')"
+              >
+            </div>
+          \` : ''}
+
+          <!-- Aksiyon Butonları -->
+          <div class="flex items-center gap-2 flex-wrap">
+            ${msg.status !== 'resolved' ? \`
+              <button
+                class="admin-resolve-contact-btn text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-[#06C167] hover:text-white text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                data-msg-id="${msg.id}"
+              >✅ Çözüldü Olarak İşaretle</button>
+            \` : ''}
+            ${msg.senderPhone ? \`
+              <a
+                href="tel:${msg.senderPhone}"
+                class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition"
+              >📞 Geri Ara</a>
+            \` : ''}
+          </div>
+
+        </div>
+      `).join('')}
+
+    </div>
+  `;
 }

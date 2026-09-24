@@ -18,7 +18,8 @@ import {
   getSavedAddresses,
   saveAddress,
   deleteAddress,
-  resetRecaptchaVerifier
+  resetRecaptchaVerifier,
+  submitContactMessage
 } from '../services/orderService.js';
 
 
@@ -448,10 +449,175 @@ export function renderCustomerView(container, state, onStateChange) {
       <!-- Telefon Doğrulama Modalı -->
       ${state.isPhoneVerifyOpen ? renderPhoneVerifyModal(currentUser, state) : ''}
 
+      <!-- Bize Ulaşın Modalı -->
+      ${state.isContactModalOpen ? renderContactModal(currentUser) : ''}
+
     </div>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="bg-[#0E1511] text-white mt-12">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+
+          <!-- Logo & Slogan -->
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl overflow-hidden bg-[#06C167] flex-shrink-0">
+              <img src="./assets/logo_app.jpg" alt="Pita Mutfak" class="w-full h-full object-cover">
+            </div>
+            <div>
+              <div class="text-xl font-black tracking-tight">pita<span class="text-[#06C167]">mutfak</span></div>
+              <p class="text-xs text-gray-400 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
+            </div>
+          </div>
+
+          <!-- Linkler -->
+          <div class="flex flex-wrap items-center gap-4 text-sm">
+            <button id="footer-contact-btn" class="flex items-center gap-2 bg-[#06C167] hover:bg-[#05a557] text-white font-bold px-4 py-2.5 rounded-xl transition cursor-pointer text-xs shadow-lg shadow-[#06C167]/30">
+              <span>💬</span>
+              <span>Bize Ulaşın</span>
+            </button>
+            <a href="#/privacy" class="text-gray-400 hover:text-white text-xs font-medium transition">🔒 Gizlilik Politikası</a>
+            <a href="#/terms" class="text-gray-400 hover:text-white text-xs font-medium transition">📋 Kullanım Şartları</a>
+          </div>
+        </div>
+
+        <div class="border-t border-white/10 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+          <span>© ${new Date().getFullYear()} Pita Mutfak — Tüm hakları saklıdır.</span>
+          <div class="flex items-center gap-4">
+            <span>🛵 Hızlı Teslimat</span>
+            <span>🔒 Güvenli Sipariş</span>
+            <span>⭐ Kaliteli Lezzet</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+
   `;
 
   attachCustomerEventListeners(container, state, onStateChange, menu);
+}
+
+// Bize Ulaşın (Contact) Modalı
+function renderContactModal(currentUser) {
+  const prefillName = currentUser?.name || '';
+  const prefillPhone = currentUser?.phone || '';
+
+  return `
+    <div id="contact-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white rounded-t-3xl z-10">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-[#06C167] text-white flex items-center justify-center text-lg font-bold shadow-md shadow-[#06C167]/20">💬</div>
+            <div>
+              <h2 class="text-base font-black text-[#121212]">Bize Ulaşın</h2>
+              <p class="text-xs text-gray-400">Şikayet, istek veya önerinizi iletin</p>
+            </div>
+          </div>
+          <button id="close-contact-modal" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition cursor-pointer">✕</button>
+        </div>
+
+        <form id="contact-form" class="p-6 space-y-4">
+
+          <div id="contact-success-msg" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4 text-sm font-semibold text-center">
+            ✅ Mesajınız başarıyla iletildi! En kısa sürede size geri döneceğiz.
+          </div>
+
+          <div id="contact-error-msg" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-2xl p-3 text-xs font-semibold"></div>
+
+          <!-- İsim -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Adınız Soyadınız *</label>
+            <input
+              id="contact-name"
+              type="text"
+              value="${prefillName}"
+              placeholder="Adınız Soyadınız"
+              required
+              class="w-full bg-gray-50 border border-gray-200 focus:border-[#06C167] focus:bg-white rounded-xl px-4 py-3 text-sm outline-none transition"
+            />
+          </div>
+
+          <!-- Telefon -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Telefon Numarası</label>
+            <input
+              id="contact-phone"
+              type="tel"
+              value="${prefillPhone}"
+              placeholder="05XX XXX XX XX"
+              class="w-full bg-gray-50 border border-gray-200 focus:border-[#06C167] focus:bg-white rounded-xl px-4 py-3 text-sm outline-none transition"
+            />
+          </div>
+
+          <!-- Kategori -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Konu *</label>
+            <select
+              id="contact-subject"
+              class="w-full bg-gray-50 border border-gray-200 focus:border-[#06C167] rounded-xl px-4 py-3 text-sm outline-none transition cursor-pointer"
+            >
+              <option value="">Konu seçiniz...</option>
+              <option value="sikayet">😤 Şikayet</option>
+              <option value="oneri">💡 Öneri / İstek</option>
+              <option value="siparis">📦 Sipariş Sorunu</option>
+              <option value="urun">🍕 Ürün Hakkında</option>
+              <option value="diger">💬 Diğer</option>
+            </select>
+          </div>
+
+          <!-- Mesaj -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Mesajınız *</label>
+            <textarea
+              id="contact-message"
+              rows="4"
+              placeholder="Mesajınızı buraya yazın..."
+              required
+              class="w-full bg-gray-50 border border-gray-200 focus:border-[#06C167] focus:bg-white rounded-xl px-4 py-3 text-sm outline-none transition resize-none"
+            ></textarea>
+          </div>
+
+          <!-- Fotoğraf Yükleme -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Fotoğraf Ekle (İsteğe bağlı)</label>
+            <div class="relative">
+              <label for="contact-photo" class="flex items-center gap-2 bg-gray-50 border border-dashed border-gray-300 hover:border-[#06C167] hover:bg-emerald-50 rounded-xl p-4 cursor-pointer transition">
+                <span class="text-2xl">📷</span>
+                <div>
+                  <div class="text-sm font-bold text-gray-700">Fotoğraf seç veya sürükle</div>
+                  <div class="text-xs text-gray-400">JPG, PNG, WEBP — Maks. 5MB</div>
+                </div>
+              </label>
+              <input id="contact-photo" type="file" accept="image/*" class="hidden">
+            </div>
+            <div id="contact-photo-preview" class="hidden mt-3">
+              <div class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <img id="contact-photo-img" src="" alt="Önizleme" class="w-14 h-14 object-cover rounded-lg border border-emerald-300">
+                <div class="flex-1 min-w-0">
+                  <div id="contact-photo-name" class="text-xs font-bold text-gray-700 truncate"></div>
+                  <div id="contact-photo-size" class="text-xs text-gray-400"></div>
+                </div>
+                <button type="button" id="remove-contact-photo" class="w-7 h-7 rounded-full bg-red-100 text-red-500 hover:bg-red-200 flex items-center justify-center text-xs cursor-pointer">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button
+            type="submit"
+            id="contact-submit-btn"
+            class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-4 rounded-2xl text-sm transition shadow-lg shadow-[#06C167]/30 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>💬</span>
+            <span>Mesajı Gönder</span>
+          </button>
+
+        </form>
+      </div>
+    </div>
+  `;
 }
 
 // Giriş Yap, Kayıt Ol & Doğrulama Modalı
@@ -3187,5 +3353,142 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const newOrderReturnBtn = container.querySelector('#track-new-order-btn');
   if (newOrderReturnBtn) {
     newOrderReturnBtn.addEventListener('click', () => onStateChange({ showTrackingModal: false }));
+  }
+
+  // ===== Bize Ulaşın (Footer Contact) =====
+  const footerContactBtn = container.querySelector('#footer-contact-btn');
+  if (footerContactBtn) {
+    footerContactBtn.addEventListener('click', () => {
+      onStateChange({ isContactModalOpen: true });
+    });
+  }
+
+  const closeContactModal = container.querySelector('#close-contact-modal');
+  if (closeContactModal) {
+    closeContactModal.addEventListener('click', () => {
+      onStateChange({ isContactModalOpen: false });
+    });
+  }
+
+  const contactBackdrop = container.querySelector('#contact-modal-backdrop');
+  if (contactBackdrop) {
+    contactBackdrop.addEventListener('click', (e) => {
+      if (e.target === contactBackdrop) onStateChange({ isContactModalOpen: false });
+    });
+  }
+
+  // Fotoğraf önizleme
+  const contactPhotoInput = container.querySelector('#contact-photo');
+  const contactPhotoPreview = container.querySelector('#contact-photo-preview');
+  const contactPhotoImg = container.querySelector('#contact-photo-img');
+  const contactPhotoName = container.querySelector('#contact-photo-name');
+  const contactPhotoSize = container.querySelector('#contact-photo-size');
+
+  if (contactPhotoInput) {
+    contactPhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Fotoğraf 5MB\\'dan büyük olamaz.');
+        contactPhotoInput.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (contactPhotoImg) contactPhotoImg.src = ev.target.result;
+        if (contactPhotoName) contactPhotoName.textContent = file.name;
+        if (contactPhotoSize) contactPhotoSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+        if (contactPhotoPreview) contactPhotoPreview.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const removeContactPhoto = container.querySelector('#remove-contact-photo');
+  if (removeContactPhoto) {
+    removeContactPhoto.addEventListener('click', () => {
+      if (contactPhotoInput) contactPhotoInput.value = '';
+      if (contactPhotoImg) contactPhotoImg.src = '';
+      if (contactPhotoPreview) contactPhotoPreview.classList.add('hidden');
+    });
+  }
+
+  // Form submit
+  const contactForm = container.querySelector('#contact-form');
+  if (contactForm) {
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const nameInput = container.querySelector('#contact-name');
+      const phoneInput = container.querySelector('#contact-phone');
+      const subjectSelect = container.querySelector('#contact-subject');
+      const messageInput = container.querySelector('#contact-message');
+      const photoInput = container.querySelector('#contact-photo');
+      const submitBtn = container.querySelector('#contact-submit-btn');
+      const successMsg = container.querySelector('#contact-success-msg');
+      const errorMsg = container.querySelector('#contact-error-msg');
+
+      const name = nameInput?.value.trim();
+      const phone = phoneInput?.value.trim();
+      const subject = subjectSelect?.value || '';
+      const message = messageInput?.value.trim();
+
+      if (!name) {
+        if (errorMsg) { errorMsg.textContent = 'Lütfen adınızı giriniz.'; errorMsg.classList.remove('hidden'); }
+        return;
+      }
+      if (!message) {
+        if (errorMsg) { errorMsg.textContent = 'Lütfen mesajınızı giriniz.'; errorMsg.classList.remove('hidden'); }
+        return;
+      }
+      if (errorMsg) errorMsg.classList.add('hidden');
+
+      // Fotoğraf Base64'e dönüştür
+      let photoBase64 = null;
+      let photoName = null;
+      const photoFile = photoInput?.files?.[0];
+      if (photoFile) {
+        photoBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.readAsDataURL(photoFile);
+        });
+        photoName = photoFile.name;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-spin">⏳</span><span>Gönderiliyor...</span>';
+      }
+
+      try {
+        const result = await submitContactMessage({
+          senderName: name,
+          senderPhone: phone,
+          senderEmail: '',
+          subject: subject,
+          message: message,
+          photoBase64: photoBase64,
+          photoName: photoName
+        });
+
+        if (result.ok) {
+          if (successMsg) successMsg.classList.remove('hidden');
+          if (contactForm) contactForm.style.display = 'none';
+        } else {
+          if (errorMsg) { errorMsg.textContent = 'Gönderim sırasında hata oluştu. Lütfen tekrar deneyin.'; errorMsg.classList.remove('hidden'); }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span>💬</span><span>Mesajı Gönder</span>';
+          }
+        }
+      } catch (err) {
+        if (errorMsg) { errorMsg.textContent = 'Bağlantı hatası. Lütfen tekrar deneyin.'; errorMsg.classList.remove('hidden'); }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>💬</span><span>Mesajı Gönder</span>';
+        }
+      }
+    });
   }
 }

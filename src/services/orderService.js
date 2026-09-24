@@ -32,7 +32,10 @@ import {
   sendFirebasePhoneVerification,
   confirmFirebasePhoneCode,
   formatPhoneNumberForFirebase,
-  resetRecaptchaVerifier
+  resetRecaptchaVerifier,
+  sendContactMessageToFirestore,
+  getContactMessagesFromFirestore,
+  updateContactMessageStatus
 } from '../firebase/firebaseService.js';
 
 export { 
@@ -46,7 +49,10 @@ export {
   sendFirebasePhoneVerification,
   confirmFirebasePhoneCode,
   formatPhoneNumberForFirebase,
-  resetRecaptchaVerifier
+  resetRecaptchaVerifier,
+  sendContactMessageToFirestore,
+  getContactMessagesFromFirestore,
+  updateContactMessageStatus
 };
 
 
@@ -2153,5 +2159,52 @@ export function exportLedgerToCSV(dailyLedgerRows = [], periodLabel = 'Rapor') {
   URL.revokeObjectURL(url);
 }
 
+// =================== MÜŞTERİ İLETİŞİM MESAJLARI (Bize Ulaşın) ===================
 
+export async function submitContactMessage(data) {
+  const msg = {
+    id: 'contact_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+    senderName: data.senderName || 'Anonim',
+    senderPhone: data.senderPhone || '',
+    senderEmail: data.senderEmail || '',
+    subject: data.subject || '',
+    message: data.message || '',
+    photoBase64: data.photoBase64 || null,
+    photoName: data.photoName || null,
+    status: 'new', // 'new' | 'read' | 'resolved'
+    createdAt: new Date().toISOString()
+  };
 
+  // Firestore'a kaydet (ana kayıt)
+  try {
+    await sendContactMessageToFirestore(msg);
+  } catch (e) {}
+
+  // Yerel yedek (Firestore offline ise)
+  try {
+    const existing = JSON.parse(localStorage.getItem('pita_contact_messages') || '[]');
+    existing.unshift(msg);
+    localStorage.setItem('pita_contact_messages', JSON.stringify(existing.slice(0, 100)));
+  } catch (e) {}
+
+  return { ok: true, id: msg.id };
+}
+
+export async function getContactMessages() {
+  try {
+    const fromFirestore = await getContactMessagesFromFirestore();
+    if (fromFirestore && fromFirestore.length > 0) return fromFirestore;
+  } catch (e) {}
+  try {
+    return JSON.parse(localStorage.getItem('pita_contact_messages') || '[]');
+  } catch (e) { return []; }
+}
+
+export async function markContactMessageResolved(messageId) {
+  try { await updateContactMessageStatus(messageId, 'resolved'); } catch (e) {}
+  try {
+    const msgs = JSON.parse(localStorage.getItem('pita_contact_messages') || '[]');
+    const updated = msgs.map(m => m.id === messageId ? { ...m, status: 'resolved' } : m);
+    localStorage.setItem('pita_contact_messages', JSON.stringify(updated));
+  } catch (e) {}
+}

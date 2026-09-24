@@ -56,7 +56,9 @@ const state = {
   accountingCustomStart: '',
   accountingCustomEnd: '',
   isAddressesOpen: false,
-  isPhoneVerifyOpen: false
+  isPhoneVerifyOpen: false,
+  isContactModalOpen: false,
+  contactMessages: []
 };
 
 
