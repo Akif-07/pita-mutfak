@@ -234,15 +234,90 @@ export async function syncCustomerToFirestore(customer) {
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
-    const { db, doc, setDoc } = ctx;
+    const { db, doc, setDoc, collection, getDocs, deleteDoc } = ctx;
     const clean = cleanForFirestore(customer);
-    const rawKey = clean.phone || clean.email || clean.uid || `cust-${Date.now()}`;
+
+    // Normalize phone: strip non-digits, take last 10 digits
+    const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+    const custPhone = normPhone(clean.phone);
+    const custEmail = (clean.email || '').toLowerCase().trim();
+
+    // 1. Search all existing customers for a match by email or phone
+    let existingDoc = null;
+    let existingData = null;
+    const duplicateDocs = []; // docs to delete after merge
+
+    try {
+      const snap = await getDocs(collection(db, "customers"));
+      snap.forEach(d => {
+        const data = d.data();
+        const docPhone = normPhone(data.phone);
+        const docEmail = (data.email || '').toLowerCase().trim();
+
+        const phoneMatch = custPhone.length >= 7 && docPhone.length >= 7 && custPhone === docPhone;
+        const emailMatch = custEmail && docEmail && custEmail === docEmail;
+
+        if (phoneMatch || emailMatch) {
+          if (!existingDoc) {
+            // First match — this is the record we'll update
+            existingDoc = d;
+            existingData = data;
+          } else {
+            // Additional matches — these are duplicates to clean up
+            duplicateDocs.push(d);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("Firestore müşteri arama hatası:", e);
+    }
+
+    // 2. Merge fields: keep the most complete data
+    let merged = { ...clean };
+    if (existingData) {
+      merged = {
+        ...existingData,
+        ...clean,
+        // Preserve non-empty fields from existing record
+        name: clean.name || existingData.name || '',
+        email: clean.email || existingData.email || '',
+        phone: clean.phone || existingData.phone || '',
+        uid: clean.uid || existingData.uid || '',
+        photoURL: clean.photoURL || existingData.photoURL || '',
+        // Accumulate order stats
+        total_orders: Math.max(Number(existingData.total_orders) || 0, Number(clean.total_orders) || 0),
+        total_spent: Math.max(Number(existingData.total_spent) || 0, Number(clean.total_spent) || 0),
+        // Keep the earliest registration date
+        registered_at: existingData.registered_at || clean.registered_at || new Date().toISOString(),
+        // Preserve verified status
+        phoneVerified: clean.phoneVerified || existingData.phoneVerified || false,
+        is_verified: clean.is_verified || existingData.is_verified || 0
+      };
+    }
+
+    // 3. Determine canonical key: prefer phone, then email, then uid
+    const mergedPhone = normPhone(merged.phone);
+    const mergedEmail = (merged.email || '').toLowerCase().trim();
+    const rawKey = (mergedPhone.length >= 7 ? merged.phone : null) || mergedEmail || merged.uid || `cust-${Date.now()}`;
     const key = String(rawKey).replace(/[\/\#\$\[\]]/g, '_');
+
+    // 4. Write the merged record
     const custRef = doc(db, "customers", key);
     await setDoc(custRef, {
-      ...clean,
+      ...merged,
       _updatedAt: new Date().toISOString()
     }, { merge: true });
+
+    // 5. Clean up: delete old doc if it had a different key, plus any duplicates
+    if (existingDoc && existingDoc.id !== key) {
+      try { await deleteDoc(doc(db, "customers", existingDoc.id)); } catch (e) {}
+    }
+    for (const dupDoc of duplicateDocs) {
+      if (dupDoc.id !== key) {
+        try { await deleteDoc(doc(db, "customers", dupDoc.id)); } catch (e) {}
+      }
+    }
+
     return true;
   } catch (e) {
     console.warn("Firestore müşteri kaydetme:", e);
