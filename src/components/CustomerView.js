@@ -101,7 +101,7 @@ export function renderCustomerView(container, state, onStateChange) {
           
           <!-- Logo & Slogan -->
           <div class="flex items-center gap-3 cursor-pointer" id="nav-logo-btn">
-            <div class="w-12 h-12 rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-black flex-shrink-0">
+            <div class="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-[#06C167] flex-shrink-0">
               <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
             </div>
             <div>
