@@ -1723,6 +1723,18 @@ export const orderService = {
 
   exportLedgerToCSV(dailyLedgerRows, periodLabel) {
     return exportLedgerToCSV(dailyLedgerRows, periodLabel);
+  },
+
+  getContactMessages() {
+    return getContactMessages();
+  },
+
+  submitContactMessage(data) {
+    return submitContactMessage(data);
+  },
+
+  markContactMessageResolved(messageId) {
+    return markContactMessageResolved(messageId);
   }
 };
 

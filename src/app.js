@@ -87,18 +87,20 @@ async function loadCustomerMessages() {
 // Backend Verilerini Yükleme Fonksiyonu
 async function loadBackendData() {
   try {
-    const [customers, stock, reviews, expenses, closings] = await Promise.all([
+    const [customers, stock, reviews, expenses, closings, contactMsgs] = await Promise.all([
       orderService.getCustomers(),
       orderService.getStock(),
       orderService.getReviews(),
       orderService.getExpenses(),
-      orderService.getDailyClosings()
+      orderService.getDailyClosings(),
+      orderService.getContactMessages ? orderService.getContactMessages() : Promise.resolve([])
     ]);
     state.customers = Array.isArray(customers) ? customers : [];
     state.stockList = Array.isArray(stock) ? stock : [];
     state.reviewsList = Array.isArray(reviews) ? reviews : [];
     state.expensesList = Array.isArray(expenses) ? expenses : [];
     state.dailyClosings = Array.isArray(closings) ? closings : [];
+    state.contactMessages = Array.isArray(contactMsgs) ? contactMsgs : [];
 
 
     // Eğer stok veritabanı henüz boşsa menüdeki ürünlerle başlat
@@ -203,7 +205,7 @@ function handleStateChange(newState) {
   }
 
   // Eğer sekme değiştirildiyse verileri tazele
-  if (newState.adminActiveTab === 'customers' || newState.adminActiveTab === 'menu') {
+  if (newState.adminActiveTab === 'customers' || newState.adminActiveTab === 'menu' || newState.adminActiveTab === 'contact') {
     loadBackendData();
   }
 
