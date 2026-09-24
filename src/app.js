@@ -5,6 +5,7 @@ import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePres
 import { renderCustomerView } from './components/CustomerView.js';
 import { renderAdminPanel } from './components/AdminPanel.js';
 import { renderCourierPanel } from './components/CourierPanel.js';
+import { renderPrivacyPolicy, renderTermsOfService } from './components/LegalPages.js';
 
 // Uygulama Global State'i
 const state = {
@@ -167,7 +168,7 @@ try {
   console.warn("Son sipariş okunamadı:", e);
 }
 
-// Router: URL Hash kontrolü (#, #/admin, #/kurye)
+// Router: URL Hash kontrolü (#, #/admin, #/kurye, #/privacy, #/terms)
 function syncViewFromHash() {
   const hash = window.location.hash.toLowerCase();
   if (hash.startsWith('#/admin') || hash === '#admin') {
@@ -175,6 +176,10 @@ function syncViewFromHash() {
     loadBackendData();
   } else if (hash.startsWith('#/kurye') || hash === '#kurye' || hash.startsWith('#/courier')) {
     state.currentView = 'courier';
+  } else if (hash.startsWith('#/privacy')) {
+    state.currentView = 'privacy';
+  } else if (hash.startsWith('#/terms')) {
+    state.currentView = 'terms';
   } else {
     state.currentView = 'customer';
   }
@@ -232,6 +237,12 @@ function render() {
     renderAdminPanel(appContainer, state, handleStateChange);
   } else if (state.currentView === 'courier') {
     renderCourierPanel(appContainer, state, handleStateChange);
+  } else if (state.currentView === 'privacy') {
+    renderPrivacyPolicy(appContainer);
+    window.scrollTo(0, 0);
+  } else if (state.currentView === 'terms') {
+    renderTermsOfService(appContainer);
+    window.scrollTo(0, 0);
   }
 }
 
