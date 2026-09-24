@@ -3065,13 +3065,13 @@ function renderContactMessagesTab(messages, state) {
               <div>
                 <div class="font-black text-gray-900 text-sm">${msg.senderName || 'Anonim'}</div>
                 <div class="text-xs text-gray-400 flex items-center gap-2">
-                  ${msg.senderPhone ? \`<span>📞 ${msg.senderPhone}</span>\` : ''}
+                  ${msg.senderPhone ? `<span>📞 ${msg.senderPhone}</span>` : ''}
                   <span>${new Date(msg.createdAt).toLocaleString('tr-TR')}</span>
                 </div>
               </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-              ${msg.subject ? \`<span class="bg-gray-100 text-gray-600 text-[11px] font-bold px-2 py-1 rounded-lg">${subjectLabel[msg.subject] || msg.subject}</span>\` : ''}
+              ${msg.subject ? `<span class="bg-gray-100 text-gray-600 text-[11px] font-bold px-2 py-1 rounded-lg">${subjectLabel[msg.subject] || msg.subject}</span>` : ''}
               <span class="text-[11px] font-bold px-2 py-1 rounded-lg border ${statusColor[msg.status] || 'bg-gray-100 text-gray-600 border-gray-200'}">${statusLabel[msg.status] || msg.status}</span>
             </div>
           </div>
@@ -3082,7 +3082,7 @@ function renderContactMessagesTab(messages, state) {
           </div>
 
           <!-- Fotoğraf (varsa) -->
-          ${msg.photoBase64 ? \`
+          ${msg.photoBase64 ? `
             <div class="mb-3">
               <div class="text-xs font-bold text-gray-500 mb-2">📷 Ek Fotoğraf:</div>
               <img
@@ -3092,22 +3092,22 @@ function renderContactMessagesTab(messages, state) {
                 onclick="window.open(this.src, '_blank')"
               >
             </div>
-          \` : ''}
+          ` : ''}
 
           <!-- Aksiyon Butonları -->
           <div class="flex items-center gap-2 flex-wrap">
-            ${msg.status !== 'resolved' ? \`
+            ${msg.status !== 'resolved' ? `
               <button
                 class="admin-resolve-contact-btn text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-[#06C167] hover:text-white text-emerald-700 border border-emerald-200 transition cursor-pointer"
                 data-msg-id="${msg.id}"
               >✅ Çözüldü Olarak İşaretle</button>
-            \` : ''}
-            ${msg.senderPhone ? \`
+            ` : ''}
+            ${msg.senderPhone ? `
               <a
                 href="tel:${msg.senderPhone}"
                 class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition"
               >📞 Geri Ara</a>
-            \` : ''}
+            ` : ''}
           </div>
 
         </div>

@@ -3389,7 +3389,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const file = e.target.files[0];
       if (!file) return;
       if (file.size > 5 * 1024 * 1024) {
-        alert('Fotoğraf 5MB\\'dan büyük olamaz.');
+        alert("Fotoğraf 5MB'dan büyük olamaz.");
         contactPhotoInput.value = '';
         return;
       }
