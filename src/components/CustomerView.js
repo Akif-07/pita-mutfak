@@ -20,7 +20,8 @@ import {
   deleteAddress,
   resetRecaptchaVerifier,
   submitContactMessage,
-  firebaseSignOut
+  firebaseSignOut,
+  formatDeliveryCode
 } from '../services/orderService.js';
 
 
@@ -1827,21 +1828,34 @@ function renderTrackingModal(order) {
 
         <div class="p-6 space-y-6">
 
-          ${order.status !== 'delivered' ? `
+          ${order.status !== 'delivered' && order.status !== 'cancelled' ? `
             <div class="bg-gradient-to-br from-[#E8F8EE] to-[#D5F5E0] border-2 border-[#06C167] rounded-2xl p-5 text-center shadow-md">
               <div class="inline-flex items-center gap-1.5 text-xs font-bold text-[#06C167] uppercase tracking-wider mb-1">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                <span>Siparişiniz Güvende</span>
+                <span>8 Haneli Güvenli Teslimat Kodu</span>
               </div>
-              <p class="text-xs text-gray-600 font-medium mt-2">
-                Siparişiniz güvenli bir şekilde takip edilmektedir. Kurye kapınıza geldiğinde teslimat otomatik olarak doğrulanacaktır.
+              
+              <div class="my-3 py-2 px-5 bg-white rounded-2xl border-2 border-[#06C167] inline-block shadow-xs">
+                <span class="text-2xl sm:text-3xl font-black font-mono tracking-widest text-[#06C167]">
+                  ${formatDeliveryCode(order.deliveryCode)}
+                </span>
+              </div>
+
+              <p class="text-xs text-gray-700 font-medium">
+                Kurye kapınıza geldiğinde teslimatı tamamlamak için bu 8 haneli kodu kuryeye söyleyiniz.
               </p>
             </div>
-          ` : `
+          ` : order.status === 'delivered' ? `
             <div class="bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-5 text-center">
               <span class="text-3xl block mb-2">🎉</span>
               <h4 class="text-base font-black text-emerald-900">Siparişiniz Başarıyla Teslim Edildi!</h4>
               <p class="text-xs text-emerald-700 mt-1">Afiyet olsun! Bizi tercih ettiğiniz için teşekkür ederiz.</p>
+            </div>
+          ` : `
+            <div class="bg-red-50 border-2 border-red-300 rounded-2xl p-5 text-center">
+              <span class="text-3xl block mb-2">❌</span>
+              <h4 class="text-base font-black text-red-900">Sipariş İptal Edildi</h4>
+              <p class="text-xs text-red-700 mt-1">Bu sipariş iptal edilmiştir.</p>
             </div>
           `}
 
@@ -1987,6 +2001,9 @@ function renderMyOrdersModal(myOrders, state) {
             else if (order.status === 'preparing') { badgeClass = 'bg-blue-100 text-blue-800'; badgeText = 'Hazırlanıyor'; }
             else if (order.status === 'on_the_way') { badgeClass = 'bg-purple-100 text-purple-800'; badgeText = 'Kurye Yolda'; }
             else if (order.status === 'delivered') { badgeClass = 'bg-emerald-100 text-[#06C167]'; badgeText = 'Teslim Edildi'; }
+            else if (order.status === 'cancelled') { badgeClass = 'bg-red-100 text-red-700'; badgeText = 'İptal Edildi'; }
+
+            const isActiveOrder = order.status !== 'delivered' && order.status !== 'cancelled';
 
             return `
               <div class="border border-gray-100 rounded-2xl p-4 bg-[#FAFBFB] space-y-3">
@@ -1998,6 +2015,24 @@ function renderMyOrdersModal(myOrders, state) {
                   </div>
                   <span class="text-[11px] font-black px-2.5 py-1 rounded-full ${badgeClass}">${badgeText}</span>
                 </div>
+
+                ${isActiveOrder && order.deliveryCode ? `
+                  <!-- Aktif Siparişte 8 Haneli Teslimat Kodu -->
+                  <div class="bg-gradient-to-r from-[#E8F8EE] to-emerald-50 border border-[#06C167]/40 rounded-xl p-3 flex items-center justify-between shadow-2xs">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-lg bg-[#06C167] text-white flex items-center justify-center text-sm shadow-xs font-bold">
+                        🔐
+                      </div>
+                      <div>
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-900 block">8 Haneli Teslimat Kodu</span>
+                        <span class="text-[11px] text-gray-600 font-medium">Teslim alırken kuryeye iletiniz</span>
+                      </div>
+                    </div>
+                    <div class="bg-white border-2 border-[#06C167] text-[#06C167] font-mono font-black text-sm sm:text-base px-3 py-1 rounded-xl shadow-xs tracking-wider">
+                      ${formatDeliveryCode(order.deliveryCode)}
+                    </div>
+                  </div>
+                ` : ''}
 
                 <div class="text-xs text-gray-700">
                   <div class="font-medium">${order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</div>
