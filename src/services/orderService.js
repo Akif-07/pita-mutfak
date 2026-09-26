@@ -38,6 +38,9 @@ import {
   updateContactMessageStatus,
   deleteContactMessageFromFirestore,
   replyContactMessageInFirestore,
+  broadcastFlashDealToFirestore,
+  stopFlashDealInFirestore,
+  subscribeFirestoreFlashDeal,
   firebaseSignOut
 } from '../firebase/firebaseService.js';
 
@@ -58,8 +61,12 @@ export {
   updateContactMessageStatus,
   deleteContactMessageFromFirestore,
   replyContactMessageInFirestore,
+  broadcastFlashDealToFirestore,
+  stopFlashDealInFirestore,
+  subscribeFirestoreFlashDeal,
   firebaseSignOut
 };
+
 
 
 
@@ -1813,8 +1820,26 @@ export const orderService = {
 
   markContactMessageResolved(messageId) {
     return markContactMessageResolved(messageId);
+  },
+
+  // Canlı Flaş İndirim Servisleri
+  broadcastFlashDeal(dealData) {
+    return broadcastFlashDeal(dealData);
+  },
+
+  stopFlashDeal() {
+    return stopFlashDeal();
+  },
+
+  getActiveFlashDeal() {
+    return getActiveFlashDeal();
+  },
+
+  subscribeFlashDeal(callback) {
+    return subscribeFlashDeal(callback);
   }
 };
+
 
 // =================== GİDERLER & MUHASEBE YARDIMCI FONKSİYONLARI ===================
 
@@ -2351,3 +2376,153 @@ export async function replyToContactMessage(messageId, replyText, senderPhone = 
 
   return { ok: true, replyData };
 }
+
+// =================== CANLI FLAŞ İNDİRİM & ANLIK BİLDİRİM (FLASH DEALS) ===================
+
+const STORAGE_FLASH_DEAL_KEY = 'pita_active_flash_deal';
+
+export async function broadcastFlashDeal(dealData) {
+  const durationMin = Number(dealData.durationMinutes) || 10;
+  const startedAt = dealData.startedAt || new Date().toISOString();
+  const expiresAt = dealData.expiresAt || new Date(Date.now() + durationMin * 60 * 1000).toISOString();
+
+  const flashDeal = {
+    id: dealData.id || ('flash_' + Date.now()),
+    productId: dealData.productId,
+    productName: dealData.productName || 'Özel Ürün',
+    productImage: dealData.productImage || '',
+    originalPrice: Number(dealData.originalPrice) || 0,
+    flashPrice: Number(dealData.flashPrice) || 0,
+    durationMinutes: durationMin,
+    startedAt,
+    expiresAt,
+    title: dealData.title || `⚡ ${durationMin} DAKİKALIK FLAŞ İNDİRİM!`,
+    message: dealData.message || 'Seçili lezzetimizde şok indirim! Geri sayım bitmeden siparişini ver.',
+    active: true,
+    targetAudience: 'all'
+  };
+
+  // 1. LocalStorage
+  try {
+    localStorage.setItem(STORAGE_FLASH_DEAL_KEY, JSON.stringify(flashDeal));
+  } catch (e) {}
+
+  // 2. BroadcastChannel
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ type: 'FLASH_DEAL_START', data: flashDeal });
+    } catch (e) {}
+  }
+
+  // 3. Firestore Cloud
+  try {
+    await broadcastFlashDealToFirestore(flashDeal);
+  } catch (e) {}
+
+  return flashDeal;
+}
+
+export async function stopFlashDeal() {
+  try {
+    localStorage.removeItem(STORAGE_FLASH_DEAL_KEY);
+  } catch (e) {}
+
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ type: 'FLASH_DEAL_STOP' });
+    } catch (e) {}
+  }
+
+  try {
+    await stopFlashDealInFirestore();
+  } catch (e) {}
+
+  return true;
+}
+
+export function getActiveFlashDeal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_FLASH_DEAL_KEY);
+    if (!raw) return null;
+    const deal = JSON.parse(raw);
+    if (!deal || !deal.active) return null;
+    const expiresMs = new Date(deal.expiresAt).getTime();
+    if (Date.now() >= expiresMs) {
+      localStorage.removeItem(STORAGE_FLASH_DEAL_KEY);
+      return null;
+    }
+    return deal;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function subscribeFlashDeal(callback) {
+  // İlk durumu gönder
+  callback(getActiveFlashDeal());
+
+  // 1. Firestore Cloud Dinleyici
+  let unsubFirestore = null;
+  try {
+    unsubFirestore = subscribeFirestoreFlashDeal((cloudDeal) => {
+      if (cloudDeal && cloudDeal.active) {
+        const expiresMs = new Date(cloudDeal.expiresAt).getTime();
+        if (Date.now() < expiresMs) {
+          localStorage.setItem(STORAGE_FLASH_DEAL_KEY, JSON.stringify(cloudDeal));
+          callback(cloudDeal);
+          return;
+        }
+      }
+      localStorage.removeItem(STORAGE_FLASH_DEAL_KEY);
+      callback(null);
+    });
+  } catch (e) {}
+
+  // 2. BroadcastChannel Dinleyicisi
+  const handleBroadcast = (e) => {
+    const msg = e?.data;
+    if (!msg) return;
+    if (msg.type === 'FLASH_DEAL_START' && msg.data) {
+      localStorage.setItem(STORAGE_FLASH_DEAL_KEY, JSON.stringify(msg.data));
+      callback(msg.data);
+    } else if (msg.type === 'FLASH_DEAL_STOP') {
+      localStorage.removeItem(STORAGE_FLASH_DEAL_KEY);
+      callback(null);
+    }
+  };
+
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcast);
+  }
+
+  const handleStorage = (e) => {
+    if (e.key === STORAGE_FLASH_DEAL_KEY) {
+      callback(getActiveFlashDeal());
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  // 3. Süre dolumu kontrolü (her 1 saniyede bir)
+  const interval = setInterval(() => {
+    const current = getActiveFlashDeal();
+    if (!current) {
+      const raw = localStorage.getItem(STORAGE_FLASH_DEAL_KEY);
+      if (raw) {
+        localStorage.removeItem(STORAGE_FLASH_DEAL_KEY);
+        callback(null);
+      }
+    }
+  }, 1000);
+
+  return () => {
+    if (unsubFirestore) {
+      try { unsubFirestore(); } catch (e) {}
+    }
+    if (broadcastChannel) {
+      try { broadcastChannel.removeEventListener('message', handleBroadcast); } catch (e) {}
+    }
+    window.removeEventListener('storage', handleStorage);
+    clearInterval(interval);
+  };
+}
+

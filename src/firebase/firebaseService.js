@@ -1197,3 +1197,68 @@ export async function replyContactMessageInFirestore(messageId, replyData) {
     return false;
   }
 }
+
+// =================== 9. CANLI FLAŞ İNDİRİM & ANLIK BİLDİRİM (FLASH DEALS) ===================
+
+export async function broadcastFlashDealToFirestore(flashDeal) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const sanitized = cleanForFirestore(flashDeal);
+    await setDoc(doc(db, 'campaigns', 'active_flash_deal'), sanitized);
+    return true;
+  } catch (e) {
+    console.warn('Flash deal Firestore kaydetme hatası:', e);
+    return false;
+  }
+}
+
+export async function stopFlashDealInFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    await setDoc(doc(db, 'campaigns', 'active_flash_deal'), {
+      active: false,
+      stoppedAt: new Date().toISOString()
+    });
+    return true;
+  } catch (e) {
+    console.warn('Flash deal durdurma hatası:', e);
+    return false;
+  }
+}
+
+export function subscribeFirestoreFlashDeal(callback) {
+  let unsubscribe = () => {};
+  try {
+    getFirestoreContext().then(ctx => {
+      if (!ctx || !ctx.db) return;
+      const { db, doc, onSnapshot } = ctx;
+      const ref = doc(db, 'campaigns', 'active_flash_deal');
+      unsubscribe = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && data.active) {
+            const expiresAtMs = new Date(data.expiresAt).getTime();
+            if (Date.now() < expiresAtMs) {
+              callback(data);
+              return;
+            }
+          }
+        }
+        callback(null);
+      }, (err) => {
+        console.warn('Firestore flash deal dinleme hatası:', err);
+      });
+    }).catch(() => {});
+  } catch (e) {}
+
+  return () => {
+    if (typeof unsubscribe === 'function') {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+

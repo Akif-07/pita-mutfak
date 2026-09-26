@@ -169,6 +169,17 @@ export function renderAdminPanel(container, state, onStateChange) {
   const activeGuestCount = activeGuests.length;
   const expensesList = state.expensesList || orderService.getStoredExpenses();
 
+  // Canlı Flaş İndirim Kontrolü
+  const rawFlash = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+  const activeFlashDeal = (rawFlash && rawFlash.active && new Date(rawFlash.expiresAt).getTime() > Date.now()) ? rawFlash : null;
+  let flashCountdownStr = '10:00';
+  if (activeFlashDeal) {
+    const diffSec = Math.max(0, Math.floor((new Date(activeFlashDeal.expiresAt).getTime() - Date.now()) / 1000));
+    const m = Math.floor(diffSec / 60);
+    const s = diffSec % 60;
+    flashCountdownStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
   const customerSearchQuery = state.customerSearchQuery || '';
   const adminFilter = state.adminFilter || 'all';
   const adminDateFilter = state.adminDateFilter || 'today'; // 'today' (Varsayılan Günlük!) | 'yesterday' | 'custom' | 'all'
@@ -181,6 +192,7 @@ export function renderAdminPanel(container, state, onStateChange) {
   let adminBtnClass = 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30';
   let adminDotClass = 'bg-[#06C167] animate-pulse';
   let adminStatusText = '🟢 Restoran Açık';
+
 
   if (settings.isOpen === false) {
     adminBtnClass = 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300';
@@ -339,8 +351,30 @@ export function renderAdminPanel(container, state, onStateChange) {
               <span>🟢 Canlı: <strong class="text-[#06C167]"><span data-presence-loggedin>${activeVisitorCount}</span> Üye</strong>${activeVisitors.length > 0 ? ` <span class="text-[11px] text-emerald-800 bg-white/80 px-1.5 py-0.5 rounded-md font-extrabold max-w-[130px] truncate inline-block align-bottom">(${activeVisitors.map(v => v.name).join(', ')})</span>` : ''}, <strong class="text-indigo-600"><span data-presence-guests>${activeGuestCount}</span> Misafir</strong></span>
             </button>
 
+            <!-- Canlı Flaş İndirim Butonu -->
+            ${activeFlashDeal ? `
+              <button 
+                id="admin-flash-deal-header-btn" 
+                class="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white px-3 py-2 rounded-xl text-xs font-black shadow-md shadow-rose-600/30 cursor-pointer transition animate-pulse"
+                title="Canlı Flaş İndirim şu an yayında! Tıklayarak yönetin veya durdurun"
+              >
+                <span>⚡</span>
+                <span class="truncate max-w-[170px] sm:max-w-[220px]">Flaş: <strong>${activeFlashDeal.productName}</strong> (<span data-flash-countdown-admin>${flashCountdownStr}</span>)</span>
+                <span class="bg-black/40 hover:bg-black/60 px-1.5 py-0.5 rounded text-[10px] ml-0.5">🛑</span>
+              </button>
+            ` : `
+              <button 
+                id="admin-flash-deal-header-btn" 
+                class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white px-3 py-2 rounded-xl text-xs font-black shadow-md shadow-amber-500/20 cursor-pointer transition"
+                title="Canlı ziyaretçilere ve müşterilere 10 dakikalık şok flaş indirim başlat"
+              >
+                <span>⚡</span>
+                <span>Flaş İndirim (10 Dk)</span>
+              </button>
+            `}
 
             <!-- Restoran Açık / Kapalı Butonu -->
+
             <button 
               id="admin-toggle-restaurant-btn" 
               class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-xs ${adminBtnClass}"
@@ -608,7 +642,7 @@ export function renderAdminPanel(container, state, onStateChange) {
         ${activeTab === 'menu' ? renderMenuManagement(menu, stockMap) : ''}
 
         <!-- =================== 3. SEKME: MÜŞTERİ YÖNETİMİ =================== -->
-        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery, activeVisitors, activeGuests) : ''}
+        ${activeTab === 'customers' ? renderCustomerManagement(customers, customerSearchQuery, activeVisitors, activeGuests, state, activeFlashDeal, flashCountdownStr) : ''}
 
 
         <!-- =================== 4. SEKME: MÜŞTERİ YORUMLARI & PUANLAR =================== -->
@@ -625,6 +659,9 @@ export function renderAdminPanel(container, state, onStateChange) {
       <!-- Yeni Ürün Ekleme Modalı (Eğer açıksa) -->
       ${state.isAdminAddProductOpen ? renderAddProductModal() : ''}
 
+      <!-- Canlı Flaş İndirim Başlatma Modalı -->
+      ${state.isFlashDealModalOpen ? renderFlashDealModal(menu) : ''}
+
       <!-- Özel Kod Tanımlama Modalı -->
       ${state.activeAssignCodeCustomer ? renderAssignCodeModal(state.activeAssignCodeCustomer) : ''}
 
@@ -639,6 +676,7 @@ export function renderAdminPanel(container, state, onStateChange) {
 
       <!-- Yeni Gider Ekleme Modalı (Muhasebe) -->
       ${state.isAddExpenseModalOpen ? renderAddExpenseModal(state) : ''}
+
 
 
     </div>
@@ -1071,7 +1109,7 @@ function renderMenuManagement(menu, stockMap) {
 }
 
 // Müşteri Yönetim Sekmesi (SQLite & Firestore Canlı Veritabanı)
-function renderCustomerManagement(customers, searchQuery, activeVisitors = [], activeGuests = []) {
+function renderCustomerManagement(customers, searchQuery, activeVisitors = [], activeGuests = [], state = {}, activeFlashDeal = null, flashCountdownStr = '10:00') {
   const query = (searchQuery || '').trim().toLowerCase();
   const filteredCustomers = customers.filter(c => {
     if (!query) return true;
@@ -1133,11 +1171,75 @@ function renderCustomerManagement(customers, searchQuery, activeVisitors = [], a
           </div>
         </div>
 
+        <!-- CANLI FLAŞ İNDİRİM & ANLIK YAYIN KARTÇIĞI -->
+        ${activeFlashDeal ? `
+          <div class="mb-5 bg-gradient-to-r from-rose-950/90 via-red-900/70 to-amber-950/90 border-2 border-rose-500/80 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-14 h-14 rounded-2xl overflow-hidden bg-black/50 border border-rose-400/30 shrink-0 shadow-md">
+                  <img src="${activeFlashDeal.productImage}" alt="${activeFlashDeal.productName}" class="w-full h-full object-cover">
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="bg-rose-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-pulse flex items-center gap-1 shadow-xs">
+                      <span>🔥</span>
+                      <span>CANLI FLAŞ İNDİRİM YAYINDA</span>
+                    </span>
+                    <span class="text-xs text-amber-300 font-mono font-bold">Kalan: <strong class="text-white bg-black/50 px-2 py-0.5 rounded-md border border-white/20" data-flash-countdown-admin>${flashCountdownStr}</strong></span>
+                  </div>
+                  <h4 class="text-base font-black text-white mt-1 truncate">${activeFlashDeal.productName}</h4>
+                  <div class="flex items-center gap-2 mt-0.5 text-xs">
+                    <span class="line-through text-gray-400 font-bold">₺${activeFlashDeal.originalPrice}</span>
+                    <span class="text-rose-400 font-black text-sm">➔ ₺${activeFlashDeal.flashPrice}</span>
+                    <span class="bg-rose-500/20 text-rose-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-rose-500/30">-%${Math.round((1 - activeFlashDeal.flashPrice / activeFlashDeal.originalPrice) * 100)} İNDİRİM</span>
+                    <span class="text-[10px] text-gray-300">👥 Hedef: Tüm Ziyaretçiler (${loggedInCount + guestCount} Kişi)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <button 
+                  id="stop-flash-deal-btn" 
+                  class="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black px-4 py-2.5 rounded-xl transition shadow-lg shadow-rose-600/30 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🛑</span>
+                  <span>Flaş İndirimi Durdur</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ` : `
+          <div class="mb-5 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-amber-500/30 shrink-0">
+                ⚡
+              </div>
+              <div>
+                <h4 class="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                  <span>Canlı Ziyaretçilere Flaş İndirim Fırlat</span>
+                  <span class="text-[10px] text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full font-bold">10 Dakikalık Şok Fırsat</span>
+                </h4>
+                <p class="text-[11px] text-gray-300 mt-0.5">
+                  Şu an menüyü gezen <strong>${loggedInCount} üye</strong> ve <strong>${guestCount} misafirin</strong> ekranına anında geri sayımlı özel indirim gönderin!
+                </p>
+              </div>
+            </div>
+            <button 
+              id="start-flash-deal-btn" 
+              class="bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 active:scale-95 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-amber-500/25 flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <span>⚡</span>
+              <span>Flaş İndirim Başlat (10 Dk)</span>
+            </button>
+          </div>
+        `}
+
         <!-- Giriş yapmış kullanıcılar listesi -->
         <div class="mb-4">
           <div class="text-[11px] font-black text-[#06C167] uppercase tracking-widest mb-2 flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#06C167] animate-pulse"></span> Oturum Açmış Canlı Müşteriler (${loggedInCount})
           </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             ${activeVisitors.length === 0 ? `
               <div class="col-span-full py-4 text-center text-xs text-gray-400 bg-white/5 rounded-2xl border border-white/5">
@@ -2438,8 +2540,198 @@ function renderReplyContactModal(msg) {
   `;
 }
 
+// Canlı Flaş İndirim Başlatma Modalı
+function renderFlashDealModal(menu) {
+  const availableItems = (menu || []).filter(item => item.isAvailable);
+  const firstItem = availableItems[0] || { id: '', name: 'Seçiniz', price: 100, image: '' };
+  const suggestedFlashPrice = Math.round(firstItem.price * 0.7); // varsayılan %30 indirim
+
+  return `
+    <div id="flash-deal-modal-backdrop" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-[#181818] border border-amber-500/40 rounded-3xl max-w-xl w-full text-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 p-5 sm:p-6 flex items-center justify-between shadow-md">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur text-white text-2xl flex items-center justify-center shadow-lg">
+              ⚡
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base sm:text-lg font-black text-white">Canlı Flaş İndirim Yayını</h3>
+                <span class="bg-black/40 text-amber-200 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">CANLI BROADCAST</span>
+              </div>
+              <p class="text-xs text-amber-100 font-medium mt-0.5">Sitedeki tüm misafir & üye müşterilerin ekranına anında iletilir</p>
+            </div>
+          </div>
+          <button id="close-flash-deal-modal-btn" class="w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <form id="admin-flash-deal-form" class="p-5 sm:p-6 space-y-5">
+          
+          <!-- Ürün Seçimi -->
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">1. Flaş İndirime Girecek Ürünü Seçin *</label>
+            <select 
+              id="flash-product-select" 
+              name="productId" 
+              class="w-full bg-[#242424] border border-gray-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition cursor-pointer"
+            >
+              ${availableItems.map(item => `
+                <option value="${item.id}" data-price="${item.price}" data-name="${item.name}" data-img="${item.image}">
+                  ${item.name} — Normal Fiyat: ₺${item.price}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+
+          <!-- Fiyat Ayarı (Normal & Flaş Fiyat) -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Normal Menü Fiyatı</label>
+              <div class="relative">
+                <input 
+                  type="text" 
+                  id="flash-original-price-display" 
+                  value="₺${firstItem.price}" 
+                  readonly 
+                  class="w-full bg-[#1e1e1e] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-400 font-bold outline-none cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-rose-400 uppercase tracking-wider mb-1.5">🔥 Flaş İndirimli Fiyat (₺) *</label>
+              <div class="relative">
+                <input 
+                  type="number" 
+                  id="flash-discount-price-input" 
+                  name="flashPrice" 
+                  value="${suggestedFlashPrice}" 
+                  min="1" 
+                  max="${firstItem.price}" 
+                  required 
+                  class="w-full bg-[#242424] border-2 border-rose-500 focus:border-rose-400 rounded-xl px-4 py-3 text-sm text-white font-black outline-none transition"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-rose-400" id="flash-discount-badge-calc">
+                  -%${Math.round((1 - suggestedFlashPrice / firstItem.price) * 100)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Süre Seçimi (Geri Sayım) -->
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">2. Geri Sayım Süresi (Dakika) *</label>
+            <div class="grid grid-cols-4 gap-2">
+              <label class="flex flex-col items-center justify-center p-3 rounded-xl border border-gray-700 hover:border-amber-500 cursor-pointer transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/20">
+                <input type="radio" name="durationMinutes" value="5" class="sr-only">
+                <span class="text-sm font-black">5 Dk</span>
+                <span class="text-[10px] text-gray-400">Çok Hızlı</span>
+              </label>
+
+              <label class="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-amber-500 bg-amber-500/20 cursor-pointer transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/20">
+                <input type="radio" name="durationMinutes" value="10" checked class="sr-only">
+                <span class="text-sm font-black text-amber-300">10 Dk</span>
+                <span class="text-[10px] text-amber-200 font-bold">Önerilen ⭐</span>
+              </label>
+
+              <label class="flex flex-col items-center justify-center p-3 rounded-xl border border-gray-700 hover:border-amber-500 cursor-pointer transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/20">
+                <input type="radio" name="durationMinutes" value="15" class="sr-only">
+                <span class="text-sm font-black">15 Dk</span>
+                <span class="text-[10px] text-gray-400">Standart</span>
+              </label>
+
+              <label class="flex flex-col items-center justify-center p-3 rounded-xl border border-gray-700 hover:border-amber-500 cursor-pointer transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/20">
+                <input type="radio" name="durationMinutes" value="30" class="sr-only">
+                <span class="text-sm font-black">30 Dk</span>
+                <span class="text-[10px] text-gray-400">Uzun</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Başlık & Açıklama (İsteğe Bağlı) -->
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">3. Kampanya Başlığı & Mesajı</label>
+            <input 
+              type="text" 
+              id="flash-title-input" 
+              name="title" 
+              value="⚡ 10 DAKİKALIK FLAŞ İNDİRİM!" 
+              placeholder="⚡ 10 DAKİKALIK FLAŞ İNDİRİM!" 
+              class="w-full bg-[#242424] border border-gray-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none mb-2"
+            />
+            <input 
+              type="text" 
+              id="flash-message-input" 
+              name="message" 
+              value="Seçili lezzetimizde şok indirim! Geri sayım bitmeden hemen siparişini ver." 
+              placeholder="Seçili lezzetimizde şok indirim! Geri sayım bitmeden hemen siparişini ver." 
+              class="w-full bg-[#242424] border border-gray-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-gray-300 outline-none"
+            />
+          </div>
+
+          <!-- Canlı Önizleme Kutusu -->
+          <div class="bg-[#121212] border border-gray-800 rounded-2xl p-4">
+            <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <span>👁️</span>
+              <span>Müşteri Ekranında Nasıl Görünecek (Canlı Önizleme)</span>
+            </div>
+            
+            <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white rounded-xl p-3 shadow-lg flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-11 h-11 rounded-lg overflow-hidden bg-black/30 shrink-0">
+                  <img id="flash-preview-img" src="${firstItem.image}" alt="" class="w-full h-full object-cover">
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="bg-black/40 text-[9px] font-black px-1.5 py-0.5 rounded text-amber-200">⚡ FLAŞ İNDİRİM</span>
+                    <span class="text-[10px] font-mono font-bold text-white bg-black/30 px-1.5 py-0.5 rounded">⏱️ 09:59</span>
+                  </div>
+                  <div class="text-xs font-black truncate mt-0.5" id="flash-preview-title">${firstItem.name}</div>
+                  <div class="text-[11px] font-extrabold text-amber-100 flex items-center gap-1.5">
+                    <span class="line-through opacity-75" id="flash-preview-orig">₺${firstItem.price}</span>
+                    <span class="text-white font-black" id="flash-preview-flash">₺${suggestedFlashPrice}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="bg-white text-rose-600 text-[11px] font-black px-3 py-1.5 rounded-lg shadow-sm whitespace-nowrap">
+                ⚡ Sepete Ekle
+              </span>
+            </div>
+          </div>
+
+          <!-- Butonlar -->
+          <div class="flex items-center gap-3 pt-2">
+            <button 
+              type="button" 
+              id="cancel-flash-deal-modal-btn" 
+              class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3.5 rounded-xl text-xs transition cursor-pointer"
+            >
+              Vazgeç
+            </button>
+
+            <button 
+              type="submit" 
+              class="flex-2 bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black py-3.5 rounded-xl text-xs transition shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+            >
+              <span>🚀</span>
+              <span>Flaş İndirimi Canlı Yayına Ver!</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  `;
+}
+
 // Event Listeners Bağlayıcı
 function attachAdminEventListeners(container, state, onStateChange) {
+
   
   // Ses Testi Butonu
   const testSoundBtn = container.querySelector('#admin-test-sound-btn');
@@ -2448,6 +2740,175 @@ function attachAdminEventListeners(container, state, onStateChange) {
       playOrderSound();
     });
   }
+
+  // =================== CANLI FLAŞ İNDİRİM İŞLEMLERİ ===================
+  const flashDealHeaderBtn = container.querySelector('#admin-flash-deal-header-btn');
+  if (flashDealHeaderBtn) {
+    flashDealHeaderBtn.addEventListener('click', () => {
+      const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+      if (activeDeal && activeDeal.active && new Date(activeDeal.expiresAt).getTime() > Date.now()) {
+        if (confirm(`⚡ "${activeDeal.productName}" flaş indirimi şu an canlı yayında.\n\nİndirimi erken sonlandırmak istiyor musunuz?`)) {
+          orderService.stopFlashDeal();
+          onStateChange({ activeFlashDeal: null });
+        }
+      } else {
+        onStateChange({ isFlashDealModalOpen: true });
+      }
+    });
+  }
+
+  const startFlashDealBtn = container.querySelector('#start-flash-deal-btn');
+  if (startFlashDealBtn) {
+    startFlashDealBtn.addEventListener('click', () => {
+      onStateChange({ isFlashDealModalOpen: true });
+    });
+  }
+
+  const stopFlashDealBtn = container.querySelector('#stop-flash-deal-btn');
+  if (stopFlashDealBtn) {
+    stopFlashDealBtn.addEventListener('click', async () => {
+      if (confirm("Canlı flaş indirimi sonlandırmak istediğinize emin misiniz?")) {
+        await orderService.stopFlashDeal();
+        onStateChange({ activeFlashDeal: null });
+      }
+    });
+  }
+
+  // Flaş İndirim Modalı Kapatma
+  const closeFlashModalBtn = container.querySelector('#close-flash-deal-modal-btn');
+  if (closeFlashModalBtn) {
+    closeFlashModalBtn.addEventListener('click', () => onStateChange({ isFlashDealModalOpen: false }));
+  }
+
+  const cancelFlashModalBtn = container.querySelector('#cancel-flash-deal-modal-btn');
+  if (cancelFlashModalBtn) {
+    cancelFlashModalBtn.addEventListener('click', () => onStateChange({ isFlashDealModalOpen: false }));
+  }
+
+  const flashBackdrop = container.querySelector('#flash-deal-modal-backdrop');
+  if (flashBackdrop) {
+    flashBackdrop.addEventListener('click', (e) => {
+      if (e.target === flashBackdrop) onStateChange({ isFlashDealModalOpen: false });
+    });
+  }
+
+  // Flaş İndirim Modalı: Ürün Değişimi & Dinamik Önizleme
+  const flashProductSelect = container.querySelector('#flash-product-select');
+  const flashOrigPriceDisplay = container.querySelector('#flash-original-price-display');
+  const flashPriceInput = container.querySelector('#flash-discount-price-input');
+  const flashBadgeCalc = container.querySelector('#flash-discount-badge-calc');
+  const flashPreviewImg = container.querySelector('#flash-preview-img');
+  const flashPreviewTitle = container.querySelector('#flash-preview-title');
+  const flashPreviewOrig = container.querySelector('#flash-preview-orig');
+  const flashPreviewFlash = container.querySelector('#flash-preview-flash');
+
+  if (flashProductSelect) {
+    flashProductSelect.addEventListener('change', () => {
+      const selectedOpt = flashProductSelect.options[flashProductSelect.selectedIndex];
+      const origPrice = parseFloat(selectedOpt.getAttribute('data-price')) || 100;
+      const name = selectedOpt.getAttribute('data-name') || '';
+      const img = selectedOpt.getAttribute('data-img') || '';
+      const discountPrice = Math.round(origPrice * 0.7);
+
+      if (flashOrigPriceDisplay) flashOrigPriceDisplay.value = `₺${origPrice}`;
+      if (flashPriceInput) {
+        flashPriceInput.value = discountPrice;
+        flashPriceInput.max = origPrice;
+      }
+      if (flashBadgeCalc) flashBadgeCalc.textContent = `-%${Math.round((1 - discountPrice / origPrice) * 100)}`;
+      if (flashPreviewImg && img) flashPreviewImg.src = img;
+      if (flashPreviewTitle) flashPreviewTitle.textContent = name;
+      if (flashPreviewOrig) flashPreviewOrig.textContent = `₺${origPrice}`;
+      if (flashPreviewFlash) flashPreviewFlash.textContent = `₺${discountPrice}`;
+    });
+  }
+
+  if (flashPriceInput) {
+    flashPriceInput.addEventListener('input', () => {
+      const selectedOpt = flashProductSelect?.options[flashProductSelect.selectedIndex];
+      const origPrice = parseFloat(selectedOpt?.getAttribute('data-price')) || 100;
+      const val = parseFloat(flashPriceInput.value) || 0;
+      const pct = origPrice > 0 ? Math.round((1 - val / origPrice) * 100) : 0;
+      if (flashBadgeCalc) flashBadgeCalc.textContent = `-%${pct}`;
+      if (flashPreviewFlash) flashPreviewFlash.textContent = `₺${val}`;
+    });
+  }
+
+  // Flaş İndirim Formu Gönderimi (Canlı Yayına Ver)
+  const flashDealForm = container.querySelector('#admin-flash-deal-form');
+  if (flashDealForm) {
+    flashDealForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const selectedOpt = flashProductSelect?.options[flashProductSelect.selectedIndex];
+      if (!selectedOpt) return;
+
+      const productId = selectedOpt.value;
+      const productName = selectedOpt.getAttribute('data-name');
+      const productImage = selectedOpt.getAttribute('data-img');
+      const originalPrice = parseFloat(selectedOpt.getAttribute('data-price')) || 100;
+      const flashPrice = parseFloat(flashPriceInput?.value) || Math.round(originalPrice * 0.7);
+      
+      const durationRadio = flashDealForm.querySelector('input[name="durationMinutes"]:checked');
+      const durationMinutes = parseInt(durationRadio?.value) || 10;
+      const title = container.querySelector('#flash-title-input')?.value || `⚡ ${durationMinutes} DAKİKALIK FLAŞ İNDİRİM!`;
+      const message = container.querySelector('#flash-message-input')?.value || 'Seçili lezzetimizde şok indirim! Geri sayım bitmeden hemen siparişini ver.';
+
+      const submitBtn = flashDealForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span>⏳</span><span>Canlı Yayına İletiliyor...</span>`;
+      }
+
+      const payload = {
+        productId,
+        productName,
+        productImage,
+        originalPrice,
+        flashPrice,
+        durationMinutes,
+        title,
+        message
+      };
+
+      try {
+        const deal = await orderService.broadcastFlashDeal(payload);
+        alert(`🚀 TEBRİKLER! "${productName}" için ₺${flashPrice} flaş indirim ${durationMinutes} dakika boyunca tüm canlı ziyaretçilere ve müşterilere canlı yayına verildi!`);
+        onStateChange({ isFlashDealModalOpen: false, activeFlashDeal: deal });
+      } catch (err) {
+        console.error("Flaş indirim başlatma hatası:", err);
+        alert("Flaş indirim başlatılırken bir hata oluştu.");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<span>🚀</span><span>Flaş İndirimi Canlı Yayına Ver!</span>`;
+        }
+      }
+    });
+  }
+
+  // Canlı Geri Sayım Zamanlayıcısı (Admin Panel için dinamik sayaç)
+  const rawDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+  const activeDeal = (rawDeal && rawDeal.active && new Date(rawDeal.expiresAt).getTime() > Date.now()) ? rawDeal : null;
+  if (activeDeal) {
+    if (window._adminFlashDealTimer) clearInterval(window._adminFlashDealTimer);
+    window._adminFlashDealTimer = setInterval(() => {
+      const expiresMs = new Date(activeDeal.expiresAt).getTime();
+      const diffSec = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+      const m = Math.floor(diffSec / 60);
+      const s = diffSec % 60;
+      const str = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      
+      container.querySelectorAll('[data-flash-countdown-admin]').forEach(el => {
+        el.textContent = str;
+      });
+
+      if (diffSec <= 0) {
+        clearInterval(window._adminFlashDealTimer);
+        orderService.stopFlashDeal();
+        onStateChange({ activeFlashDeal: null });
+      }
+    }, 1000);
+  }
+
 
   // Sekme Değişimi
   const tabOrdersBtn = container.querySelector('#tab-orders-btn');

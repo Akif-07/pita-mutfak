@@ -64,8 +64,11 @@ const state = {
   isPhoneVerifyOpen: false,
   isContactModalOpen: false,
   contactMessages: [],
-  isProfileMenuOpen: false
+  isProfileMenuOpen: false,
+  activeFlashDeal: orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null,
+  isFlashDealModalOpen: false
 };
+
 
 
 // Müşteri Özel Mesajlarını Yükleme Fonksiyonu
@@ -320,6 +323,15 @@ orderService.subscribeDailyClosings((closings) => {
   state.dailyClosings = Array.isArray(closings) ? closings : [];
   render();
 });
+
+// Canlı Flaş İndirim Senkronizasyonu
+if (typeof orderService.subscribeFlashDeal === 'function') {
+  orderService.subscribeFlashDeal((deal) => {
+    state.activeFlashDeal = deal;
+    render();
+  });
+}
+
 
 
 // Canlı Ziyaretçi & Aktif Kullanıcı Senkronizasyonu (giriş yapmış + misafir ayrı)

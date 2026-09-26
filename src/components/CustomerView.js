@@ -76,6 +76,17 @@ export function renderCustomerView(container, state, onStateChange) {
     ? currentUser.custom_code 
     : (isFirstOrderEligible && firstOrderDiscountApplied ? 'PITA20' : '');
 
+  // Canlı Flaş İndirim Kontrolü
+  const rawFlash = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+  const activeFlashDeal = (rawFlash && rawFlash.active && new Date(rawFlash.expiresAt).getTime() > Date.now()) ? rawFlash : null;
+  let flashCountdownStr = '10:00';
+  if (activeFlashDeal) {
+    const diffSec = Math.max(0, Math.floor((new Date(activeFlashDeal.expiresAt).getTime() - Date.now()) / 1000));
+    const m = Math.floor(diffSec / 60);
+    const s = diffSec % 60;
+    flashCountdownStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
   // İndirim hesaplama
   const discountAmount = (firstOrderDiscountApplied && canApplyDiscount && subtotal > 0)
     ? Math.round(subtotal * (activeDiscountRate / 100))
@@ -90,6 +101,30 @@ export function renderCustomerView(container, state, onStateChange) {
         <div class="bg-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 text-center sticky top-0 z-40">
           <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
           <span>⚠️ <strong>${restStatus.message || `Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${restaurantSettings.openingHours || '10:00 - 23:00'}. Sipariş alımı geçici olarak durdurulmuştur.`}</strong></span>
+        </div>
+      ` : activeFlashDeal ? `
+        <!-- CANLI FLAŞ İNDİRİM ÜST BANNERI -->
+        <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md sticky top-0 z-40 border-b border-white/20">
+          <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+              <span>🔥 <strong>CANLI FLAŞ İNDİRİM:</strong> <span class="font-extrabold text-amber-200">${activeFlashDeal.productName}</span> şimdi <span class="line-through text-white/75 text-xs">₺${activeFlashDeal.originalPrice}</span> yerine sadece <strong class="text-white text-sm sm:text-base underline">₺${activeFlashDeal.flashPrice}</strong>!</span>
+            </div>
+            <div class="flex items-center gap-2.5 shrink-0">
+              <span class="bg-black/40 text-amber-200 text-xs font-mono font-black px-2.5 py-1 rounded-full border border-amber-300/40 flex items-center gap-1 shadow-xs">
+                <span>⏱️</span>
+                <span data-flash-countdown>${flashCountdownStr}</span>
+              </span>
+              <button 
+                type="button"
+                data-add-flash-deal="${activeFlashDeal.productId}"
+                class="bg-white hover:bg-amber-100 text-rose-600 active:scale-95 px-3.5 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-md whitespace-nowrap flex items-center gap-1.5"
+              >
+                <span>⚡</span>
+                <span>Sepete Ekle (₺${activeFlashDeal.flashPrice})</span>
+              </button>
+            </div>
+          </div>
         </div>
       ` : `
         <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
@@ -127,6 +162,7 @@ export function renderCustomerView(container, state, onStateChange) {
           </div>
         </div>
       `}
+
 
       <!-- Ana Header / Navigasyon -->
       <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm transition-all">
@@ -342,10 +378,59 @@ export function renderCustomerView(container, state, onStateChange) {
         </div>
       </div>
 
+      <!-- CANLI FLAŞ İNDİRİM VİTRİN KARTI -->
+      ${activeFlashDeal ? `
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-1">
+          <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white p-5 sm:p-7 shadow-xl border-2 border-amber-300/60">
+            <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-5">
+              
+              <div class="flex items-center gap-4 sm:gap-6 w-full md:w-auto min-w-0">
+                <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-black/40 border-2 border-white/40 shadow-xl shrink-0">
+                  <img src="${activeFlashDeal.productImage}" alt="${activeFlashDeal.productName}" class="w-full h-full object-cover">
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap mb-1">
+                    <span class="bg-black/50 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <span>⚡</span>
+                      <span>CANLI FLAŞ İNDİRİM</span>
+                    </span>
+                    <span class="bg-white/20 backdrop-blur text-white text-xs font-mono font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <span>⏱️</span>
+                      <span data-flash-countdown>${flashCountdownStr}</span>
+                    </span>
+                  </div>
+                  <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight truncate">${activeFlashDeal.productName}</h3>
+                  <p class="text-xs text-amber-100 mt-1 max-w-md line-clamp-2">${activeFlashDeal.message || 'Geri sayım bitmeden hemen şok fiyata sipariş ver!'}</p>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-white/20 shrink-0">
+                <div class="text-left md:text-right">
+                  <div class="line-through text-amber-200/80 text-xs font-bold">₺${activeFlashDeal.originalPrice}</div>
+                  <div class="text-2xl sm:text-3xl font-black text-white">₺${activeFlashDeal.flashPrice}</div>
+                  <div class="text-[10px] font-extrabold text-amber-200">-%${Math.round((1 - activeFlashDeal.flashPrice / activeFlashDeal.originalPrice) * 100)} İNDİRİM</div>
+                </div>
+
+                <button 
+                  type="button"
+                  data-add-flash-deal="${activeFlashDeal.productId}"
+                  class="bg-white hover:bg-amber-100 active:scale-95 text-rose-600 font-black px-5 sm:px-6 py-3.5 rounded-2xl text-xs sm:text-sm transition shadow-xl cursor-pointer flex items-center gap-2 whitespace-nowrap"
+                >
+                  <span>⚡</span>
+                  <span>Hemen Sepete Ekle</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- Kategori Filtre Butonları (Pill Bar) -->
       <div class="sticky top-20 z-20 bg-[#F7F9F8]/95 backdrop-blur py-4 border-b border-gray-200/60 shadow-xs">
         <div class="max-w-6xl mx-auto px-4 sm:px-6">
           <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-1">
+
             ${categories.map(cat => {
               const isActive = activeCategory === cat.id;
               return `
@@ -388,10 +473,13 @@ export function renderCustomerView(container, state, onStateChange) {
               ? (prodReviews.reduce((sum, r) => sum + Number(r.rating), 0) / prodCount).toFixed(1)
               : null;
 
+            const isFlashProduct = activeFlashDeal && product.id === activeFlashDeal.productId;
+            const effectivePrice = isFlashProduct ? activeFlashDeal.flashPrice : product.price;
+
             return `
               <div 
                 data-open-product-modal="${product.id}" 
-                class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer ${!isAvailable ? 'opacity-60 grayscale cursor-not-allowed' : ''}"
+                class="bg-white rounded-3xl overflow-hidden border ${isFlashProduct ? 'border-2 border-rose-400 shadow-md ring-2 ring-rose-300/30' : 'border-gray-100 shadow-sm'} hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer ${!isAvailable ? 'opacity-60 grayscale cursor-not-allowed' : ''}"
               >
                 
                 <div class="relative h-48 w-full overflow-hidden bg-gray-100">
@@ -401,7 +489,12 @@ export function renderCustomerView(container, state, onStateChange) {
                     class="w-full h-full object-cover transition duration-500 group-hover:scale-105"
                     loading="lazy"
                   />
-                  ${product.badge ? `
+                  ${isFlashProduct ? `
+                    <span class="absolute top-3 left-3 bg-gradient-to-r from-rose-600 to-amber-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-lg animate-pulse flex items-center gap-1">
+                      <span>🔥 FLAŞ</span>
+                      <span>(⏱️ <span data-flash-countdown>${flashCountdownStr}</span>)</span>
+                    </span>
+                  ` : product.badge ? `
                     <span class="absolute top-3 left-3 bg-[#06C167] text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md">
                       ${product.badge}
                     </span>
@@ -443,7 +536,14 @@ export function renderCustomerView(container, state, onStateChange) {
                   <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
                     <div>
                       <span class="text-[11px] text-gray-400 font-medium block">Fiyat</span>
-                      <span class="text-base sm:text-lg font-black text-[#121212]">₺${product.price}</span>
+                      ${isFlashProduct ? `
+                        <div class="flex items-baseline gap-1.5">
+                          <span class="line-through text-gray-400 text-xs font-bold">₺${product.price}</span>
+                          <span class="text-base sm:text-lg font-black text-rose-600">₺${effectivePrice}</span>
+                        </div>
+                      ` : `
+                        <span class="text-base sm:text-lg font-black text-[#121212]">₺${product.price}</span>
+                      `}
                     </div>
 
                     ${isAvailable ? `
@@ -451,7 +551,7 @@ export function renderCustomerView(container, state, onStateChange) {
                         <button
                           type="button"
                           data-quick-order-id="${product.id}"
-                          class="quick-order-btn flex items-center gap-1 bg-[#121212] hover:bg-black text-white px-2.5 sm:px-3 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                          class="quick-order-btn flex items-center gap-1 ${isFlashProduct ? 'bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-700 hover:to-amber-600' : 'bg-[#121212] hover:bg-black'} text-white px-2.5 sm:px-3 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
                           title="Hemen sepete ekle ve siparişe geç"
                         >
                           <span>⚡</span>
@@ -460,7 +560,7 @@ export function renderCustomerView(container, state, onStateChange) {
                         <button
                           type="button"
                           data-product-id="${product.id}"
-                          class="add-product-btn flex items-center gap-1 bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white px-3 sm:px-3.5 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                          class="add-product-btn flex items-center gap-1 ${isFlashProduct ? 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white' : 'bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white'} px-3 sm:px-3.5 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
                         >
                           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -485,7 +585,8 @@ export function renderCustomerView(container, state, onStateChange) {
       </main>
 
       <!-- Ürün Detay & Özelleştirme Modalı -->
-      ${selectedProduct ? renderProductModal(selectedProduct) : ''}
+      ${selectedProduct ? renderProductModal(selectedProduct, activeFlashDeal, flashCountdownStr) : ''}
+
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
       ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible, menu) : ''}
@@ -1378,23 +1479,42 @@ function renderOrderReviewModal(orderId, state) {
 }
 
 // Ürün Detay & Porsiyon Seçim Modalı
-function renderProductModal(product) {
+function renderProductModal(product, activeFlashDeal = null, flashCountdownStr = '10:00') {
+  const isFlashProduct = activeFlashDeal && product.id === activeFlashDeal.productId;
+  const basePrice = isFlashProduct ? activeFlashDeal.flashPrice : product.price;
+
   return `
     <div id="product-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${isFlashProduct ? 'border-2 border-rose-400' : ''}">
         
         <div class="relative h-56 w-full">
           <img src="${product.image}" alt="${product.name}" class="w-full h-full object-cover"/>
           <button id="close-product-modal" class="absolute top-4 right-4 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition cursor-pointer">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
-          ${product.badge ? `<span class="absolute bottom-4 left-4 bg-[#06C167] text-white text-xs font-bold px-3 py-1 rounded-full shadow">${product.badge}</span>` : ''}
+          ${isFlashProduct ? `
+            <span class="absolute bottom-4 left-4 bg-gradient-to-r from-rose-600 to-amber-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-lg animate-pulse flex items-center gap-1.5">
+              <span>🔥 FLAŞ İNDİRİM</span>
+              <span>(⏱️ <span data-flash-countdown>${flashCountdownStr}</span>)</span>
+            </span>
+          ` : product.badge ? `
+            <span class="absolute bottom-4 left-4 bg-[#06C167] text-white text-xs font-bold px-3 py-1 rounded-full shadow">${product.badge}</span>
+          ` : ''}
         </div>
 
         <div class="p-6">
           <h3 class="text-xl font-black text-[#121212]">${product.name}</h3>
           <p class="text-xs text-gray-500 mt-1 leading-relaxed">${product.description}</p>
-          <div class="mt-3 text-lg font-black text-[#06C167]">₺${product.price}</div>
+          
+          <div class="mt-3 flex items-baseline gap-2">
+            ${isFlashProduct ? `
+              <span class="line-through text-gray-400 text-sm font-bold">₺${product.price}</span>
+              <span class="text-xl font-black text-rose-600">₺${basePrice}</span>
+              <span class="bg-rose-50 text-rose-600 text-[11px] font-black px-2 py-0.5 rounded-full border border-rose-200">-%${Math.round((1 - basePrice / product.price) * 100)} İNDİRİM</span>
+            ` : `
+              <div class="text-lg font-black text-[#06C167]">₺${basePrice}</div>
+            `}
+          </div>
 
           ${product.options && product.options.length > 0 ? `
             <div class="mt-5 pt-4 border-t border-gray-100">
@@ -1433,16 +1553,16 @@ function renderProductModal(product) {
             <div class="flex items-center gap-2 flex-1">
               <button 
                 id="modal-confirm-add-btn" 
-                class="flex-1 bg-[#E8F8EE] hover:bg-[#d5f3df] text-[#06C167] border border-[#06C167]/40 font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                class="flex-1 ${isFlashProduct ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300' : 'bg-[#E8F8EE] hover:bg-[#d5f3df] text-[#06C167] border border-[#06C167]/40'} font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 title="Sepete ekle ve menüde kal"
               >
                 <span>Sepete Ekle</span>
-                <span id="modal-calculated-price" class="font-extrabold">• ₺${product.price}</span>
+                <span id="modal-calculated-price" class="font-extrabold">• ₺${basePrice}</span>
               </button>
 
               <button 
                 id="modal-quick-order-btn" 
-                class="flex-1 bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer"
+                class="flex-1 ${isFlashProduct ? 'bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-700 hover:to-amber-600' : 'bg-[#06C167] hover:bg-[#05a557]'} text-white font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer"
                 title="Sepete ekle ve doğrudan sepete git"
               >
                 <span>⚡ Hızlı Sipariş</span>
@@ -1455,6 +1575,7 @@ function renderProductModal(product) {
     </div>
   `;
 }
+
 
 // Sepet Çekmecesi (İlk Sipariş İndirim Satırı, Kupon Kutusu ve Yanında İyi Gider ile)
 function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true, menu = []) {
@@ -3378,6 +3499,45 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
+  // Flaş İndirim Butonuna Tıklanınca Sepete Ekleme (Üst Banner & Vitrin Kartı)
+  container.querySelectorAll('[data-add-flash-deal]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pId = btn.getAttribute('data-add-flash-deal');
+      const product = menu.find(p => p.id === pId);
+      const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+      if (!product || !activeDeal) return;
+
+      const opt = (product.options && product.options.length > 0) ? product.options[0] : null;
+      const unitPrice = activeDeal.flashPrice + (opt ? opt.price : 0);
+      const cartItem = {
+        productId: product.id,
+        name: `${product.name} (⚡ Flaş İndirim)`,
+        option: opt,
+        note: '⚡ Flaş İndirimli Sipariş',
+        unitPrice: unitPrice,
+        quantity: 1,
+        isFlashDeal: true
+      };
+
+      const existingIndex = state.cart.findIndex(item => 
+        item.productId === cartItem.productId && 
+        JSON.stringify(item.option) === JSON.stringify(cartItem.option) &&
+        item.unitPrice === cartItem.unitPrice
+      );
+
+      let newCart;
+      if (existingIndex > -1) {
+        newCart = [...state.cart];
+        newCart[existingIndex].quantity += 1;
+      } else {
+        newCart = [...state.cart, cartItem];
+      }
+
+      onStateChange({ cart: newCart, selectedProduct: null, isCartOpen: true });
+    });
+  });
+
   // Ürün kartındaki "⚡ Hızlı Sipariş" butonuna basınca doğrudan sepete ekleme ve sepeti açma
   container.querySelectorAll('.quick-order-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -3386,21 +3546,26 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const product = menu.find(p => p.id === pId);
       if (!product || !product.isAvailable) return;
 
+      const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+      const isFlash = activeDeal && activeDeal.active && product.id === activeDeal.productId && new Date(activeDeal.expiresAt).getTime() > Date.now();
+      const baseP = isFlash ? activeDeal.flashPrice : product.price;
+
       const opt = (product.options && product.options.length > 0) ? product.options[0] : null;
-      const unitPrice = product.price + (opt ? opt.price : 0);
+      const unitPrice = baseP + (opt ? opt.price : 0);
       const cartItem = {
         productId: product.id,
-        name: product.name,
+        name: isFlash ? `${product.name} (⚡ Flaş İndirim)` : product.name,
         option: opt,
-        note: '',
+        note: isFlash ? '⚡ Flaş İndirimli Sipariş' : '',
         unitPrice: unitPrice,
-        quantity: 1
+        quantity: 1,
+        isFlashDeal: isFlash
       };
 
       const existingIndex = state.cart.findIndex(item => 
         item.productId === cartItem.productId && 
         JSON.stringify(item.option) === JSON.stringify(cartItem.option) &&
-        item.note === cartItem.note
+        item.unitPrice === cartItem.unitPrice
       );
 
       let newCart;
@@ -3435,7 +3600,9 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
   const updateModalPrice = () => {
     if (!state.selectedProduct) return;
-    const basePrice = state.selectedProduct.price;
+    const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+    const isFlash = activeDeal && activeDeal.active && state.selectedProduct.id === activeDeal.productId && new Date(activeDeal.expiresAt).getTime() > Date.now();
+    const basePrice = isFlash ? activeDeal.flashPrice : state.selectedProduct.price;
     const optionExtra = (state.selectedProduct.options && state.selectedProduct.options[selectedOptionIndex]) 
       ? state.selectedProduct.options[selectedOptionIndex].price 
       : 0;
@@ -3473,23 +3640,28 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const buildModalCartItem = () => {
     const p = state.selectedProduct;
     if (!p) return null;
+    const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+    const isFlash = activeDeal && activeDeal.active && p.id === activeDeal.productId && new Date(activeDeal.expiresAt).getTime() > Date.now();
+    const baseP = isFlash ? activeDeal.flashPrice : p.price;
     const opt = (p.options && p.options[selectedOptionIndex]) ? p.options[selectedOptionIndex] : null;
     const noteInput = container.querySelector('#product-note-input');
-    const note = noteInput ? noteInput.value.trim() : '';
-    const unitPrice = p.price + (opt ? opt.price : 0);
+    const note = (noteInput ? noteInput.value.trim() : '') || (isFlash ? '⚡ Flaş İndirimli Sipariş' : '');
+    const unitPrice = baseP + (opt ? opt.price : 0);
 
     const cartItem = {
       productId: p.id,
-      name: p.name,
+      name: isFlash ? `${p.name} (⚡ Flaş İndirim)` : p.name,
       option: opt,
       note: note,
       unitPrice: unitPrice,
-      quantity: modalQty
+      quantity: modalQty,
+      isFlashDeal: isFlash
     };
 
     const existingIndex = state.cart.findIndex(item => 
       item.productId === cartItem.productId && 
       JSON.stringify(item.option) === JSON.stringify(cartItem.option) &&
+      item.unitPrice === cartItem.unitPrice &&
       item.note === cartItem.note
     );
 
@@ -3502,6 +3674,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     }
     return newCart;
   };
+
 
   // Modaldan Standart "Sepete Ekle" (Kullanıcı ekledikten sonra sepet açılmaz, alışverişe devam eder)
   const confirmAddBtn = container.querySelector('#modal-confirm-add-btn');
@@ -3897,4 +4070,28 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       }
     });
   }
+
+  // =================== CANLI FLAŞ İNDİRİM GERİ SAYIM SAYAÇ MOTORU ===================
+  const rawDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+  const activeDeal = (rawDeal && rawDeal.active && new Date(rawDeal.expiresAt).getTime() > Date.now()) ? rawDeal : null;
+  if (activeDeal) {
+    if (window._customerFlashDealTimer) clearInterval(window._customerFlashDealTimer);
+    window._customerFlashDealTimer = setInterval(() => {
+      const expiresMs = new Date(activeDeal.expiresAt).getTime();
+      const diffSec = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+      const m = Math.floor(diffSec / 60);
+      const s = diffSec % 60;
+      const str = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      
+      container.querySelectorAll('[data-flash-countdown]').forEach(el => {
+        el.textContent = str;
+      });
+
+      if (diffSec <= 0) {
+        clearInterval(window._customerFlashDealTimer);
+        onStateChange({ activeFlashDeal: null });
+      }
+    }, 1000);
+  }
 }
+
