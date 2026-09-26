@@ -324,23 +324,7 @@ export function renderCustomerView(container, state, onStateChange) {
                   <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Hemen Kap!'}</span>
                 </button>
               </div>
-            ` : `
-              <div class="bg-gradient-to-r from-gray-700/40 to-white/5 border border-white/15 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-xl bg-gray-800/80 text-white flex items-center justify-center text-2xl shadow-md border border-white/10">
-                    ✨
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-black text-white">Pita Mutfak Ailesindensiniz</h4>
-                    <p class="text-xs text-gray-400">İlk sipariş indiriminiz tamamlandı. Lezzet dolu yeni siparişlerinizi bekliyoruz!</p>
-                  </div>
-                </div>
-
-                <div class="bg-white/10 text-gray-300 font-semibold py-2 px-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 whitespace-nowrap border border-white/10">
-                  <span>✓ İlk Sipariş Tamamlandı</span>
-                </div>
-              </div>
-            `}
+            ` : ''}
 
             <div class="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-200">
               <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
@@ -1941,48 +1925,91 @@ function renderTrackingModal(order) {
             </div>
           </div>
 
-          ${order.status === 'delivered' ? `
-            <div class="pt-2">
-              ${order.issueReport ? `
-                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
-                  <div class="flex items-center justify-between font-black mb-1">
-                    <span class="flex items-center gap-1.5">
-                      <span>⚠️</span>
-                      <span>Sorun Bildiriminiz: ${order.issueReport.reason}</span>
-                    </span>
-                    <span class="text-[10px] text-gray-500 font-normal">${order.issueReport.reportedTime || ''}</span>
-                  </div>
-                  <p class="text-[11px] text-amber-800 italic bg-white/80 p-2.5 rounded-xl border border-amber-200/60 mt-1">"${order.issueReport.message || 'Mesajınız iletildi'}"</p>
-                  
-                  ${order.issueReport.adminReply ? `
-                    <div class="bg-white border-2 border-emerald-400 rounded-xl p-3.5 mt-3 shadow-xs">
-                      <div class="flex items-center justify-between font-black text-xs text-emerald-800 mb-1">
-                        <span class="flex items-center gap-1.5">
-                          <span class="text-base">🏪</span>
-                          <span>Pita Mutfak Yetkilisi Yanıtı:</span>
-                        </span>
-                        <span class="text-[10px] text-gray-400 font-normal">${order.issueReport.adminReply.repliedTime || ''}</span>
-                      </div>
-                      <p class="text-xs text-gray-800 font-medium leading-relaxed mt-1">${order.issueReport.adminReply.message}</p>
-                    </div>
-                  ` : `
-                    <div class="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold mt-2">
-                      <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                      <span>Restoran yetkilisi incelemesinde...</span>
-                    </div>
-                  `}
+          <div class="pt-1">
+            ${order.issueReport ? `
+              <div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
+                <div class="flex items-center justify-between font-black mb-1">
+                  <span class="flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>Sipariş Bildiriminiz: ${order.issueReport.reason}</span>
+                  </span>
+                  <span class="text-[10px] text-gray-500 font-normal">${order.issueReport.reportedTime || ''}</span>
                 </div>
-              ` : `
-                <button 
-                  data-open-issue-btn="${order.id}" 
-                  class="w-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>⚠️</span>
-                  <span>Siparişinizle ilgili bir sorun mu var? Bize bildirin</span>
-                </button>
-              `}
-            </div>
-          ` : ''}
+                <p class="text-[11px] text-amber-800 italic bg-white/80 p-2.5 rounded-xl border border-amber-200/60 mt-1">"${order.issueReport.message || 'Mesajınız iletildi'}"</p>
+                
+                ${order.issueReport.adminReply ? `
+                  <div class="bg-white border-2 border-emerald-400 rounded-xl p-3.5 mt-3 shadow-xs">
+                    <div class="flex items-center justify-between font-black text-xs text-emerald-800 mb-1">
+                      <span class="flex items-center gap-1.5">
+                        <span class="text-base">🏪</span>
+                        <span>Pita Mutfak Yetkilisi Yanıtı:</span>
+                      </span>
+                      <span class="text-[10px] text-gray-400 font-normal">${order.issueReport.adminReply.repliedTime || ''}</span>
+                    </div>
+                    <p class="text-xs text-gray-800 font-medium leading-relaxed mt-1">${order.issueReport.adminReply.message}</p>
+                  </div>
+                ` : `
+                  <div class="flex items-center justify-between mt-2 pt-2 border-t border-amber-200/60">
+                    <div class="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold">
+                      <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      <span>Restoran yetkilisi inceliyor...</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      data-open-issue-btn="${order.id}" 
+                      class="text-[11px] text-[#06C167] font-bold hover:underline cursor-pointer"
+                    >
+                      Yeni Not İlet ✎
+                    </button>
+                  </div>
+                `}
+              </div>
+            ` : order.status !== 'delivered' && order.status !== 'cancelled' ? `
+              <!-- AKTİF SİPARİŞ DESTEK & BİZE ULAŞIN KARTI -->
+              <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-2xs">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-lg shrink-0 shadow-xs">
+                    💬
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="font-black text-xs sm:text-sm text-gray-900">Siparişinizle İlgili Bize Ulaşın</h4>
+                    <p class="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
+                      Teslimat adresinizi yanlış mı girdiniz veya acil bir not mu iletmek istiyorsunuz? Siparişiniz teslim edilmeden bize anında bildirebilirsiniz.
+                    </p>
+
+                    <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 mt-3 pt-2.5 border-t border-amber-200/60">
+                      <button 
+                        type="button" 
+                        data-open-issue-btn="${order.id}" 
+                        class="flex-1 bg-white hover:bg-amber-100/80 text-amber-950 border border-amber-300 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <span>✍️</span>
+                        <span>Adres / Sipariş Değişikliği Bildir</span>
+                      </button>
+
+                      <button 
+                        type="button" 
+                        id="tracking-contact-support-btn" 
+                        class="bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-2.5 px-3.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
+                      >
+                        <span>💬</span>
+                        <span>Bize Ulaşın</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ` : order.status === 'delivered' ? `
+              <button 
+                type="button" 
+                data-open-issue-btn="${order.id}" 
+                class="w-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>⚠️</span>
+                <span>Siparişinizle ilgili bir sorun mu var? Bize bildirin</span>
+              </button>
+            ` : ''}
+          </div>
 
           <div class="border-t border-gray-100 pt-4 text-xs space-y-2">
             <div class="flex justify-between text-gray-600">
@@ -2169,52 +2196,67 @@ function renderMyOrdersModal(myOrders, state) {
   `;
 }
 
-// Sorun Bildirme Modalı
+// Sorun & Değişiklik Bildirme Modalı
 function renderIssueModal(orderId, state) {
   const order = orderService.getOrder(orderId);
   if (!order) return '';
+
+  const isDelivered = order.status === 'delivered';
 
   return `
     <div id="issue-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
         
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div class="flex items-center gap-2">
-            <span class="text-xl">⚠️</span>
-            <h3 class="font-extrabold text-base text-gray-900">Sorun Bildir (Sipariş #${order.id})</h3>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl">✍️</span>
+            <div>
+              <h3 class="font-extrabold text-base text-gray-900">Sipariş Bildirimi (#${order.id})</h3>
+              <p class="text-[11px] text-gray-400">Restorana değişiklik veya sorun iletin</p>
+            </div>
           </div>
           <button id="close-issue-modal-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
         </div>
 
         <form id="issue-report-form" data-issue-order-id="${order.id}" class="space-y-4 pt-4">
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Sorunun Konusu *</label>
-            <select name="reason" class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none">
-              <option value="Sipariş Soğuk Geldi">Sipariş Soğuk Geldi</option>
-              <option value="Eksik Ürün / İçecek">Eksik Ürün veya İçecek</option>
-              <option value="Yanlış Ürün Gönderildi">Yanlış Ürün Gönderildi</option>
-              <option value="Kurye ile İlgili Sorun">Kurye ile İlgili Sorun</option>
-              <option value="Lezzet / Kalite Beğenilmedi">Lezzet / Kalite Memnuniyetsizliği</option>
-              <option value="Diğer Sorun">Diğer</option>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Bildirim Konusu *</label>
+            <select name="reason" class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none cursor-pointer">
+              <option value="Yanlış Adres / Adres Değişikliği" selected>📍 Yanlış Adres / Adres Değişikliği</option>
+              <option value="Siparişe Not / İlave Ekleme">📝 Siparişe Not / İlave Ekleme</option>
+              <option value="Telefon / İletişim Bilgisi Güncelleme">📞 Telefon / İletişim Bilgisi Güncelleme</option>
+              <option value="Sipariş İptal Talebi">❌ Sipariş İptal Talebi</option>
+              ${isDelivered ? `
+                <option value="Sipariş Soğuk Geldi">❄️ Sipariş Soğuk Geldi</option>
+                <option value="Eksik Ürün / İçecek">📦 Eksik Ürün veya İçecek</option>
+                <option value="Yanlış Ürün Gönderildi">🔄 Yanlış Ürün Gönderildi</option>
+                <option value="Kurye ile İlgili Sorun">🛵 Kurye ile İlgili Sorun</option>
+                <option value="Lezzet / Kalite Beğenilmedi">⭐ Lezzet / Kalite Memnuniyetsizliği</option>
+              ` : `
+                <option value="Eksik / Değişiklik Talebi">📦 Ürün Değişikliği / İlave</option>
+                <option value="Kurye / Teslimat Saati Bilgisi">🛵 Teslimat Saati Hakkında Bilgi</option>
+              `}
+              <option value="Diğer Sorun / İstek">💬 Diğer</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Açıklamanız *</label>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Açıklamanız (Yeni adres veya iletmek istediğiniz mesaj) *</label>
             <textarea 
               name="message" 
               rows="3" 
               required 
-              placeholder="Yaşadığınız sorunu detaylandırınız. Restoran yönetimimiz en kısa sürede inceleyecektir."
+              placeholder="Örn: Yanlış adresi seçmişim, yeni adresim: Atatürk Mah. 123. Sokak No:4 veya kapı zili çalınmasın lütfen."
               class="w-full text-xs px-3.5 py-2 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
             ></textarea>
           </div>
 
           <button 
             type="submit" 
-            class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3 rounded-2xl text-xs shadow-md transition cursor-pointer"
+            class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
           >
-            Restorana İlet
+            <span>✉️</span>
+            <span>Restorana İlet</span>
           </button>
         </form>
 
@@ -3267,20 +3309,21 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
-  // Sorun Bildirme Modalını Açma (Giriş Yapılmasını Zorunlu Kıl)
+  // Sorun & Değişiklik Bildirme Modalını Açma
   container.querySelectorAll('[data-open-issue-btn]').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (!state.currentUser) {
-        onStateChange({ 
-          isLoginModalOpen: true, 
-          loginNotice: 'Sorun bildirebilmek için lütfen önce giriş yapınız.' 
-        });
-        return;
-      }
       const orderId = btn.getAttribute('data-open-issue-btn');
       onStateChange({ reportingOrderId: orderId });
     });
   });
+
+  // Takip Modalından "Bize Ulaşın" İletişim Modalını Açma
+  const trackingContactSupportBtn = container.querySelector('#tracking-contact-support-btn');
+  if (trackingContactSupportBtn) {
+    trackingContactSupportBtn.addEventListener('click', () => {
+      onStateChange({ isContactModalOpen: true });
+    });
+  }
 
   const closeIssueBtn = container.querySelector('#close-issue-modal-btn');
   if (closeIssueBtn) {
