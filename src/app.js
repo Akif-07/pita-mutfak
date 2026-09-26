@@ -1,5 +1,5 @@
 // Pita Mutfak - Ana Uygulama Yöneticisi & Router
-import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore } from './services/orderService.js';
+import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore, firebaseSignOut } from './services/orderService.js';
 
 
 import { renderCustomerView } from './components/CustomerView.js';
@@ -58,7 +58,8 @@ const state = {
   isAddressesOpen: false,
   isPhoneVerifyOpen: false,
   isContactModalOpen: false,
-  contactMessages: []
+  contactMessages: [],
+  isProfileMenuOpen: false
 };
 
 
@@ -394,7 +395,8 @@ checkGoogleRedirect(); // Google redirect ile döndüyse giriş tamamla
 
 // Firebase Persistent Auth Dinleyicisi (Tarayıcı yenilense dahi Google oturumunu hatırla)
 initAuthListener((firebaseProfile) => {
-  if (!state.currentUser) {
+  const isExplicitLoggedOut = sessionStorage.getItem('pita_explicit_logout') === 'true';
+  if (!state.currentUser && !isExplicitLoggedOut) {
     state.currentUser = firebaseProfile;
     orderService.setCurrentUser(firebaseProfile);
     orderService.saveCustomerLocally(firebaseProfile);

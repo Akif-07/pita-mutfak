@@ -35,7 +35,8 @@ import {
   resetRecaptchaVerifier,
   sendContactMessageToFirestore,
   getContactMessagesFromFirestore,
-  updateContactMessageStatus
+  updateContactMessageStatus,
+  firebaseSignOut
 } from '../firebase/firebaseService.js';
 
 export { 
@@ -52,7 +53,8 @@ export {
   resetRecaptchaVerifier,
   sendContactMessageToFirestore,
   getContactMessagesFromFirestore,
-  updateContactMessageStatus
+  updateContactMessageStatus,
+  firebaseSignOut
 };
 
 
@@ -503,6 +505,7 @@ export function getCurrentUser() {
 export function setCurrentUser(user) {
   if (user) {
     localStorage.setItem('pita_current_user', JSON.stringify(user));
+    sessionStorage.removeItem('pita_explicit_logout');
   } else {
     localStorage.removeItem('pita_current_user');
   }

@@ -633,6 +633,19 @@ export async function signInWithGoogle() {
   }
 }
 
+export async function firebaseSignOut() {
+  try {
+    const app = await getFirebaseApp();
+    const { getAuth, signOut } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const auth = getAuth(app);
+    await signOut(auth);
+    return true;
+  } catch (e) {
+    console.warn("Firebase signOut hatası:", e);
+    return false;
+  }
+}
+
 export async function getGoogleRedirectResult() {
   try {
     const app = await getFirebaseApp();

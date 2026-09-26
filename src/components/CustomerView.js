@@ -19,7 +19,8 @@ import {
   saveAddress,
   deleteAddress,
   resetRecaptchaVerifier,
-  submitContactMessage
+  submitContactMessage,
+  firebaseSignOut
 } from '../services/orderService.js';
 
 
@@ -123,19 +124,21 @@ export function renderCustomerView(container, state, onStateChange) {
             
             <!-- Kullanıcı Giriş / Profil Butonu -->
             ${currentUser ? `
-              <div class="relative group">
+              <div class="relative" id="user-profile-container">
                 <button 
                   id="user-profile-btn" 
-                  class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  type="button"
+                  class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
                   <span>👤</span>
                   <span class="max-w-[100px] truncate">${currentUser.name}</span>
                   ${!currentUser.phoneVerified ? '<span class="text-xs">⚠️</span>' : ''}
+                  <svg class="w-3.5 h-3.5 transition-transform ${state.isProfileMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
-                <div class="hidden group-hover:block absolute right-0 mt-1 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
+                <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
                   <div class="px-3 py-2 border-b border-gray-100 mb-1">
                     <p class="text-xs font-bold text-gray-900 truncate">${currentUser.name}</p>
-                    <p class="text-[11px] text-gray-400 font-mono">${currentUser.phone || 'Telefon girilmedi'}</p>
+                    <p class="text-[11px] text-gray-400 font-mono">${currentUser.phone || currentUser.email || 'Telefon girilmedi'}</p>
                     ${currentUser.phoneVerified 
                       ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full mt-1">✓ Doğrulandı</span>'
                       : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full mt-1">⚠️ Telefon Doğrulanmadı</span>'
@@ -149,8 +152,8 @@ export function renderCustomerView(container, state, onStateChange) {
                     <span>${currentUser.phoneVerified ? 'Telefonum' : 'Telefonu Doğrula!'}</span>
                   </button>
                   <div class="border-t border-gray-100 mt-1 pt-1">
-                    <button id="logout-btn" class="w-full text-left text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition cursor-pointer">
-                      🚪 Çıkış Yap
+                    <button id="logout-btn" type="button" class="w-full text-left text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                      <span>🚪</span><span>Çıkış Yap</span>
                     </button>
                   </div>
                 </div>
@@ -2607,13 +2610,61 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
-  // Çıkış Yap
+  // =================== PROFİL & ÇIKIŞ DROPDOWN İŞLEMLERİ ===================
+  const userProfileBtn = container.querySelector('#user-profile-btn');
+  if (userProfileBtn) {
+    userProfileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onStateChange({ isProfileMenuOpen: !state.isProfileMenuOpen });
+    });
+  }
+
+  // Dışarı tıklandığında profil menüsünü kapat
+  const profileContainer = container.querySelector('#user-profile-container');
+  if (profileContainer && state.isProfileMenuOpen) {
+    const handleOutsideClick = (e) => {
+      if (!profileContainer.contains(e.target)) {
+        document.removeEventListener('click', handleOutsideClick);
+        onStateChange({ isProfileMenuOpen: false });
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+    }, 0);
+  }
+
+  // Çıkış Yap (Google, Phone ve Local Storage tam oturum temizliği)
   const logoutBtn = container.querySelector('#logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
+    logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 1. Kalıcı çıkış flag'i belirle (Firebase persistent auth otomatik geri oturum açmasın)
+      sessionStorage.setItem('pita_explicit_logout', 'true');
+
+      // 2. Firebase Google oturumunu kapat
+      try {
+        await firebaseSignOut();
+      } catch (err) {
+        console.warn("firebaseSignOut çağrısı:", err);
+      }
+
+      // 3. Yerel kullanıcı verilerini temizle
       setCurrentUser(null);
       orderService.removePresence();
-      performSmoothReload('Çıkış yapılıyor...');
+
+      // 4. State'i hemen güncelle
+      onStateChange({ 
+        currentUser: null, 
+        isProfileMenuOpen: false,
+        isCustomerInboxOpen: false,
+        isAddressesOpen: false,
+        isPhoneVerifyOpen: false
+      });
+
+      // 5. Ekranı yenile
+      performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
     });
   }
 
@@ -2623,7 +2674,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const openAddressesBtn = container.querySelector('#open-addresses-btn');
   if (openAddressesBtn) {
     openAddressesBtn.addEventListener('click', () => {
-      onStateChange({ isAddressesOpen: true });
+      onStateChange({ isAddressesOpen: true, isProfileMenuOpen: false });
     });
   }
 
@@ -2631,7 +2682,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const openPhoneVerifyBtn = container.querySelector('#open-phone-verify-btn');
   if (openPhoneVerifyBtn) {
     openPhoneVerifyBtn.addEventListener('click', () => {
-      onStateChange({ isPhoneVerifyOpen: true, phoneVerifyStep: 'send', phoneVerifyError: '' });
+      onStateChange({ isPhoneVerifyOpen: true, phoneVerifyStep: 'send', phoneVerifyError: '', isProfileMenuOpen: false });
     });
   }
 
