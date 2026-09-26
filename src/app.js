@@ -7,15 +7,20 @@ import { renderAdminPanel } from './components/AdminPanel.js';
 import { renderCourierPanel } from './components/CourierPanel.js';
 import { renderPrivacyPolicy, renderTermsOfService } from './components/LegalPages.js';
 
+const initialUser = getCurrentUser();
+const initialOrders = orderService.getOrders();
+const hasCustomInit = Boolean(initialUser && initialUser.custom_code && initialUser.custom_discount > 0);
+const firstOrderEligibleInit = isFirstOrderDiscountAvailable(initialUser, initialOrders);
+
 // Uygulama Global State'i
 const state = {
   currentView: 'customer', // 'customer' | 'admin' | 'courier'
-  currentUser: getCurrentUser(), // Oturum açmış müşteri bilgisi { name, phone }
+  currentUser: initialUser, // Oturum açmış müşteri bilgisi { name, phone }
   restaurantSettings: orderService.getRestaurantSettings(), // Restoran açık/kapalı & çalışma saatleri
-  orders: orderService.getOrders(),
+  orders: initialOrders,
   isLoginModalOpen: false,
   isDiscountPromoOpen: false,
-  firstOrderDiscountApplied: isFirstOrderDiscountAvailable(), // İlk sipariş indirimi aktif mi?
+  firstOrderDiscountApplied: (hasCustomInit || firstOrderEligibleInit), // İlk sipariş indirimi veya özel kupon aktif mi?
   discountPercentage: 20, // %20 İlk sipariş indirimi
   activeCategory: 'all',
   cart: orderService.getStoredCart(),
@@ -31,7 +36,7 @@ const state = {
   customerSearchQuery: '',
   customers: [],
   stockList: [],
-  reviewsList: [],
+  reviewsList: orderService.getStoredReviews ? orderService.getStoredReviews() : [],
   isReviewsModalOpen: false,
   reviewsFilterProductId: null,
   reviewingOrderId: null,
@@ -113,9 +118,12 @@ async function loadBackendData() {
     // Müşteri oturum açmışsa mesajlarını ve özel kodunu da güncelle
     if (state.currentUser && state.currentUser.phone) {
       await loadCustomerMessages();
-    } else {
-      render();
     }
+    const hasCustom = state.currentUser && state.currentUser.custom_code && state.currentUser.custom_discount > 0;
+    if (!hasCustom && !isFirstOrderDiscountAvailable(state.currentUser, state.orders)) {
+      state.firstOrderDiscountApplied = false;
+    }
+    render();
   } catch (e) {
     console.warn("Backend veri yüklenirken hata:", e);
   }
@@ -141,6 +149,11 @@ async function checkGoogleRedirect() {
       saveCustomerLocally(customerProfile);
       try { await syncCustomerToFirestore(customerProfile); } catch (e) {}
       state.currentUser = customerProfile;
+
+      const hasCustom = customerProfile.custom_code && customerProfile.custom_discount > 0;
+      if (!hasCustom && !isFirstOrderDiscountAvailable(customerProfile, state.orders)) {
+        state.firstOrderDiscountApplied = false;
+      }
 
       // Eğer kullanıcı sipariş aşamasındayken Google ile giriş yaptıysa checkout ekranını geri aç
       const wasPending = sessionStorage.getItem('pita_pending_checkout') === 'true';
@@ -227,6 +240,13 @@ function handleStateChange(newState) {
     }
   }
 
+  // İlk sipariş indirimi kontrolü: Eğer müşteri daha önce sipariş verdiyse ve özel kodu yoksa indirim uygulanamaz
+  const activeUser = state.currentUser;
+  const hasCustomActive = activeUser && activeUser.custom_code && activeUser.custom_discount > 0;
+  if (!hasCustomActive && !isFirstOrderDiscountAvailable(activeUser, state.orders)) {
+    state.firstOrderDiscountApplied = false;
+  }
+
   render();
 }
 
@@ -254,6 +274,11 @@ function render() {
 // Canlı Sipariş Senkronizasyonunu Başlat
 orderService.subscribe((orders) => {
   state.orders = Array.isArray(orders) ? orders : [];
+  const activeUser = state.currentUser;
+  const hasCustomActive = activeUser && activeUser.custom_code && activeUser.custom_discount > 0;
+  if (!hasCustomActive && !isFirstOrderDiscountAvailable(activeUser, state.orders)) {
+    state.firstOrderDiscountApplied = false;
+  }
   // Eğer aktif takip edilen sipariş varsa durumunu canlı güncelle
   if (state.activeTrackingOrder) {
     const updated = state.orders.find(o => o.id === state.activeTrackingOrder.id);

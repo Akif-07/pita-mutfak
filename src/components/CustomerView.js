@@ -54,18 +54,29 @@ export function renderCustomerView(container, state, onStateChange) {
   const messages = state.customerMessages || [];
   const unreadMessagesCount = messages.filter(m => !m.is_read).length;
 
+  // Gerçek Müşteri Yorumları & Puan Hesaplaması
+  const reviewsList = Array.isArray(state.reviewsList) ? state.reviewsList : (orderService.getStoredReviews ? orderService.getStoredReviews() : []);
+  const validReviews = reviewsList.filter(r => r && Number(r.rating) > 0);
+  const totalReviewsCount = validReviews.length;
+  const avgRating = totalReviewsCount > 0 
+    ? (validReviews.reduce((sum, r) => sum + Number(r.rating), 0) / totalReviewsCount).toFixed(1)
+    : null;
+
   // Özel kod veya ilk sipariş indirimi kontrolü
   const hasCustomCode = currentUser && currentUser.custom_code && currentUser.custom_discount > 0;
+  const isFirstOrderEligible = isFirstOrderDiscountAvailable(currentUser, state.orders);
+  const canApplyDiscount = hasCustomCode || isFirstOrderEligible;
+
   const activeDiscountRate = hasCustomCode 
     ? currentUser.custom_discount 
     : discountPercentage;
 
   const activeCouponCode = hasCustomCode 
     ? currentUser.custom_code 
-    : (firstOrderDiscountApplied ? 'PITA20' : '');
+    : (isFirstOrderEligible && firstOrderDiscountApplied ? 'PITA20' : '');
 
   // İndirim hesaplama
-  const discountAmount = (firstOrderDiscountApplied && subtotal > 0)
+  const discountAmount = (firstOrderDiscountApplied && canApplyDiscount && subtotal > 0)
     ? Math.round(subtotal * (activeDiscountRate / 100))
     : 0;
   const cartTotal = Math.max(0, subtotal - discountAmount);
@@ -85,14 +96,33 @@ export function renderCustomerView(container, state, onStateChange) {
           <div class="max-w-6xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping"></span>
-              <span>🎉 Pita Mutfak'a Hoş Geldiniz! İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
+              ${hasCustomCode ? `
+                <span>🎉 Size özel %${currentUser.custom_discount} indirim kodunuz: <strong>${currentUser.custom_code}</strong> sepetinizde tanımlı!</span>
+              ` : isFirstOrderEligible ? `
+                <span>🎉 Pita Mutfak'a Hoş Geldiniz! İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
+              ` : `
+                <span>🎉 Pita Mutfak lezzetleri kapınızda! Taze makarna, çıtır pizza ve enfes tavuk pilav.</span>
+              `}
             </div>
-            <button 
-              id="top-promo-claim-btn" 
-              class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
-            >
-              ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '🎁 İndirimi Kap'}
-            </button>
+            ${hasCustomCode ? `
+              <button 
+                id="top-promo-claim-btn" 
+                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '⭐ İndirimi Kap'}
+              </button>
+            ` : isFirstOrderEligible ? `
+              <button 
+                id="top-promo-claim-btn" 
+                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '🎁 İndirimi Kap'}
+              </button>
+            ` : `
+              <span class="bg-white/20 text-white px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+                🛵 Hızlı & Sıcak Teslimat
+              </span>
+            `}
           </div>
         </div>
       `}
@@ -186,11 +216,12 @@ export function renderCustomerView(container, state, onStateChange) {
             <button 
               id="open-reviews-btn" 
               class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2.5 sm:px-3.5 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
-              title="Müşteri Değerlendirmeleri ve Yorumları"
+              title="Müşteri Değerlendirmeleri ve Yorumları (${totalReviewsCount} değerlendirme)"
             >
               <span>⭐</span>
-              <span>4.9</span>
-              <span class="hidden sm:inline text-amber-700">Yorumlar</span>
+              <span>${totalReviewsCount > 0 ? avgRating : '5.0'}</span>
+              <span class="text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
+              <span class="hidden sm:inline text-amber-700 font-semibold">Yorumlar</span>
             </button>
 
             <!-- Geçmiş Siparişlerim Butonu -->
@@ -253,25 +284,62 @@ export function renderCustomerView(container, state, onStateChange) {
               Özel marine edilmiş çıtır ve tiftik tavuklar, tereyağlı nohutlu pilav, günlük krema ve fesleğenli makarnalar ile taş fırında nar gibi kızaran İtalyan hamurlu çıtır pizzalar sofranızda.
             </p>
 
-            <!-- İLK SİPARİŞİNE İNDİRİMİ KAP ETKİLEŞİMLİ KUTUSU -->
-            <div class="bg-gradient-to-r from-[#06C167]/20 to-white/10 border border-[#06C167]/50 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-2xl shadow-md">
-                  🎁
+            <!-- İNDİRİM KUTUSU (Özel Kod / İlk Sipariş / Kullanıldı) -->
+            ${hasCustomCode ? `
+              <div class="bg-gradient-to-r from-purple-600/30 to-white/10 border border-purple-400/50 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center text-2xl shadow-md">
+                    ⭐
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-black text-white">Size Özel %${currentUser.custom_discount} İndirim!</h4>
+                    <p class="text-xs text-gray-300">Kupon Kodu: <strong class="text-purple-300 font-mono tracking-wider">${currentUser.custom_code}</strong></p>
+                  </div>
                 </div>
-                <div>
-                  <h4 class="text-sm font-black text-white">İlk Siparişine Özel %20 İndirim!</h4>
-                  <p class="text-xs text-gray-300">Kupon Kodu: <strong class="text-[#06C167] font-mono tracking-wider">PITA20</strong></p>
+
+                <button 
+                  id="claim-discount-btn" 
+                  class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Uygula'}</span>
+                </button>
+              </div>
+            ` : isFirstOrderEligible ? `
+              <div class="bg-gradient-to-r from-[#06C167]/20 to-white/10 border border-[#06C167]/50 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-2xl shadow-md">
+                    🎁
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-black text-white">İlk Siparişine Özel %20 İndirim!</h4>
+                    <p class="text-xs text-gray-300">Kupon Kodu: <strong class="text-[#06C167] font-mono tracking-wider">PITA20</strong></p>
+                  </div>
+                </div>
+
+                <button 
+                  id="claim-discount-btn" 
+                  class="bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Hemen Kap!'}</span>
+                </button>
+              </div>
+            ` : `
+              <div class="bg-gradient-to-r from-gray-700/40 to-white/5 border border-white/15 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-xl bg-gray-800/80 text-white flex items-center justify-center text-2xl shadow-md border border-white/10">
+                    ✨
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-black text-white">Pita Mutfak Ailesindensiniz</h4>
+                    <p class="text-xs text-gray-400">İlk sipariş indiriminiz tamamlandı. Lezzet dolu yeni siparişlerinizi bekliyoruz!</p>
+                  </div>
+                </div>
+
+                <div class="bg-white/10 text-gray-300 font-semibold py-2 px-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 whitespace-nowrap border border-white/10">
+                  <span>✓ İlk Sipariş Tamamlandı</span>
                 </div>
               </div>
-
-              <button 
-                id="claim-discount-btn" 
-                class="bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Hemen Kap!'}</span>
-              </button>
-            </div>
+            `}
 
             <div class="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-200">
               <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
@@ -284,7 +352,7 @@ export function renderCustomerView(container, state, onStateChange) {
               </div>
               <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
                 <span>⭐</span>
-                <span class="font-semibold">4.9 Puan</span>
+                <span class="font-semibold">${totalReviewsCount > 0 ? `${avgRating} Puan (${totalReviewsCount} Yorum)` : 'Müşteri Değerlendirmeleri'}</span>
               </div>
             </div>
 
@@ -333,11 +401,11 @@ export function renderCustomerView(container, state, onStateChange) {
             const stockQty = stockRecord !== undefined ? stockRecord.quantity : (product.isAvailable ? 50 : 0);
             const isAvailable = product.isAvailable && stockQty > 0;
 
-            const prodReviews = (state.reviewsList || []).filter(r => r.product_id === product.id);
-            const prodRating = prodReviews.length > 0 
-              ? (prodReviews.reduce((sum, r) => sum + r.rating, 0) / prodReviews.length).toFixed(1)
-              : '5.0';
-            const prodReviewCount = prodReviews.length > 0 ? prodReviews.length : (product.badge === 'En Çok Satan' ? 28 : 14);
+            const prodReviews = reviewsList.filter(r => r && r.product_id === product.id && Number(r.rating) > 0);
+            const prodCount = prodReviews.length;
+            const prodRating = prodCount > 0 
+              ? (prodReviews.reduce((sum, r) => sum + Number(r.rating), 0) / prodCount).toFixed(1)
+              : null;
 
             return `
               <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group ${!isAvailable ? 'opacity-60 grayscale' : ''}">
@@ -376,8 +444,12 @@ export function renderCustomerView(container, state, onStateChange) {
                       title="Ürün değerlendirmelerini gör"
                     >
                       <span class="text-amber-400">⭐</span>
-                      <span class="font-bold text-gray-900">${prodRating}</span>
-                      <span class="text-[11px] text-gray-400">(${prodReviewCount} yorum)</span>
+                      ${prodCount > 0 ? `
+                        <span class="font-bold text-gray-900">${prodRating}</span>
+                        <span class="text-[11px] text-gray-400 font-medium">(${prodCount} yorum)</span>
+                      ` : `
+                        <span class="text-[11px] text-gray-400 font-medium">Yorumlar (${prodCount})</span>
+                      `}
                     </button>
                     <p class="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">
                       ${product.description}
@@ -420,7 +492,7 @@ export function renderCustomerView(container, state, onStateChange) {
       ${selectedProduct ? renderProductModal(selectedProduct) : ''}
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
-      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message) : ''}
+      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible) : ''}
 
       <!-- Sipariş Tamamlama / Checkout Modalı -->
       ${state.isCheckoutOpen ? renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) : ''}
@@ -879,15 +951,17 @@ function renderLoginModal(state) {
 
 // Müşteri Yorum & Puanlama Modalı
 function renderReviewsModal(state) {
-  const reviews = state.reviewsList || [];
+  const reviews = Array.isArray(state.reviewsList) ? state.reviewsList : (orderService.getStoredReviews ? orderService.getStoredReviews() : []);
   const filterPid = state.reviewsFilterProductId;
   const filteredReviews = filterPid 
     ? reviews.filter(r => !r.product_id || r.product_id === filterPid)
     : reviews;
 
-  const avgScore = reviews.length > 0 
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : '5.0';
+  const validReviews = filteredReviews.filter(r => r && Number(r.rating) > 0);
+  const targetCount = validReviews.length;
+  const avgScore = targetCount > 0 
+    ? (validReviews.reduce((sum, r) => sum + Number(r.rating), 0) / targetCount).toFixed(1)
+    : null;
 
   const menu = orderService.getMenu();
   const selectedProdName = filterPid ? (menu.find(m => m.id === filterPid)?.name || '') : '';
@@ -915,10 +989,14 @@ function renderReviewsModal(state) {
         <!-- Puan Özeti Banner -->
         <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-100 rounded-2xl p-4 my-4 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-3">
-            <span class="text-3xl font-black text-[#06C167]">${avgScore}</span>
+            <span class="text-3xl font-black text-[#06C167]">${targetCount > 0 ? avgScore : '—'}</span>
             <div>
-              <div class="text-amber-400 text-sm">★★★★★</div>
-              <span class="text-[11px] font-bold text-gray-600">${reviews.length} Gerçek Müşteri Yorumu</span>
+              <div class="text-amber-400 text-sm">
+                ${targetCount > 0 ? '★'.repeat(Math.min(5, Math.max(1, Math.round(Number(avgScore))))) + '☆'.repeat(Math.max(0, 5 - Math.min(5, Math.max(1, Math.round(Number(avgScore)))))) : '☆☆☆☆☆'}
+              </div>
+              <span class="text-[11px] font-bold text-gray-600">
+                ${targetCount > 0 ? `${targetCount} Gerçek Müşteri Yorumu (Ortalama ${avgScore} / 5.0)` : (filterPid ? 'Bu ürün için henüz yorum yapılmamış' : 'Henüz müşteri yorumu yapılmamış')}
+              </span>
             </div>
           </div>
           <button id="toggle-add-review-btn" class="bg-[#06C167] hover:bg-[#05a557] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer shadow-xs">
@@ -1372,7 +1450,7 @@ function renderProductModal(product) {
 }
 
 // Sepet Çekmecesi (İlk Sipariş İndirim Satırı ve Kupon Kutusu ile)
-function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '') {
+function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true) {
   return `
     <div id="cart-drawer-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-200">
@@ -1424,6 +1502,20 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
             <!-- İLK SİPARİŞ İNDİRİMİ VEYA ÖZEL KOD ROZETİ (Uygula / İptal Et) -->
             ${(() => {
               const hasCustom = currentUser && currentUser.custom_code && currentUser.custom_discount > 0;
+              if (!hasCustom && !isFirstOrderEligible) {
+                return `
+                  <div class="border bg-gray-50 border-gray-200 rounded-2xl p-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="text-base">ℹ️</span>
+                      <div>
+                        <span class="text-xs font-bold block text-gray-700">İlk Sipariş İndirimi (PITA20)</span>
+                        <span class="text-[11px] text-gray-500">Yalnızca ilk siparişte geçerlidir, kullanılmıştır.</span>
+                      </div>
+                    </div>
+                    <span class="text-[11px] text-gray-400 font-bold px-2.5 py-1 bg-gray-200 rounded-lg">Kullanıldı</span>
+                  </div>
+                `;
+              }
               const couponCode = hasCustom ? currentUser.custom_code : 'PITA20';
               const couponDiscount = hasCustom ? currentUser.custom_discount : 20;
               const couponText = hasCustom 
@@ -2140,8 +2232,18 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const handleClaim = () => {
     if (!state.currentUser) {
       onStateChange({ isLoginModalOpen: true, authError: '' });
+      return;
+    }
+    const hasCustom = state.currentUser.custom_code && state.currentUser.custom_discount > 0;
+    const isEligible = isFirstOrderDiscountAvailable(state.currentUser, state.orders);
+    if (!hasCustom && !isEligible) {
+      alert("İlk sipariş indirimi yalnızca daha önce siparişi bulunmayan müşterilerimiz için geçerlidir.");
+      return;
+    }
+    onStateChange({ firstOrderDiscountApplied: true, isCartOpen: true });
+    if (hasCustom) {
+      alert(`🎉 Özel indirim kodunuz (${state.currentUser.custom_code}) sepetinize uygulandı!`);
     } else {
-      onStateChange({ firstOrderDiscountApplied: true, isCartOpen: true });
       alert("🎉 Tebrikler! İlk siparişinize özel %20 indirim sepetinize uygulandı!");
     }
   };
@@ -3020,6 +3122,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         onStateChange({ isLoginModalOpen: true });
         return;
       }
+      const hasCustom = state.currentUser.custom_code && state.currentUser.custom_discount > 0;
+      const isEligible = isFirstOrderDiscountAvailable(state.currentUser, state.orders);
+      if (!hasCustom && !isEligible) {
+        alert("İlk sipariş indirimi yalnızca ilk siparişiniz için geçerlidir.");
+        return;
+      }
       onStateChange({ firstOrderDiscountApplied: !state.firstOrderDiscountApplied });
     });
   }
@@ -3334,7 +3442,10 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const appliedRate = hasCustom ? state.currentUser.custom_discount : state.discountPercentage;
       const couponCode = hasCustom ? state.currentUser.custom_code : 'PITA20';
 
-      const currentDiscount = (state.firstOrderDiscountApplied && currentSubtotal > 0)
+      const isEligible = isFirstOrderDiscountAvailable(state.currentUser, state.orders);
+      const canApply = hasCustom || isEligible;
+
+      const currentDiscount = (state.firstOrderDiscountApplied && canApply && currentSubtotal > 0)
         ? Math.round(currentSubtotal * (appliedRate / 100))
         : 0;
       const finalTotal = Math.max(0, currentSubtotal - currentDiscount);
@@ -3343,6 +3454,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const createdOrder = orderService.createOrder({
         customerName,
         customerPhone,
+        customerEmail: state.currentUser?.email || '',
+        userId: state.currentUser?.uid || state.currentUser?.id || '',
         deliveryAddress,
         orderNote,
         paymentMethod,

@@ -511,9 +511,70 @@ export function setCurrentUser(user) {
   }
 }
 
-export function isFirstOrderDiscountAvailable() {
-  const used = localStorage.getItem('pita_first_order_used');
-  return !used;
+export function getMyOrders(ordersList = null, user = null) {
+  const myIds = getMyOrderIds();
+  const allOrders = Array.isArray(ordersList) ? ordersList : getStoredOrders();
+  const currentUser = user || getCurrentUser();
+  const currentPhone = currentUser ? (currentUser.phone || '').replace(/\D/g, '') : '';
+  const currentEmail = currentUser && currentUser.email ? currentUser.email.trim().toLowerCase() : '';
+  const currentUid = currentUser ? (currentUser.uid || currentUser.id || '') : '';
+
+  return allOrders.filter(o => {
+    if (myIds.includes(o.id) || myIds.includes(String(o.id))) return true;
+    if (currentUid && (o.userId === currentUid || o.customerId === currentUid)) return true;
+    if (currentEmail && o.customerEmail && o.customerEmail.trim().toLowerCase() === currentEmail) return true;
+    if (currentPhone && o.customerPhone) {
+      const orderPhone = o.customerPhone.replace(/\D/g, '');
+      if (orderPhone && (orderPhone === currentPhone || orderPhone.endsWith(currentPhone) || currentPhone.endsWith(orderPhone))) {
+        addMyOrderId(o.id);
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+export function isFirstOrderDiscountAvailable(user = null, ordersList = null) {
+  // 1. Tarayıcıda indirim daha önce kullanıldı olarak işaretlendiyse
+  if (localStorage.getItem('pita_first_order_used')) {
+    return false;
+  }
+
+  const u = user || getCurrentUser();
+  // 2. Kullanıcının kayıtlı sipariş sayısı varsa ve > 0 ise
+  if (u) {
+    const totalOrders = Number(u.total_orders || u.totalOrders || u.order_count || 0);
+    if (totalOrders > 0) {
+      return false;
+    }
+  }
+
+  // 3. Geçmiş siparişler listesinde siparişi var mı?
+  try {
+    const myOrders = getMyOrders(ordersList, u);
+    if (myOrders && myOrders.length > 0) {
+      return false;
+    }
+  } catch (e) {}
+
+  // 4. Stored customers veritabanında bu müşteri var mı ve total_orders > 0 mı?
+  if (u && (u.phone || u.email)) {
+    try {
+      const customers = getStoredCustomers();
+      const uPhone = (u.phone || '').replace(/\D/g, '').slice(-10);
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const match = customers.find(c => {
+        const cPhone = (c.phone || '').replace(/\D/g, '').slice(-10);
+        const cEmail = (c.email || '').trim().toLowerCase();
+        return (uPhone && cPhone && uPhone === cPhone) || (uEmail && cEmail && uEmail === cEmail);
+      });
+      if (match && Number(match.total_orders || match.totalOrders || match.order_count || 0) > 0) {
+        return false;
+      }
+    } catch (e) {}
+  }
+
+  return true;
 }
 
 export function markFirstOrderDiscountUsed() {
@@ -1023,6 +1084,8 @@ export const orderService = {
       deliveryCode: deliveryCode, // 8 Haneli Doğrulama Kodu (Örn: 74928103)
       customerName: orderInput.customerName || 'Misafir',
       customerPhone: orderInput.customerPhone || '',
+      customerEmail: orderInput.customerEmail || '',
+      userId: orderInput.userId || '',
       deliveryAddress: orderInput.deliveryAddress || '',
       orderNote: orderInput.orderNote || orderInput.note || orderInput.order_note || orderInput.customerNote || '',
       paymentMethod: orderInput.paymentMethod || 'cash', // 'cash' (Kapıda Nakit) | 'eft' (EFT / Havale)
@@ -1049,8 +1112,8 @@ export const orderService = {
     // Müşterinin cihazına sipariş ID'sini kaydet
     addMyOrderId(orderId);
 
-    // Eğer ilk sipariş indirimi kullanıldıysa işaretle
-    if (orderInput.discountAmount > 0) {
+    // Eğer ilk sipariş indirimi kullanıldıysa veya sipariş verildiyse ilk sipariş hakkını tamamla
+    if (orderInput.discountAmount > 0 || orderInput.discountCode === 'PITA20') {
       markFirstOrderDiscountUsed();
     }
 
@@ -1105,23 +1168,8 @@ export const orderService = {
   },
 
   // 4. Müşterinin Kendi Geçmiş Siparişlerini Al
-  getMyOrders(ordersList = null) {
-    const myIds = getMyOrderIds();
-    const allOrders = Array.isArray(ordersList) ? ordersList : getStoredOrders();
-    const currentUser = getCurrentUser();
-    const currentPhone = currentUser ? (currentUser.phone || '').replace(/\D/g, '') : '';
-
-    return allOrders.filter(o => {
-      if (myIds.includes(o.id) || myIds.includes(String(o.id))) return true;
-      if (currentPhone && o.customerPhone) {
-        const orderPhone = o.customerPhone.replace(/\D/g, '');
-        if (orderPhone && (orderPhone === currentPhone || orderPhone.endsWith(currentPhone) || currentPhone.endsWith(orderPhone))) {
-          addMyOrderId(o.id);
-          return true;
-        }
-      }
-      return false;
-    });
+  getMyOrders(ordersList = null, user = null) {
+    return getMyOrders(ordersList, user);
   },
 
   // 5. Sipariş Durumunu Güncelle (Admin Tarafı)
@@ -1560,6 +1608,10 @@ export const orderService = {
   },
 
   // Müşteri Yorum & Puanlama Servisleri
+  getStoredReviews() {
+    return getStoredReviews();
+  },
+
   async getReviews(productId = null) {
     return getReviews(productId);
   },
