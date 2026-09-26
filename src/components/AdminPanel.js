@@ -634,6 +634,9 @@ export function renderAdminPanel(container, state, onStateChange) {
       <!-- Müşteri Sorununa Yanıt Verme Modalı -->
       ${state.activeReplyIssueOrder ? renderReplyIssueModal(state.activeReplyIssueOrder) : ''}
 
+      <!-- İletişim Mesajına Yanıt Verme Modalı -->
+      ${state.activeReplyContactMsg ? renderReplyContactModal(state.activeReplyContactMsg) : ''}
+
       <!-- Yeni Gider Ekleme Modalı (Muhasebe) -->
       ${state.isAddExpenseModalOpen ? renderAddExpenseModal(state) : ''}
 
@@ -722,14 +725,25 @@ function renderOrderCard(order) {
             ` : ''}
 
             <div class="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rose-200/60">
-              <button 
-                data-reply-issue-btn="${order.id}"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
-                title="Müşteriye panel üzerinden mesajla yanıt ver"
-              >
-                <span>💬</span>
-                <span>${order.issueReport.adminReply ? 'Tekrar Yanıt Yaz' : 'Müşteriye Yanıt Yaz'}</span>
-              </button>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <button 
+                  data-reply-issue-btn="${order.id}"
+                  class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
+                  title="Müşteriye panel üzerinden mesajla yanıt ver"
+                >
+                  <span>💬</span>
+                  <span>${order.issueReport.adminReply ? 'Tekrar Yanıt Yaz' : 'Müşteriye Yanıt Yaz'}</span>
+                </button>
+
+                <button 
+                  data-delete-issue-btn="${order.id}"
+                  class="bg-rose-100 hover:bg-rose-600 hover:text-white text-rose-700 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition cursor-pointer flex items-center gap-1"
+                  title="Bu sorun bildirimini sil"
+                >
+                  <span>🗑️</span>
+                  <span>Sil</span>
+                </button>
+              </div>
 
               <div class="flex items-center gap-2">
                 <span class="text-[11px] font-black ${order.issueReport.status === 'resolved' ? 'text-[#06C167]' : 'text-rose-700'}">
@@ -740,7 +754,7 @@ function renderOrderCard(order) {
                     data-resolve-issue-btn="${order.id}" 
                     class="bg-[#06C167] hover:bg-[#05a557] text-white px-3 py-1.5 rounded-xl text-[10px] font-bold shadow-xs transition cursor-pointer"
                   >
-                    ✓ Çözüldü Olarak İşaretle
+                    ✓ Çözüldü
                   </button>
                 ` : ''}
               </div>
@@ -2294,6 +2308,136 @@ function renderReplyIssueModal(order) {
   `;
 }
 
+// İletişim Mesajına Yanıt Verme Modalı
+function renderReplyContactModal(msg) {
+  if (!msg) return '';
+
+  const cleanPhone = (msg.senderPhone || '').replace(/\D/g, '');
+  const waUrl = cleanPhone ? `https://wa.me/90${cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(`Merhaba ${msg.senderName || 'Sayın Misafirimiz'}, Pita Mutfak'tan mesajınıza istinaden iletişime geçiyoruz:`)}` : null;
+
+  return `
+    <div id="reply-contact-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-gray-100 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold">
+              💬
+            </div>
+            <div>
+              <h3 class="font-black text-base text-[#121212]">İletişim Mesajına Yanıt Ver</h3>
+              <p class="text-[11px] text-gray-500">${msg.senderName || 'Anonim'} • ${msg.senderPhone || msg.senderEmail || 'İletişim'}</p>
+            </div>
+          </div>
+          <button id="close-reply-contact-btn" class="p-2 text-gray-400 hover:text-black rounded-xl transition cursor-pointer">✕</button>
+        </div>
+
+        <div class="overflow-y-auto py-4 space-y-4 flex-1">
+          <!-- Gelen Mesaj Özeti -->
+          <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-xs">
+            <div class="flex items-center justify-between text-gray-700 font-bold mb-1">
+              <span>📩 Müşteri Mesajı ${msg.subject ? `(${msg.subject})` : ''}:</span>
+              <span class="text-[10px] text-gray-400 font-normal">${new Date(msg.createdAt).toLocaleString('tr-TR')}</span>
+            </div>
+            <p class="text-gray-800 italic bg-white p-3 rounded-xl border border-gray-200 mt-2 leading-relaxed">
+              "${msg.message || ''}"
+            </p>
+            ${msg.photoBase64 ? `
+              <div class="mt-2.5">
+                <img src="${msg.photoBase64}" class="max-h-28 rounded-lg border border-gray-200 cursor-pointer hover:opacity-90" onclick="window.open(this.src, '_blank')" alt="Ek fotoğraf" />
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Hızlı Dış İletişim Butonları -->
+          ${cleanPhone ? `
+            <div class="flex items-center gap-2">
+              <a 
+                href="${waUrl}" 
+                target="_blank" 
+                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-2xs"
+              >
+                <span>💬</span>
+                <span>WhatsApp ile Yanıtla</span>
+              </a>
+              <a 
+                href="tel:${msg.senderPhone}" 
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-2xs"
+              >
+                <span>📞</span>
+                <span>Geri Ara</span>
+              </a>
+            </div>
+          ` : ''}
+
+          <!-- Hızlı Yanıt Şablonları -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-2">⚡ Hızlı Yanıt Şablonları (Tek Tıkla Ekle):</label>
+            <div class="flex flex-wrap gap-1.5">
+              <button 
+                type="button" 
+                class="contact-quick-reply-pill bg-gray-100 hover:bg-purple-50 hover:text-purple-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, mesajınız için çok teşekkür ederiz. Talebiniz mutfak ekibimiz tarafından yerine getirilmiştir. Afiyet olsun!"
+              >
+                ✓ Talebiniz Yerine Getirildi
+              </button>
+              <button 
+                type="button" 
+                class="contact-quick-reply-pill bg-gray-100 hover:bg-purple-50 hover:text-purple-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, adres ve sipariş bilgi değişikliğiniz başarıyla güncellenmiştir. Kuryemiz yeni adresinize yönlendirilmiştir."
+              >
+                📍 Adres / Bilgi Güncellendi
+              </button>
+              <button 
+                type="button" 
+                class="contact-quick-reply-pill bg-gray-100 hover:bg-purple-50 hover:text-purple-700 text-gray-700 text-[11px] font-medium px-2.5 py-1.5 rounded-xl border border-gray-200 transition cursor-pointer"
+                data-text="Merhaba, değerli geri bildiriminiz ve öneriniz için teşekkür ederiz. Hizmet kalitemizi artırmak için notlarımız arasına aldık."
+              >
+                💡 Geri Bildirim Teşekkürü
+              </button>
+            </div>
+          </div>
+
+          <!-- Yanıt Formu -->
+          <form id="admin-reply-contact-form" data-msg-id="${msg.id}" data-phone="${msg.senderPhone || ''}" data-name="${msg.senderName || ''}" class="space-y-4 pt-1">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Müşteriye İletilecek Yanıt Mesajı *</label>
+              <textarea 
+                id="reply-contact-textarea"
+                name="replyMessage" 
+                rows="4" 
+                required 
+                placeholder="Müşteriye iletmek istediğiniz yanıt mesajını buraya yazınız..." 
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-purple-600 outline-none leading-relaxed"
+              >${msg.adminReply?.message || ''}</textarea>
+              <p class="text-[10px] text-gray-400 mt-1">Bu yanıt mesaj kaydına eklenecek, mesaj 'Çözüldü' statüsüne alınacak ve müşterinin gelen kutusuna iletilecektir.</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button 
+                type="button" 
+                id="cancel-reply-contact-btn" 
+                class="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
+              >
+                İptal
+              </button>
+              <button 
+                type="submit" 
+                class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-purple-600/20 cursor-pointer"
+              >
+                <span>✉️</span>
+                <span>Yanıtı Gönder & Kaydet</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
 // Event Listeners Bağlayıcı
 function attachAdminEventListeners(container, state, onStateChange) {
   
@@ -2984,11 +3128,126 @@ function attachAdminEventListeners(container, state, onStateChange) {
         await markContactMessageResolved(msgId);
         // State güncelle
         const updatedMsgs = (state.contactMessages || []).map(m =>
-          m.id === msgId ? { ...m, status: 'resolved' } : m
+          String(m.id) === String(msgId) ? { ...m, status: 'resolved' } : m
         );
         onStateChange({ contactMessages: updatedMsgs });
       } catch (e) {
         console.warn('Mesaj güncelleme hatası:', e);
+      }
+    });
+  });
+
+  // Contact Mesajları: Yanıt Modalı Açma
+  container.querySelectorAll('[data-reply-contact-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const msgId = btn.getAttribute('data-reply-contact-btn');
+      const msg = (state.contactMessages || []).find(m => String(m.id) === String(msgId));
+      if (msg) {
+        onStateChange({ activeReplyContactMsg: msg });
+      }
+    });
+  });
+
+  // Contact Mesajı: Yanıt Modalı Kapatma
+  const closeReplyContactBtn = container.querySelector('#close-reply-contact-btn');
+  if (closeReplyContactBtn) {
+    closeReplyContactBtn.addEventListener('click', () => onStateChange({ activeReplyContactMsg: null }));
+  }
+
+  const cancelReplyContactBtn = container.querySelector('#cancel-reply-contact-btn');
+  if (cancelReplyContactBtn) {
+    cancelReplyContactBtn.addEventListener('click', () => onStateChange({ activeReplyContactMsg: null }));
+  }
+
+  const replyContactBackdrop = container.querySelector('#reply-contact-modal-backdrop');
+  if (replyContactBackdrop) {
+    replyContactBackdrop.addEventListener('click', (e) => {
+      if (e.target === replyContactBackdrop) onStateChange({ activeReplyContactMsg: null });
+    });
+  }
+
+  // Contact Mesajı: Hızlı Yanıt Şablonları (Pills)
+  container.querySelectorAll('.contact-quick-reply-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const text = pill.getAttribute('data-text');
+      const textarea = container.querySelector('#reply-contact-textarea');
+      if (textarea && text) {
+        textarea.value = text;
+        textarea.focus();
+      }
+    });
+  });
+
+  // Contact Mesajı: Yanıt Gönderme Formu
+  const replyContactForm = container.querySelector('#admin-reply-contact-form');
+  if (replyContactForm) {
+    replyContactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msgId = replyContactForm.getAttribute('data-msg-id');
+      const phone = replyContactForm.getAttribute('data-phone') || '';
+      const name = replyContactForm.getAttribute('data-name') || '';
+      const formData = new FormData(replyContactForm);
+      const replyMsg = (formData.get('replyMessage') || '').trim();
+
+      if (!replyMsg) {
+        alert("Lütfen bir yanıt mesajı yazınız.");
+        return;
+      }
+
+      const submitBtn = replyContactForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Gönderiliyor...";
+      }
+
+      try {
+        const { replyToContactMessage } = await import('../services/orderService.js');
+        const res = await replyToContactMessage(msgId, replyMsg, phone, name);
+        const updatedMsgs = (state.contactMessages || []).map(m =>
+          String(m.id) === String(msgId) ? { ...m, status: 'resolved', adminReply: res.replyData } : m
+        );
+        alert("✓ Yanıtınız başarıyla kaydedildi ve müşteriye iletildi.");
+        onStateChange({ activeReplyContactMsg: null, contactMessages: updatedMsgs });
+      } catch (err) {
+        console.error("Yanıt gönderme hatası:", err);
+        alert("Yanıt gönderilirken bir hata oluştu.");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Yanıtı Gönder & Kaydet";
+        }
+      }
+    });
+  }
+
+  // Contact Mesajları: Silme Butonu
+  container.querySelectorAll('[data-delete-contact-btn]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const msgId = btn.getAttribute('data-delete-contact-btn');
+      if (!msgId) return;
+
+      if (confirm("Bu iletişim mesajını kalıcı olarak silmek istediğinize emin misiniz?")) {
+        try {
+          const { deleteContactMessage } = await import('../services/orderService.js');
+          await deleteContactMessage(msgId);
+          const updatedMsgs = (state.contactMessages || []).filter(m => String(m.id) !== String(msgId));
+          alert("✓ Mesaj başarıyla silindi.");
+          onStateChange({ contactMessages: updatedMsgs });
+        } catch (e) {
+          console.error("Mesaj silme hatası:", e);
+          alert("Mesaj silinirken bir hata oluştu.");
+        }
+      }
+    });
+  });
+
+  // Sipariş Bildirimi Silme (Admin)
+  container.querySelectorAll('[data-delete-issue-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orderId = btn.getAttribute('data-delete-issue-btn');
+      if (!orderId) return;
+      if (confirm("Bu sipariş sorun bildirimini kalıcı olarak silmek istediğinize emin misiniz?")) {
+        orderService.clearIssueReport(orderId);
+        alert("✓ Sipariş bildirimi silindi.");
       }
     });
   });
@@ -3081,6 +3340,20 @@ function renderContactMessagesTab(messages, state) {
             ${msg.message || ''}
           </div>
 
+          <!-- Yetkili Yanıtı (Varsa) -->
+          ${msg.adminReply ? `
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-3.5 mb-3 text-purple-950">
+              <div class="flex items-center justify-between font-extrabold text-xs mb-1 text-purple-800">
+                <span class="flex items-center gap-1.5">
+                  <span>🏪</span>
+                  <span>Yetkili Yanıtınız:</span>
+                </span>
+                <span class="text-[10px] text-purple-600 font-normal">${msg.adminReply.repliedTime || msg.adminReply.repliedDate || ''}</span>
+              </div>
+              <p class="text-xs text-purple-900 leading-relaxed font-medium">"${msg.adminReply.message}"</p>
+            </div>
+          ` : ''}
+
           <!-- Fotoğraf (varsa) -->
           ${msg.photoBase64 ? `
             <div class="mb-3">
@@ -3095,19 +3368,47 @@ function renderContactMessagesTab(messages, state) {
           ` : ''}
 
           <!-- Aksiyon Butonları -->
-          <div class="flex items-center gap-2 flex-wrap">
-            ${msg.status !== 'resolved' ? `
+          <div class="flex items-center justify-between gap-2 flex-wrap pt-3 border-t border-gray-100">
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- Yanıt Yaz Butonu -->
               <button
-                class="admin-resolve-contact-btn text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-[#06C167] hover:text-white text-emerald-700 border border-emerald-200 transition cursor-pointer"
-                data-msg-id="${msg.id}"
-              >✅ Çözüldü Olarak İşaretle</button>
-            ` : ''}
-            ${msg.senderPhone ? `
-              <a
-                href="tel:${msg.senderPhone}"
-                class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition"
-              >📞 Geri Ara</a>
-            ` : ''}
+                type="button"
+                data-reply-contact-btn="${msg.id}"
+                class="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>💬</span>
+                <span>${msg.adminReply ? 'Tekrar Yanıt Yaz' : 'Cevap Yaz'}</span>
+              </button>
+
+              ${msg.status !== 'resolved' ? `
+                <button
+                  type="button"
+                  class="admin-resolve-contact-btn text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-[#06C167] hover:text-white text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                  data-msg-id="${msg.id}"
+                >✅ Çözüldü İşaretle</button>
+              ` : ''}
+
+              ${msg.senderPhone ? `
+                <a
+                  href="tel:${msg.senderPhone}"
+                  class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition flex items-center gap-1"
+                >
+                  <span>📞</span>
+                  <span>Ara</span>
+                </a>
+              ` : ''}
+            </div>
+
+            <!-- Sil Butonu -->
+            <button
+              type="button"
+              data-delete-contact-btn="${msg.id}"
+              class="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 hover:text-white text-red-600 border border-red-200 transition cursor-pointer flex items-center gap-1"
+              title="Bu mesajı kalıcı olarak sil"
+            >
+              <span>🗑️</span>
+              <span>Sil</span>
+            </button>
           </div>
 
         </div>

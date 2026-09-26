@@ -36,6 +36,8 @@ import {
   sendContactMessageToFirestore,
   getContactMessagesFromFirestore,
   updateContactMessageStatus,
+  deleteContactMessageFromFirestore,
+  replyContactMessageInFirestore,
   firebaseSignOut
 } from '../firebase/firebaseService.js';
 
@@ -46,7 +48,7 @@ export {
   syncCustomerToFirestore, 
   pingPresence, 
   subscribePresence, 
-  removePresence,
+  removePresence, 
   sendFirebasePhoneVerification,
   confirmFirebasePhoneCode,
   formatPhoneNumberForFirebase,
@@ -54,6 +56,8 @@ export {
   sendContactMessageToFirestore,
   getContactMessagesFromFirestore,
   updateContactMessageStatus,
+  deleteContactMessageFromFirestore,
+  replyContactMessageInFirestore,
   firebaseSignOut
 };
 
@@ -1305,6 +1309,25 @@ export const orderService = {
     return updatedOrder;
   },
 
+  // 7.2 Admin Sorun Bildirimini Silme / Temizleme
+  clearIssueReport(orderId) {
+    const orders = getStoredOrders();
+    let updatedOrder = null;
+    const updatedOrders = orders.map(order => {
+      if (String(order.id) === String(orderId)) {
+        const { issueReport, ...rest } = order;
+        updatedOrder = { ...rest, issueReport: null };
+        return updatedOrder;
+      }
+      return order;
+    });
+    saveOrders(updatedOrders, 'ISSUE_CLEARED', updatedOrder);
+    if (updatedOrder) {
+      syncOrderToFirestore(updatedOrder).catch(() => {});
+    }
+    return updatedOrder;
+  },
+
   // 8. Kurye 8 Haneli Kod Doğrulama & Teslimat (Kurye Tarafı)
   verifyAndDeliver(orderId, inputCode) {
     const orders = getStoredOrders();
@@ -2274,4 +2297,57 @@ export async function markContactMessageResolved(messageId) {
     const updated = msgs.map(m => m.id === messageId ? { ...m, status: 'resolved' } : m);
     localStorage.setItem('pita_contact_messages', JSON.stringify(updated));
   } catch (e) {}
+}
+
+export async function deleteContactMessage(messageId) {
+  try {
+    await deleteContactMessageFromFirestore(messageId);
+  } catch (e) {}
+  try {
+    const msgs = JSON.parse(localStorage.getItem('pita_contact_messages') || '[]');
+    const filtered = msgs.filter(m => String(m.id) !== String(messageId));
+    localStorage.setItem('pita_contact_messages', JSON.stringify(filtered));
+  } catch (e) {}
+  return true;
+}
+
+export async function replyToContactMessage(messageId, replyText, senderPhone = '', senderName = '') {
+  const now = new Date();
+  const replyData = {
+    message: replyText,
+    repliedAt: now.toISOString(),
+    repliedTime: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+    repliedDate: now.toLocaleDateString('tr-TR')
+  };
+
+  try {
+    await replyContactMessageInFirestore(messageId, replyData);
+  } catch (e) {}
+
+  try {
+    const msgs = JSON.parse(localStorage.getItem('pita_contact_messages') || '[]');
+    const updated = msgs.map(m => String(m.id) === String(messageId) ? { ...m, status: 'resolved', adminReply: replyData } : m);
+    localStorage.setItem('pita_contact_messages', JSON.stringify(updated));
+  } catch (e) {}
+
+  // Müşteriye bildirim / mesaj ilet (Customer Inbox)
+  if (senderPhone) {
+    try {
+      const cleanPhone = senderPhone.replace(/\D/g, '');
+      const noteItem = {
+        id: 'msg_reply_' + Date.now(),
+        type: 'support_reply',
+        title: '💬 Pita Mutfak Yetkilisi Yanıtı',
+        message: `Sayın ${senderName || 'Misafirimiz'},\nİletişim mesajınıza yetkilimiz yanıt verdi:\n"${replyText}"`,
+        createdAt: now.toISOString(),
+        read: false
+      };
+      const key = `pita_customer_messages_${cleanPhone}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.unshift(noteItem);
+      localStorage.setItem(key, JSON.stringify(existing.slice(0, 50)));
+    } catch (e) {}
+  }
+
+  return { ok: true, replyData };
 }

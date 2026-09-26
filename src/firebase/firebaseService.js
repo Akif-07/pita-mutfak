@@ -1150,7 +1150,7 @@ export async function updateContactMessageStatus(messageId, status) {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
     const { db, doc, setDoc, getDoc } = ctx;
-    const ref = doc(db, 'contact_messages', messageId);
+    const ref = doc(db, 'contact_messages', String(messageId));
     const snap = await getDoc(ref);
     if (snap.exists()) {
       await setDoc(ref, { ...snap.data(), status, updatedAt: new Date().toISOString() });
@@ -1158,6 +1158,42 @@ export async function updateContactMessageStatus(messageId, status) {
     return true;
   } catch (e) {
     console.warn('Contact message status güncelleme hatası:', e);
+    return false;
+  }
+}
+
+export async function deleteContactMessageFromFirestore(messageId) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
+    await deleteDoc(doc(db, 'contact_messages', String(messageId)));
+    return true;
+  } catch (e) {
+    console.warn('Contact message silme hatası:', e);
+    return false;
+  }
+}
+
+export async function replyContactMessageInFirestore(messageId, replyData) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc, getDoc } = ctx;
+    const ref = doc(db, 'contact_messages', String(messageId));
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      await setDoc(ref, {
+        ...data,
+        status: 'resolved',
+        adminReply: cleanForFirestore(replyData),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn('Contact message yanıt güncelleme hatası:', e);
     return false;
   }
 }
