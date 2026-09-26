@@ -284,6 +284,9 @@ orderService.subscribe((orders) => {
     const updated = state.orders.find(o => o.id === state.activeTrackingOrder.id);
     if (updated) {
       state.activeTrackingOrder = updated;
+      if (updated.status === 'delivered' || updated.status === 'cancelled') {
+        localStorage.removeItem('pita_last_order_id');
+      }
     }
   }
   render();

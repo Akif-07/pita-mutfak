@@ -239,8 +239,8 @@ export function renderCustomerView(container, state, onStateChange) {
               ` : ''}
             </button>
 
-            <!-- Canlı Takip Varsa Hızlı Buton -->
-            ${activeTrackingOrder ? `
+            <!-- Canlı Takip Varsa Hızlı Buton (Yalnızca aktif/teslim edilmemiş siparişlerde) -->
+            ${activeTrackingOrder && activeTrackingOrder.status !== 'delivered' && activeTrackingOrder.status !== 'cancelled' ? `
               <button id="quick-track-btn" class="flex items-center gap-2 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer">
                 <span class="w-2 h-2 rounded-full bg-[#06C167] animate-pulse"></span>
                 <span class="hidden sm:inline">Takip Et</span>
@@ -2046,12 +2046,14 @@ function renderMyOrdersModal(myOrders, state) {
                   </div>
 
                   <div class="flex items-center gap-2">
-                    <button 
-                      data-open-detail-order="${order.id}" 
-                      class="bg-white border border-gray-200 hover:border-gray-400 text-gray-700 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer"
-                    >
-                      Takip Et
-                    </button>
+                    ${isActiveOrder ? `
+                      <button 
+                        data-open-detail-order="${order.id}" 
+                        class="bg-white border border-gray-200 hover:border-gray-400 text-gray-700 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer"
+                      >
+                        Takip Et
+                      </button>
+                    ` : ''}
 
                     ${order.status === 'delivered' ? `
                       <button 
