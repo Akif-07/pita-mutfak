@@ -957,7 +957,8 @@ function renderLoginModal(state) {
                 name="password" 
                 id="reg-password-input"
                 required 
-                placeholder="Şifre" 
+                minlength="6"
+                placeholder="Şifreniz (En az 6 karakter)" 
                 class="w-full text-sm text-gray-900 placeholder-gray-400 pl-4 pr-11 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
               />
               <button 
@@ -2755,7 +2756,24 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const name = formData.get('name').trim();
       const email = (formData.get('email') || '').trim().toLowerCase();
       const phone = formData.get('phone').trim();
-      const password = formData.get('password').trim();
+      const password = (formData.get('password') || '').trim();
+
+      // Form Doğrulama (Validation)
+      if (name.length < 2) {
+        onStateChange({ authError: 'Lütfen adınızı ve soyadınızı eksiksiz giriniz.' });
+        return;
+      }
+
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length < 10) {
+        onStateChange({ authError: 'Lütfen geçerli bir telefon numarası giriniz (örn: 05XX XXX XX XX).' });
+        return;
+      }
+
+      if (password.length < 6) {
+        onStateChange({ authError: 'Şifreniz güvenlik açısından en az 6 karakterden oluşmalıdır.' });
+        return;
+      }
 
       const submitBtn = registerForm.querySelector('button[type="submit"]');
       if (submitBtn) {
@@ -2819,6 +2837,13 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       }
 
       const pending = state.pendingVerificationData || {};
+
+      // Kayıt aşamasındayken şifre kontrolü
+      if (!pending.isPhoneLogin && pending.password && pending.password.length < 6) {
+        onStateChange({ authError: 'Şifreniz en az 6 karakter olmalıdır.' });
+        return;
+      }
+
       const submitBtn = verifyCodeForm.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = true;

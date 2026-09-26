@@ -849,6 +849,13 @@ export async function verifyAndRegister(payload) {
   const isTestCode = inputCode === '123456';
   let fbUser = null;
 
+  // Şifre kontrolü: Kayıt olurken şifre en az 6 karakter olmalıdır
+  if (!payload.isPhoneLogin && payload.password !== undefined && payload.password !== null && payload.password.trim() !== '') {
+    if (payload.password.trim().length < 6) {
+      return { ok: false, error: 'Şifreniz güvenlik açısından en az 6 karakter olmalıdır.' };
+    }
+  }
+
   // 1. Firebase SMS oturumu varsa ve test kodu değilse Firebase ile onayla
   if (window.confirmationResult && !isTestCode) {
     try {

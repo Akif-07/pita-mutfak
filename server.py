@@ -411,6 +411,11 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json(400, {"error": "Telefon/E-posta ve doğrulama kodu zorunludur."})
                     return
 
+                # Şifre kontrolü: Eğer şifre ile kayıt olunuyorsa en az 6 karakter olmalıdır
+                if password and len(password) < 6:
+                    self.send_json(400, {"error": "Şifreniz güvenlik açısından en az 6 karakter olmalıdır."})
+                    return
+
                 stored = VERIFICATION_CODES.get(identifier) or (email and VERIFICATION_CODES.get(email)) or (phone and VERIFICATION_CODES.get(phone))
                 # Test/demo kolaylığı için 123456 veya üretilen kod kabul edilir
                 is_valid_code = (stored and stored.get('code') == input_code) or (input_code == "123456")
