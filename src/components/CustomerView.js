@@ -2994,7 +2994,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           performSmoothReload(`👋 Hoş geldiniz, ${user.name}!`);
           return;
         } else {
-          const errText = res.error || (res.data && res.data.error) || 'Bu telefon numarası veya e-posta ile kayıtlı müşteri bulunamadı. Lütfen "Kayıt Ol" sekmesinden hesap oluşturunuz.';
+          const errText = res.error || (res.data && res.data.error) || 'Lütfen e-posta adresinizi ve şifrenizi kontrol edin.';
           onStateChange({ authError: errText });
           if (submitBtn) {
             submitBtn.disabled = false;
@@ -3002,7 +3002,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           }
         }
       } catch (err) {
-        onStateChange({ authError: 'Giriş yapılamadı. Lütfen bilgilerinizi kontrol ediniz.' });
+        onStateChange({ authError: 'Lütfen e-posta adresinizi ve şifrenizi kontrol edin.' });
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerText = originalText;

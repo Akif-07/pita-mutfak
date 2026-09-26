@@ -1019,14 +1019,14 @@ export async function customerLogin(identifier, password) {
   if (!foundCustomer) {
     return { 
       ok: false, 
-      error: 'Bu telefon numarası veya e-posta ile kayıtlı müşteri bulunamadı. Lütfen önce "Kayıt Ol" sekmesinden hesap açınız.' 
+      error: 'Lütfen e-posta adresinizi ve şifrenizi kontrol edin.' 
     };
   }
 
   // Şifre kontrolü
   if (foundCustomer.password) {
     if (!password || password !== foundCustomer.password) {
-      return { ok: false, error: 'Girdiğiniz şifre hatalı! Lütfen kontrol ediniz.' };
+      return { ok: false, error: 'Lütfen e-posta adresinizi ve şifrenizi kontrol edin.' };
     }
   }
 

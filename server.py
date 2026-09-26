@@ -475,12 +475,12 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                 customer = cursor.fetchone()
 
                 if not customer:
-                    self.send_json(404, {"error": "Bu bilgilerle kayıtlı bir müşteri bulunamadı."})
+                    self.send_json(404, {"error": "Lütfen e-posta adresinizi ve şifrenizi kontrol edin."})
                     return
 
                 # Eğer şifre belirlenmişse ve girilmişse kontrol et
                 if customer['password'] and password and customer['password'] != password:
-                    self.send_json(401, {"error": "Hatalı şifre girdiniz."})
+                    self.send_json(401, {"error": "Lütfen e-posta adresinizi ve şifrenizi kontrol edin."})
                     return
 
                 self.send_json(200, {
