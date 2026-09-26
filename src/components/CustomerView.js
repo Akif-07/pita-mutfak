@@ -792,88 +792,45 @@ function renderContactModal(currentUser) {
   `;
 }
 
-// Giriş Yap, Kayıt Ol & Doğrulama Modalı
+// Giriş Yap, Kayıt Ol & Doğrulama Modalı (Sade & Modern Tasarım)
 function renderLoginModal(state) {
-  const mode = state.authMode || 'login'; // 'login' | 'register' | 'verify'
+  const mode = state.authMode || 'login'; // 'login' | 'register' | 'phone_login' | 'verify'
   const isVerifyStep = mode === 'verify' && state.pendingVerificationData;
   const loginNotice = state.loginNotice || '';
 
   return `
     <div id="login-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div class="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200 relative">
         
-        <!-- Header -->
-        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+        <!-- Header: Minimal & Şık -->
+        <div class="flex items-center justify-between pb-3 mb-2 border-b border-gray-100">
           <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-base font-bold shadow-sm shadow-[#06C167]/30">
-              ${isVerifyStep ? '📱' : '🍲'}
+            <div class="w-8 h-8 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-sm font-bold shadow-xs shadow-[#06C167]/30">
+              ${isVerifyStep ? '📱' : (mode === 'register' ? '🎁' : (mode === 'phone_login' ? '📲' : '🍲'))}
             </div>
             <div>
-              <h3 class="font-black text-base text-gray-900">
-                ${isVerifyStep ? 'Güvenlik Doğrulaması' : (mode === 'register' ? 'Kayıt Ol & %20 İndirim Kap' : 'Müşteri Girişi')}
+              <h3 class="font-black text-base text-gray-900 leading-tight">
+                ${isVerifyStep ? 'Güvenlik Doğrulaması' : (mode === 'register' ? 'Kayıt Ol (%20 İndirim)' : (mode === 'phone_login' ? 'Telefon ile Giriş' : 'Müşteri Girişi'))}
               </h3>
-              <p class="text-[11px] text-gray-500">
-                ${isVerifyStep ? 'Doğrulama kodunu girerek hesabınızı aktifleştirin' : 'Pita Mutfak lezzet dünyasına hoş geldiniz'}
+              <p class="text-[11px] text-gray-500 font-medium">
+                ${isVerifyStep ? 'Doğrulama kodunu girerek devam edin' : (mode === 'register' ? 'İlk siparişinize özel %20 indirim tanımlansın' : (mode === 'phone_login' ? 'SMS doğrulama kodu ile şifresiz giriş yapın' : 'Pita Mutfak lezzet dünyasına hoş geldiniz'))}
               </p>
             </div>
           </div>
-          <button id="close-login-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
+          <button id="close-login-btn" class="text-gray-400 hover:text-black text-lg p-1.5 rounded-lg transition cursor-pointer leading-none">✕</button>
         </div>
 
         ${state.authError ? `
-          <div class="bg-red-50 border border-red-300 text-red-900 rounded-2xl p-3.5 my-3 text-xs flex items-start gap-2.5 animate-in fade-in duration-200 shadow-xs">
+          <div class="bg-red-50 border border-red-300 text-red-900 rounded-2xl p-3 my-2 text-xs flex items-start gap-2 animate-in fade-in duration-200 shadow-xs">
             <span class="text-base shrink-0 leading-none">⚠️</span>
             <div class="font-bold leading-relaxed">${state.authError}</div>
           </div>
         ` : ''}
 
         ${loginNotice ? `
-          <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-3 my-3 text-xs flex items-center gap-2">
+          <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-3 my-2 text-xs flex items-center gap-2">
             <span class="text-base">⚠️</span>
             <span class="font-bold">${loginNotice}</span>
-          </div>
-        ` : ''}
-
-        ${!isVerifyStep ? `
-          <!-- Google ile Tek Tıkla Giriş Butonu -->
-          <div class="mt-4">
-            <button 
-              type="button" 
-              id="google-signin-btn"
-              class="w-full bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm border border-gray-300 shadow-xs transition flex items-center justify-center gap-3 cursor-pointer active:scale-98"
-            >
-              <svg class="w-5 h-5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>Google ile Hızlı Giriş Yap</span>
-            </button>
-
-            <div class="relative flex py-3 items-center">
-              <div class="flex-grow border-t border-gray-200"></div>
-              <span class="flex-shrink mx-3 text-gray-400 text-[10px] font-bold uppercase tracking-wider">veya SMS / E-posta ile</span>
-              <div class="flex-grow border-t border-gray-200"></div>
-            </div>
-          </div>
-
-          <!-- Giriş / Kayıt Sekmeleri -->
-          <div class="flex bg-gray-100 p-1 rounded-2xl mb-3 text-xs font-bold">
-            <button 
-              id="tab-btn-login" 
-              type="button" 
-              class="flex-1 py-2 rounded-xl transition cursor-pointer ${mode === 'login' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'}"
-            >
-              Giriş Yap
-            </button>
-            <button 
-              id="tab-btn-register" 
-              type="button" 
-              class="flex-1 py-2 rounded-xl transition cursor-pointer ${mode === 'register' ? 'bg-white text-[#06C167] shadow-xs' : 'text-gray-500 hover:text-gray-900'}"
-            >
-              Kayıt Ol (%20 İndirim)
-            </button>
           </div>
         ` : ''}
 
@@ -904,7 +861,6 @@ function renderLoginModal(state) {
 
             <form id="verify-code-form" class="space-y-4">
               <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1 text-center">6 Haneli Doğrulama Kodunu Giriniz *</label>
                 <input 
                   type="text" 
                   id="verify-code-input"
@@ -913,15 +869,15 @@ function renderLoginModal(state) {
                   maxlength="6" 
                   placeholder="000000" 
                   autocomplete="one-time-code"
-                  class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-2xl border-2 border-emerald-300 focus:border-[#06C167] focus:ring-2 focus:ring-[#06C167]/20 outline-none transition"
+                  class="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
                 />
               </div>
 
               <button 
                 type="submit" 
-                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 px-4 rounded-xl text-sm shadow-md shadow-[#06C167]/20 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Doğrula & Hesabı Aç 🎉</span>
+                <span>Doğrula & Giriş Yap 🎉</span>
               </button>
 
               <button 
@@ -933,113 +889,240 @@ function renderLoginModal(state) {
               </button>
             </form>
           </div>
-        ` : (mode === 'register' ? `
-          <!-- KAYIT OL FORMU (TELEFON / SMS / E-POSTA) -->
-          <div>
-            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 my-2 flex items-center gap-3">
-              <span class="text-2xl">🎁</span>
-              <div>
-                <span class="text-xs font-black text-emerald-900 block">%20 Hoş Geldin İndirimi</span>
-                <span class="text-[11px] text-emerald-700">Bilgilerinizi girerek ilk siparişinizde anında %20 indirim kazanın!</span>
-              </div>
-            </div>
-
-            <form id="customer-register-form" class="space-y-3 pt-1">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">Adınız Soyadınız *</label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  required 
-                  placeholder="Örn: Ahmet Yılmaz" 
-                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız (SMS Kodu İçin) *</label>
-                <input 
-                  type="tel" 
-                  name="phone" 
-                  required 
-                  placeholder="05XX XXX XX XX" 
-                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">E-posta Adresiniz (İsteğe bağlı)</label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  placeholder="ornek@gmail.com" 
-                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz *</label>
-                <input 
-                  type="password" 
-                  name="password" 
-                  required 
-                  placeholder="••••••••" 
-                  class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
-              >
-                <span>Doğrulama Kodu Al & Kaydol 📱</span>
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-              </button>
-            </form>
-          </div>
-        ` : `
-          <!-- GİRİŞ YAP FORMU -->
-          <form id="customer-login-form" class="space-y-3.5 pt-1">
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Telefon Numaranız veya E-posta *</label>
+        ` : (mode === 'phone_login' ? `
+          <!-- TELEFON NUMARASI İLE ŞİFRESİZ SMS GİRİŞİ -->
+          <form id="phone-login-form" class="space-y-3.5 pt-2">
+            <div class="relative">
               <input 
-                type="text" 
-                name="identifier" 
+                type="tel" 
+                name="phone" 
                 required 
-                placeholder="05XX XXX XX XX veya E-posta" 
-                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
-              />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Şifreniz (veya SMS ile Giriş) *</label>
-              <input 
-                type="password" 
-                name="password" 
-                placeholder="Şifreniz (varsa)" 
-                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] outline-none"
+                placeholder="Telefon Numarası (05XX XXX XX XX)" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 px-4 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
               />
             </div>
 
             <button 
               type="submit" 
-              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer mt-2"
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition active:scale-98 shadow-md shadow-[#06C167]/20 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Giriş Yap</span>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <span>SMS Doğrulama Kodu Gönder 📱</span>
             </button>
 
-            <div class="text-center pt-2 border-t border-gray-100">
+            <div class="text-center pt-2">
               <button 
                 type="button" 
-                id="switch-to-register-link" 
-                class="text-xs text-gray-500 hover:text-[#06C167] font-semibold cursor-pointer"
+                id="back-to-password-login-btn" 
+                class="text-xs text-gray-500 hover:text-gray-800 font-semibold cursor-pointer"
               >
-                Hesabınız yok mu? <strong class="text-[#06C167]">%20 İndirimle Kayıt Olun</strong>
+                ← Şifre ile Normal Girişe Dön
               </button>
             </div>
           </form>
-        `)}
+        ` : (mode === 'register' ? `
+          <!-- SADE VE MODERN KAYIT OL FORMU -->
+          <form id="customer-register-form" class="space-y-3 pt-2">
+            <div class="relative">
+              <input 
+                type="text" 
+                name="name" 
+                required 
+                placeholder="Adınız Soyadınız" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 px-4 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+            </div>
+
+            <div class="relative">
+              <input 
+                type="tel" 
+                name="phone" 
+                required 
+                placeholder="Telefon Numarası (05XX XXX XX XX)" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 px-4 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+            </div>
+
+            <div class="relative">
+              <input 
+                type="email" 
+                name="email" 
+                placeholder="E-posta Adresiniz (İsteğe bağlı)" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 px-4 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+            </div>
+
+            <div class="relative">
+              <input 
+                type="password" 
+                name="password" 
+                id="reg-password-input"
+                required 
+                placeholder="Şifre" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 pl-4 pr-11 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+              <button 
+                type="button" 
+                id="toggle-reg-password-visibility-btn" 
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer p-1"
+                title="Şifreyi Göster / Gizle"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
+
+            <button 
+              type="submit" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition active:scale-98 shadow-md shadow-[#06C167]/20 flex items-center justify-center gap-2 cursor-pointer mt-1"
+            >
+              <span>Kayıt Ol & %20 İndirim Kap 🎉</span>
+            </button>
+
+            <!-- VEYA Bölücü Çizgisi -->
+            <div class="relative flex py-2.5 items-center">
+              <div class="flex-grow border-t border-gray-200"></div>
+              <span class="flex-shrink mx-3 text-gray-400 text-[11px] font-bold uppercase tracking-wider">VEYA</span>
+              <div class="flex-grow border-t border-gray-200"></div>
+            </div>
+
+            <!-- Google ile Oturum Aç Butonu -->
+            <button 
+              type="button" 
+              id="google-signin-btn"
+              class="w-full bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 px-4 rounded-xl text-xs sm:text-sm border border-gray-200 shadow-xs transition flex items-center justify-center gap-3 cursor-pointer active:scale-98"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span>Google ile oturum açın</span>
+            </button>
+
+            <!-- Alt Link & Yasal Bilgilendirme -->
+            <div class="mt-3 pt-2.5 border-t border-gray-100 text-center space-y-1.5">
+              <button 
+                type="button" 
+                id="switch-to-login-link" 
+                class="text-xs text-gray-500 hover:text-[#06C167] font-semibold cursor-pointer transition block w-full text-center"
+              >
+                Zaten hesabınız var mı? <strong class="text-[#06C167] font-bold">Giriş Yapın</strong>
+              </button>
+              <p class="text-[10px] text-gray-400 leading-tight">
+                Devam ederek kişisel verilerinizin <a href="#/privacy" class="text-gray-600 underline hover:text-[#06C167]">Gizlilik Bildirimi</a> uyarınca işleneceğini kabul etmiş olursunuz.
+              </p>
+            </div>
+          </form>
+        ` : `
+          <!-- SADE VE MODERN GİRİŞ YAP FORMU (Görseldeki Gibi) -->
+          <form id="customer-login-form" class="space-y-3 pt-2">
+            <!-- 1. Kutu: E-posta / Telefon Numarası -->
+            <div class="relative">
+              <input 
+                type="text" 
+                name="identifier" 
+                id="login-identifier-input"
+                required 
+                placeholder="E-posta veya Telefon Numarası" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 px-4 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+            </div>
+
+            <!-- 2. Kutu: Şifre (Göz İkonlu) -->
+            <div class="relative">
+              <input 
+                type="password" 
+                name="password" 
+                id="login-password-input"
+                required 
+                placeholder="Şifre" 
+                class="w-full text-sm text-gray-900 placeholder-gray-400 pl-4 pr-11 py-3.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none transition bg-white"
+              />
+              <button 
+                type="button" 
+                id="toggle-password-visibility-btn" 
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer p-1"
+                title="Şifreyi Göster / Gizle"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Şifrenizi mi unuttunuz? -->
+            <div class="flex justify-end pt-0.5">
+              <button 
+                type="button" 
+                id="forgot-password-link" 
+                class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer transition"
+              >
+                Şifrenizi mi unuttunuz?
+              </button>
+            </div>
+
+            <!-- Ana Giriş Butonu -->
+            <button 
+              type="submit" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition active:scale-98 shadow-md shadow-[#06C167]/20 flex items-center justify-center gap-2 cursor-pointer mt-1"
+            >
+              <span>Giriş</span>
+            </button>
+
+            <!-- VEYA Bölücü Çizgisi -->
+            <div class="relative flex py-2.5 items-center">
+              <div class="flex-grow border-t border-gray-200"></div>
+              <span class="flex-shrink mx-3 text-gray-400 text-[11px] font-bold uppercase tracking-wider">VEYA</span>
+              <div class="flex-grow border-t border-gray-200"></div>
+            </div>
+
+            <!-- Alternatif 1: Telefon numarası ile giriş yapın -->
+            <button 
+              type="button" 
+              id="phone-login-switch-btn"
+              class="w-full bg-white hover:bg-emerald-50/40 text-[#06C167] font-bold py-3 px-4 rounded-xl text-xs sm:text-sm border border-emerald-300 shadow-xs transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+              <span>Telefon numarası ile giriş yapın</span>
+            </button>
+
+            <!-- Alternatif 2: Google ile oturum açın -->
+            <button 
+              type="button" 
+              id="google-signin-btn"
+              class="w-full bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 px-4 rounded-xl text-xs sm:text-sm border border-gray-200 shadow-xs transition flex items-center justify-center gap-3 cursor-pointer active:scale-98"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span>Google ile oturum açın</span>
+            </button>
+
+            <!-- Alt Kısım: Kayıt Ol Linki & Gizlilik Bildirimi -->
+            <div class="mt-3 pt-2.5 border-t border-gray-100 text-center space-y-1.5">
+              <button 
+                type="button" 
+                id="switch-to-register-link" 
+                class="text-xs text-gray-500 hover:text-[#06C167] font-semibold cursor-pointer transition block w-full text-center"
+              >
+                Hesabınız yok mu? <strong class="text-[#06C167] font-bold">%20 İndirimle Kayıt Olun</strong>
+              </button>
+              <p class="text-[10px] text-gray-400 leading-tight">
+                Devam ederek kişisel verilerinizin <a href="#/privacy" class="text-gray-600 underline hover:text-[#06C167]">Gizlilik Bildirimi</a> uyarınca işleneceğini kabul etmiş olursunuz.
+              </p>
+            </div>
+          </form>
+        `))}
 
       </div>
     </div>
@@ -2504,22 +2587,72 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (claimDiscountBtn) claimDiscountBtn.addEventListener('click', handleClaim);
   if (topPromoClaimBtn) topPromoClaimBtn.addEventListener('click', handleClaim);
 
-  // =================== KİMLİK DOĞRULAMA (AUTH) SEKMELERİ & İŞLEMLERİ ===================
+  // =================== KİMLİK DOĞRULAMA (AUTH) İŞLEMLERİ & MODAL ===================
 
-  // Sekme Değiştirme Butonları
-  const tabBtnLogin = container.querySelector('#tab-btn-login');
-  if (tabBtnLogin) {
-    tabBtnLogin.addEventListener('click', () => onStateChange({ authMode: 'login', authError: '', pendingVerificationData: null }));
+  // Şifre Göster / Gizle (Giriş Formu)
+  const togglePassBtn = container.querySelector('#toggle-password-visibility-btn');
+  const loginPassInput = container.querySelector('#login-password-input');
+  if (togglePassBtn && loginPassInput) {
+    togglePassBtn.addEventListener('click', () => {
+      const isPass = loginPassInput.type === 'password';
+      loginPassInput.type = isPass ? 'text' : 'password';
+      togglePassBtn.innerHTML = isPass ? `
+        <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+        </svg>
+      ` : `
+        <svg class="w-5 h-5 text-gray-400 hover:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      `;
+    });
   }
 
-  const tabBtnRegister = container.querySelector('#tab-btn-register');
-  if (tabBtnRegister) {
-    tabBtnRegister.addEventListener('click', () => onStateChange({ authMode: 'register', authError: '', pendingVerificationData: null }));
+  // Şifre Göster / Gizle (Kayıt Formu)
+  const toggleRegPassBtn = container.querySelector('#toggle-reg-password-visibility-btn');
+  const regPassInput = container.querySelector('#reg-password-input');
+  if (toggleRegPassBtn && regPassInput) {
+    toggleRegPassBtn.addEventListener('click', () => {
+      const isPass = regPassInput.type === 'password';
+      regPassInput.type = isPass ? 'text' : 'password';
+      toggleRegPassBtn.innerHTML = isPass ? `
+        <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+        </svg>
+      ` : `
+        <svg class="w-5 h-5 text-gray-400 hover:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      `;
+    });
+  }
+
+  // Şifremi Unuttum veya Telefon Numarası ile Giriş Butonları
+  const forgotPassBtn = container.querySelector('#forgot-password-link');
+  if (forgotPassBtn) {
+    forgotPassBtn.addEventListener('click', () => onStateChange({ authMode: 'phone_login', authError: '', pendingVerificationData: null }));
+  }
+
+  const phoneLoginSwitchBtn = container.querySelector('#phone-login-switch-btn');
+  if (phoneLoginSwitchBtn) {
+    phoneLoginSwitchBtn.addEventListener('click', () => onStateChange({ authMode: 'phone_login', authError: '', pendingVerificationData: null }));
+  }
+
+  const backToPassLoginBtn = container.querySelector('#back-to-password-login-btn');
+  if (backToPassLoginBtn) {
+    backToPassLoginBtn.addEventListener('click', () => onStateChange({ authMode: 'login', authError: '', pendingVerificationData: null }));
   }
 
   const switchToRegisterLink = container.querySelector('#switch-to-register-link');
   if (switchToRegisterLink) {
     switchToRegisterLink.addEventListener('click', () => onStateChange({ authMode: 'register', authError: '', pendingVerificationData: null }));
+  }
+
+  const switchToLoginLink = container.querySelector('#switch-to-login-link');
+  if (switchToLoginLink) {
+    switchToLoginLink.addEventListener('click', () => onStateChange({ authMode: 'login', authError: '', pendingVerificationData: null }));
   }
 
   // Yardımcı: Şık Yükleme Ekranı ile Sayfa Yenileme
@@ -2568,16 +2701,50 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         } else if (res && res.error) {
           onStateChange({ authError: res.error });
           googleBtn.disabled = false;
-          googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile Hızlı Giriş Yap</span>`;
+          googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile oturum açın</span>`;
         }
       } catch (err) {
         console.warn("Google login error:", err);
         googleBtn.disabled = false;
-        googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile Hızlı Giriş Yap</span>`;
+        googleBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Google ile oturum açın</span>`;
       }
     });
   }
 
+  // Telefon Numarası ile SMS Doğrulama Kodu İste (phone_login)
+  const phoneLoginForm = container.querySelector('#phone-login-form');
+  if (phoneLoginForm) {
+    phoneLoginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(phoneLoginForm);
+      const phone = (formData.get('phone') || '').trim();
+      if (!phone) return;
+
+      const submitBtn = phoneLoginForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Kod Gönderiliyor...";
+      }
+
+      try {
+        const res = await sendVerificationCode(phone, '', phone);
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        onStateChange({
+          authMode: 'verify',
+          authError: '',
+          pendingVerificationData: { phone, identifier: phone, isPhoneLogin: true },
+          verificationCodeHint: codeHint
+        });
+      } catch (err) {
+        onStateChange({
+          authMode: 'verify',
+          authError: '',
+          pendingVerificationData: { phone, identifier: phone, isPhoneLogin: true },
+          verificationCodeHint: '123456'
+        });
+      }
+    });
+  }
 
   // 1. Kayıt Ol Formu (Telefon / SMS / E-posta ile Doğrulama Kodu İste)
   const registerForm = container.querySelector('#customer-register-form');
@@ -2652,6 +2819,56 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       }
 
       const pending = state.pendingVerificationData || {};
+      const submitBtn = verifyCodeForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Doğrulanıyor...";
+      }
+
+      // Telefon / SMS şifresiz giriş doğrulaması
+      if (pending.isPhoneLogin) {
+        try {
+          const res = await verifyPhone(pending.phone, inputCode);
+          if (res.ok && (res.user || res.customer || (res.data && (res.data.customer || res.data.user)))) {
+            const user = res.user || res.customer || (res.data && (res.data.customer || res.data.user));
+            setCurrentUser(user);
+            saveCustomerLocally(user);
+            try { await syncCustomerToFirestore(user); } catch (e) {}
+            orderService.pingPresence(user);
+
+            if (state.pendingCheckout) {
+              onStateChange({
+                currentUser: user,
+                isLoginModalOpen: false,
+                isCheckoutOpen: true,
+                pendingCheckout: false,
+                authError: '',
+                loginNotice: ''
+              });
+              return;
+            }
+
+            performSmoothReload(`👋 Hoş geldiniz, ${user.name || 'Misafirimiz'}!`);
+            return;
+          } else {
+            const errText = res.error || (res.data && res.data.error) || 'Doğrulama kodu hatalı! Lütfen kontrol ediniz.';
+            onStateChange({ authError: errText });
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerText = "Doğrula & Giriş Yap";
+            }
+            return;
+          }
+        } catch (err) {
+          onStateChange({ authError: 'Doğrulama sırasında bir hata oluştu.' });
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Doğrula & Giriş Yap";
+          }
+          return;
+        }
+      }
+
       const payload = {
         email: pending.email,
         phone: pending.phone,
@@ -2660,12 +2877,6 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         name: pending.name,
         password: pending.password
       };
-
-      const submitBtn = verifyCodeForm.querySelector('button[type="submit"]');
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerText = "Doğrulanıyor...";
-      }
 
       try {
         const res = await verifyAndRegister(payload);
