@@ -246,6 +246,42 @@ export const initialMenu = [
     isAvailable: true,
     options: []
   },
+  {
+    id: "ic-5",
+    name: "Akışkan Çikolatalı Sıcak Sufle",
+    category: "icecek",
+    categoryTitle: "İçecek & Yan Lezzetler",
+    price: 75,
+    description: "İçi sıcak akışkan Belçika çikolatalı, pudra şekeri serpiştirilmiş nefis fırın sufle.",
+    image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=600&q=80",
+    badge: "Çok Sevilen",
+    isAvailable: true,
+    options: []
+  },
+  {
+    id: "ic-6",
+    name: "Uludağ Doğal Maden Suyu (200ml)",
+    category: "icecek",
+    categoryTitle: "İçecek & Yan Lezzetler",
+    price: 25,
+    description: "Doğal zengin mineralli soğuk cam şişe maden suyu.",
+    image: "https://images.unsplash.com/photo-1559839914-ba2c6a0f62d8?auto=format&fit=crop&w=600&q=80",
+    badge: null,
+    isAvailable: true,
+    options: []
+  },
+  {
+    id: "ic-7",
+    name: "Tarihi Niğde Gazozu (Cam Şişe)",
+    category: "icecek",
+    categoryTitle: "İçecek & Yan Lezzetler",
+    price: 35,
+    description: "Geleneksel ahududu aromalı enfes buz gibi cam şişe gazoz.",
+    image: "https://images.unsplash.com/photo-1527661591475-527312dd65f5?auto=format&fit=crop&w=600&q=80",
+    badge: "Klasik",
+    isAvailable: true,
+    options: []
+  },
 
   // ÇITIR PİZZA ÇEŞİTLERİ (TAŞ FIRIN)
   {

@@ -348,10 +348,6 @@ export function renderCustomerView(container, state, onStateChange) {
                 <span class="font-semibold">25-35 Dakika Teslimat</span>
               </div>
               <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
-                <span>🛵</span>
-                <span class="font-semibold">8 Haneli Güvenli Kod</span>
-              </div>
-              <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
                 <span>⭐</span>
                 <span class="font-semibold">${totalReviewsCount > 0 ? `${avgRating} Puan (${totalReviewsCount} Yorum)` : 'Müşteri Değerlendirmeleri'}</span>
               </div>
@@ -409,7 +405,10 @@ export function renderCustomerView(container, state, onStateChange) {
               : null;
 
             return `
-              <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group ${!isAvailable ? 'opacity-60 grayscale' : ''}">
+              <div 
+                data-open-product-modal="${product.id}" 
+                class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer ${!isAvailable ? 'opacity-60 grayscale cursor-not-allowed' : ''}"
+              >
                 
                 <div class="relative h-48 w-full overflow-hidden bg-gray-100">
                   <img 
@@ -457,23 +456,35 @@ export function renderCustomerView(container, state, onStateChange) {
                     </p>
                   </div>
 
-                  <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
                     <div>
-                      <span class="text-xs text-gray-400 font-medium block">Fiyat</span>
-                      <span class="text-lg font-black text-[#121212]">₺${product.price}</span>
+                      <span class="text-[11px] text-gray-400 font-medium block">Fiyat</span>
+                      <span class="text-base sm:text-lg font-black text-[#121212]">₺${product.price}</span>
                     </div>
 
                     ${isAvailable ? `
-                      <button
-                        data-product-id="${product.id}"
-                        class="add-product-btn flex items-center gap-1.5 bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white px-4 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
-                      >
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                          <line x1="12" y1="5" x2="12" y2="19"></line>
-                          <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        <span>Ekle</span>
-                      </button>
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          data-quick-order-id="${product.id}"
+                          class="quick-order-btn flex items-center gap-1 bg-[#121212] hover:bg-black text-white px-2.5 sm:px-3 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                          title="Hemen sepete ekle ve siparişe geç"
+                        >
+                          <span>⚡</span>
+                          <span>Hızlı Sipariş</span>
+                        </button>
+                        <button
+                          type="button"
+                          data-product-id="${product.id}"
+                          class="add-product-btn flex items-center gap-1 bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white px-3 sm:px-3.5 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                        >
+                          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          <span>Ekle</span>
+                        </button>
+                      </div>
                     ` : `
                       <button disabled class="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-not-allowed">
                         Tükendi
@@ -493,7 +504,7 @@ export function renderCustomerView(container, state, onStateChange) {
       ${selectedProduct ? renderProductModal(selectedProduct) : ''}
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
-      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible) : ''}
+      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible, menu) : ''}
 
       <!-- Sipariş Tamamlama / Checkout Modalı -->
       ${state.isCheckoutOpen ? renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) : ''}
@@ -1428,20 +1439,31 @@ function renderProductModal(product) {
             />
           </div>
 
-          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between gap-4">
-            <div class="flex items-center border border-gray-200 rounded-2xl p-1 bg-gray-50">
+          <div class="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div class="flex items-center justify-center border border-gray-200 rounded-2xl p-1 bg-gray-50 self-center sm:self-auto">
               <button id="modal-qty-minus" class="w-8 h-8 rounded-xl bg-white hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center shadow-xs transition">-</button>
               <span id="modal-qty-val" class="w-8 text-center text-sm font-extrabold">1</span>
               <button id="modal-qty-plus" class="w-8 h-8 rounded-xl bg-white hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center shadow-xs transition">+</button>
             </div>
 
-            <button 
-              id="modal-confirm-add-btn" 
-              class="flex-1 bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3 px-6 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Sepete Ekle</span>
-              <span id="modal-calculated-price" class="font-extrabold">• ₺${product.price}</span>
-            </button>
+            <div class="flex items-center gap-2 flex-1">
+              <button 
+                id="modal-confirm-add-btn" 
+                class="flex-1 bg-[#E8F8EE] hover:bg-[#d5f3df] text-[#06C167] border border-[#06C167]/40 font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                title="Sepete ekle ve menüde kal"
+              >
+                <span>Sepete Ekle</span>
+                <span id="modal-calculated-price" class="font-extrabold">• ₺${product.price}</span>
+              </button>
+
+              <button 
+                id="modal-quick-order-btn" 
+                class="flex-1 bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3 px-3 rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Sepete ekle ve doğrudan sepete git"
+              >
+                <span>⚡ Hızlı Sipariş</span>
+              </button>
+            </div>
           </div>
 
         </div>
@@ -1450,51 +1472,93 @@ function renderProductModal(product) {
   `;
 }
 
-// Sepet Çekmecesi (İlk Sipariş İndirim Satırı ve Kupon Kutusu ile)
-function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true) {
+// Sepet Çekmecesi (İlk Sipariş İndirim Satırı, Kupon Kutusu ve Yanında İyi Gider ile)
+function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true, menu = []) {
   return `
     <div id="cart-drawer-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
-      <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-200">
+      <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col justify-between">
         
-        <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-100 px-5 py-4 flex items-center justify-between">
-          <h3 class="text-lg font-extrabold text-[#121212]">Sepetim <span class="text-[#06C167]">(${cart.length} ürün)</span></h3>
-          <button id="close-cart-btn" class="p-2 text-gray-500 hover:text-black bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
+        <div>
+          <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-extrabold text-[#121212]">Sepetim <span class="text-[#06C167]">(${cart.length} ürün)</span></h3>
+            <button id="close-cart-btn" class="p-2 text-gray-500 hover:text-black bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
 
-        <div class="p-5 divide-y divide-gray-100">
-          ${cart.length === 0 ? `
-            <div class="text-center py-16">
-              <div class="w-20 h-20 mx-auto rounded-3xl bg-gray-50 flex items-center justify-center text-4xl mb-4 text-gray-300">
-                🛒
+          <div class="p-5 divide-y divide-gray-100">
+            ${cart.length === 0 ? `
+              <div class="text-center py-16">
+                <div class="w-20 h-20 mx-auto rounded-3xl bg-gray-50 flex items-center justify-center text-4xl mb-4 text-gray-300">
+                  🛒
+                </div>
+                <h4 class="font-extrabold text-base text-gray-800">Sepetiniz Boş</h4>
+                <p class="text-xs text-gray-400 mt-1">Lezzetli ürünlerimizden eklemeye başlayın</p>
               </div>
-              <h4 class="font-extrabold text-base text-gray-800">Sepetiniz Boş</h4>
-              <p class="text-xs text-gray-400 mt-1">Lezzetli ürünlerimizden eklemeye başlayın</p>
-            </div>
-          ` : cart.map((item, index) => `
-            <div class="py-4 flex items-center justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <h5 class="font-bold text-sm text-[#121212] truncate">${item.name}</h5>
-                ${item.option ? `<p class="text-xs text-gray-500 mt-0.5">${item.option.name}</p>` : ''}
-                ${item.note ? `<p class="text-[11px] text-amber-600 italic mt-0.5 line-clamp-1">Not: ${item.note}</p>` : ''}
-                <div class="text-xs font-black text-[#06C167] mt-1">₺${item.unitPrice * item.quantity}</div>
-              </div>
+            ` : cart.map((item, index) => `
+              <div class="py-4 flex items-center justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <h5 class="font-bold text-sm text-[#121212] truncate">${item.name}</h5>
+                  ${item.option ? `<p class="text-xs text-gray-500 mt-0.5">${item.option.name}</p>` : ''}
+                  ${item.note ? `<p class="text-[11px] text-amber-600 italic mt-0.5 line-clamp-1">Not: ${item.note}</p>` : ''}
+                  <div class="text-xs font-black text-[#06C167] mt-1">₺${item.unitPrice * item.quantity}</div>
+                </div>
 
-              <!-- Miktar Arttır / Azalt Butonları -->
-              <div class="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
-                <button 
-                  data-cart-minus="${index}" 
-                  class="w-7 h-7 rounded-lg bg-white hover:bg-gray-200 text-[#121212] flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
-                >-</button>
-                <span class="w-6 text-center text-xs font-black">${item.quantity}</span>
-                <button 
-                  data-cart-plus="${index}" 
-                  class="w-7 h-7 rounded-lg bg-[#06C167] hover:bg-[#05a557] text-white flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
-                >+</button>
+                <!-- Miktar Arttır / Azalt Butonları -->
+                <div class="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+                  <button 
+                    data-cart-minus="${index}" 
+                    class="w-7 h-7 rounded-lg bg-white hover:bg-gray-200 text-[#121212] flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
+                  >-</button>
+                  <span class="w-6 text-center text-xs font-black">${item.quantity}</span>
+                  <button 
+                    data-cart-plus="${index}" 
+                    class="w-7 h-7 rounded-lg bg-[#06C167] hover:bg-[#05a557] text-white flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer"
+                  >+</button>
+                </div>
               </div>
-            </div>
-          `).join('')}
+            `).join('')}
+          </div>
+
+          <!-- YANINDA İYİ GİDER (İÇECEKLER & TATLILAR) -->
+          ${(() => {
+            const upsellList = (menu && menu.length > 0 ? menu : orderService.getMenu()).filter(m => (m.category === 'icecek' || m.category === 'tatli') && m.isAvailable);
+            if (!upsellList || upsellList.length === 0) return '';
+
+            return `
+              <div class="p-4 bg-[#F8FAF9] border-t border-gray-100">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-base">🥤🍰</span>
+                    <h4 class="text-xs font-black text-gray-900 tracking-wide uppercase">Yanında İyi Gider</h4>
+                  </div>
+                  <span class="text-[11px] font-semibold text-gray-400">Tek tıkla ekle</span>
+                </div>
+                
+                <div class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+                  ${upsellList.map(side => `
+                    <div class="flex-shrink-0 w-36 bg-white rounded-2xl p-2.5 border border-gray-200/70 shadow-xs flex flex-col justify-between hover:border-[#06C167] transition group">
+                      <div class="w-full h-20 rounded-xl overflow-hidden bg-gray-100 mb-2 relative">
+                        <img src="${side.image}" alt="${side.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy" />
+                        ${side.badge ? `<span class="absolute top-1 left-1 bg-[#06C167] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs">${side.badge}</span>` : ''}
+                      </div>
+                      <div class="flex-1">
+                        <div class="text-[11px] font-bold text-gray-800 line-clamp-1 group-hover:text-[#06C167] transition" title="${side.name}">${side.name}</div>
+                        <div class="text-[11px] font-extrabold text-[#06C167] mt-0.5">₺${side.price}</div>
+                      </div>
+                      <button
+                        type="button"
+                        data-quick-add-side="${side.id}"
+                        class="mt-2 w-full bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white font-bold py-1.5 px-2 rounded-xl text-[11px] transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                      >
+                        <span>+ Ekle</span>
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          })()}
         </div>
 
         ${cart.length > 0 ? `
@@ -1504,18 +1568,8 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
             ${(() => {
               const hasCustom = currentUser && currentUser.custom_code && currentUser.custom_discount > 0;
               if (!hasCustom && !isFirstOrderEligible) {
-                return `
-                  <div class="border bg-gray-50 border-gray-200 rounded-2xl p-3 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <span class="text-base">ℹ️</span>
-                      <div>
-                        <span class="text-xs font-bold block text-gray-700">İlk Sipariş İndirimi (PITA20)</span>
-                        <span class="text-[11px] text-gray-500">Yalnızca ilk siparişte geçerlidir, kullanılmıştır.</span>
-                      </div>
-                    </div>
-                    <span class="text-[11px] text-gray-400 font-bold px-2.5 py-1 bg-gray-200 rounded-lg">Kullanıldı</span>
-                  </div>
-                `;
+                // Kullanıcı ilk sipariş indirimini daha önceden kullandıysa, bilgilendirme yazısını kaldır
+                return '';
               }
               const couponCode = hasCustom ? currentUser.custom_code : 'PITA20';
               const couponDiscount = hasCustom ? currentUser.custom_discount : 20;
@@ -3252,14 +3306,69 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
-  // Ürün modalı açma
+  // Ürün kartına tıklayarak modalı açma
+  container.querySelectorAll('[data-open-product-modal]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      // Yorum butonu, hızlı sipariş veya ekle butonlarına tıklandıysa kart tıklamasını yut
+      if (e.target.closest('[data-open-product-reviews]') || e.target.closest('.quick-order-btn') || e.target.closest('.add-product-btn')) {
+        return;
+      }
+      const pId = card.getAttribute('data-open-product-modal');
+      const product = menu.find(p => p.id === pId);
+      const stockRecord = state.stockMap ? state.stockMap[pId] : undefined;
+      const isAvailable = product && product.isAvailable && (stockRecord !== undefined ? stockRecord.quantity > 0 : true);
+      if (product && isAvailable) {
+        onStateChange({ selectedProduct: product, modalQty: 1, modalOptionIndex: 0 });
+      }
+    });
+  });
+
+  // Ürün kartındaki "Ekle" butonuna basınca modalı açma
   container.querySelectorAll('.add-product-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const pId = btn.getAttribute('data-product-id');
       const product = menu.find(p => p.id === pId);
       if (product) {
         onStateChange({ selectedProduct: product, modalQty: 1, modalOptionIndex: 0 });
       }
+    });
+  });
+
+  // Ürün kartındaki "⚡ Hızlı Sipariş" butonuna basınca doğrudan sepete ekleme ve sepeti açma
+  container.querySelectorAll('.quick-order-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pId = btn.getAttribute('data-quick-order-id');
+      const product = menu.find(p => p.id === pId);
+      if (!product || !product.isAvailable) return;
+
+      const opt = (product.options && product.options.length > 0) ? product.options[0] : null;
+      const unitPrice = product.price + (opt ? opt.price : 0);
+      const cartItem = {
+        productId: product.id,
+        name: product.name,
+        option: opt,
+        note: '',
+        unitPrice: unitPrice,
+        quantity: 1
+      };
+
+      const existingIndex = state.cart.findIndex(item => 
+        item.productId === cartItem.productId && 
+        JSON.stringify(item.option) === JSON.stringify(cartItem.option) &&
+        item.note === cartItem.note
+      );
+
+      let newCart;
+      if (existingIndex > -1) {
+        newCart = [...state.cart];
+        newCart[existingIndex].quantity += 1;
+      } else {
+        newCart = [...state.cart, cartItem];
+      }
+
+      onStateChange({ cart: newCart, selectedProduct: null, isCartOpen: true });
     });
   });
 
@@ -3317,23 +3426,76 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
-  // Modaldan sepete ekle onay
+  // Modal içi yardımcı fonksiyon: Seçili ürünü sepete ekle
+  const buildModalCartItem = () => {
+    const p = state.selectedProduct;
+    if (!p) return null;
+    const opt = (p.options && p.options[selectedOptionIndex]) ? p.options[selectedOptionIndex] : null;
+    const noteInput = container.querySelector('#product-note-input');
+    const note = noteInput ? noteInput.value.trim() : '';
+    const unitPrice = p.price + (opt ? opt.price : 0);
+
+    const cartItem = {
+      productId: p.id,
+      name: p.name,
+      option: opt,
+      note: note,
+      unitPrice: unitPrice,
+      quantity: modalQty
+    };
+
+    const existingIndex = state.cart.findIndex(item => 
+      item.productId === cartItem.productId && 
+      JSON.stringify(item.option) === JSON.stringify(cartItem.option) &&
+      item.note === cartItem.note
+    );
+
+    let newCart;
+    if (existingIndex > -1) {
+      newCart = [...state.cart];
+      newCart[existingIndex].quantity += modalQty;
+    } else {
+      newCart = [...state.cart, cartItem];
+    }
+    return newCart;
+  };
+
+  // Modaldan Standart "Sepete Ekle" (Kullanıcı ekledikten sonra sepet açılmaz, alışverişe devam eder)
   const confirmAddBtn = container.querySelector('#modal-confirm-add-btn');
   if (confirmAddBtn && state.selectedProduct) {
     confirmAddBtn.addEventListener('click', () => {
-      const p = state.selectedProduct;
-      const opt = (p.options && p.options[selectedOptionIndex]) ? p.options[selectedOptionIndex] : null;
-      const noteInput = container.querySelector('#product-note-input');
-      const note = noteInput ? noteInput.value.trim() : '';
+      const newCart = buildModalCartItem();
+      if (newCart) {
+        onStateChange({ cart: newCart, selectedProduct: null, isCartOpen: false });
+      }
+    });
+  }
 
-      const unitPrice = p.price + (opt ? opt.price : 0);
+  // Modaldan "⚡ Hızlı Sipariş Ver" (Doğrudan sepete ekler ve sepet çekmecesini açar)
+  const quickOrderModalBtn = container.querySelector('#modal-quick-order-btn');
+  if (quickOrderModalBtn && state.selectedProduct) {
+    quickOrderModalBtn.addEventListener('click', () => {
+      const newCart = buildModalCartItem();
+      if (newCart) {
+        onStateChange({ cart: newCart, selectedProduct: null, isCartOpen: true });
+      }
+    });
+  }
+
+  // Sepet İçi "Yanında İyi Gider" Hızlı Ekle Butonları
+  container.querySelectorAll('[data-quick-add-side]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sideId = btn.getAttribute('data-quick-add-side');
+      const sideItem = (menu && menu.find(m => m.id === sideId)) || orderService.getMenu().find(m => m.id === sideId);
+      if (!sideItem) return;
+
       const cartItem = {
-        productId: p.id,
-        name: p.name,
-        option: opt,
-        note: note,
-        unitPrice: unitPrice,
-        quantity: modalQty
+        productId: sideItem.id,
+        name: sideItem.name,
+        option: null,
+        note: '',
+        unitPrice: sideItem.price,
+        quantity: 1
       };
 
       const existingIndex = state.cart.findIndex(item => 
@@ -3345,14 +3507,14 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       let newCart;
       if (existingIndex > -1) {
         newCart = [...state.cart];
-        newCart[existingIndex].quantity += modalQty;
+        newCart[existingIndex].quantity += 1;
       } else {
         newCart = [...state.cart, cartItem];
       }
 
-      onStateChange({ cart: newCart, selectedProduct: null, isCartOpen: true });
+      onStateChange({ cart: newCart, isCartOpen: true });
     });
-  }
+  });
 
   // Sepetteki artı/eksi butonları
   container.querySelectorAll('[data-cart-plus]').forEach(btn => {
