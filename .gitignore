@@ -1,8 +1,18 @@
+# Dependencies
+node_modules/
+.wrangler/
+.env
+.env.*
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# Databases & local files
+*.db
+pita_mutfak.db
 
 # OS
 .DS_Store
