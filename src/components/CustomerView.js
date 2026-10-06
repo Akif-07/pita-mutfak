@@ -165,8 +165,8 @@ export function renderCustomerView(container, state, onStateChange) {
 
 
       <!-- Ana Header / Navigasyon -->
-      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm transition-all w-full max-w-full overflow-hidden">
-        <div class="max-w-6xl mx-auto px-2.5 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-xs transition-all w-full max-w-full overflow-hidden">
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           
           <!-- Logo & Slogan -->
           <a href="#/" class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 min-w-0 group" id="nav-logo-btn">
@@ -176,7 +176,7 @@ export function renderCustomerView(container, state, onStateChange) {
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 sm:gap-2">
                 <h1 class="text-base sm:text-2xl font-black tracking-tight text-[#121212] leading-none group-hover:text-[#06C167] transition">pita<span class="text-[#06C167]">mutfak</span></h1>
-                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[10px] sm:text-[11px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                   <span class="w-1.5 h-1.5 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
                   <span>${isRestaurantOpen ? 'Açık' : 'Kapalı'}</span>
                   <span class="hidden md:inline text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
@@ -187,7 +187,7 @@ export function renderCustomerView(container, state, onStateChange) {
           </a>
 
           <!-- Sağ Taraf: Giriş Yap, Geçmiş Siparişler & Sepet Butonu -->
-          <div class="flex items-center gap-1 sm:gap-3 shrink-0">
+          <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
             
             <!-- Kullanıcı Giriş / Profil Butonu -->
             ${currentUser ? `
@@ -198,7 +198,7 @@ export function renderCustomerView(container, state, onStateChange) {
                   class="flex items-center gap-1 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
                   <span>👤</span>
-                  <span class="max-w-[60px] sm:max-w-[100px] truncate">${currentUser.name}</span>
+                  <span class="max-w-[55px] sm:max-w-[100px] truncate">${currentUser.name}</span>
                   ${!currentUser.phoneVerified ? '<span class="text-xs">⚠️</span>' : ''}
                   <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform ${state.isProfileMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
@@ -249,43 +249,42 @@ export function renderCustomerView(container, state, onStateChange) {
               </button>
             `}
 
-            <!-- Müşteri Yorumları & Puan Butonu -->
+            <!-- Müşteri Yorumları & Puan Butonu (Masaüstü) -->
             <button 
               id="open-reviews-btn" 
-              class="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
+              class="hidden md:flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-3 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
               title="Müşteri Değerlendirmeleri ve Yorumları (${totalReviewsCount} değerlendirme)"
             >
               <span>⭐</span>
               <span>${totalReviewsCount > 0 ? avgRating : '5.0'}</span>
-              <span class="hidden md:inline text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
+              <span class="text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
             </button>
 
-            <!-- Geçmiş Siparişlerim Butonu -->
+            <!-- Geçmiş Siparişlerim Butonu (Masaüstü) -->
             <button 
               id="my-orders-btn" 
-              class="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
+              class="hidden md:flex items-center justify-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
               title="Siparişlerim"
             >
               <span>📋</span>
-              <span class="hidden sm:inline sm:ml-1">Siparişlerim</span>
+              <span class="ml-1">Siparişlerim</span>
               ${myOrders.length > 0 ? `
-                <span class="bg-gray-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full sm:ml-1">
+                <span class="bg-gray-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full ml-1">
                   ${myOrders.length}
                 </span>
               ` : ''}
             </button>
 
-            <!-- Canlı Takip Varsa Hızlı Buton (Yalnızca aktif/teslim edilmemiş siparişlerde) -->
+            <!-- Canlı Takip Varsa Hızlı Buton (Yalnızca aktif/teslim edilmemiş siparişlerde - Masaüstü) -->
             ${activeTrackingOrder && activeTrackingOrder.status !== 'delivered' && activeTrackingOrder.status !== 'cancelled' ? `
-              <button id="quick-track-btn" class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer shrink-0">
+              <button id="quick-track-btn" class="hidden md:flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer shrink-0">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-pulse"></span>
-                <span class="hidden sm:inline">Takip Et</span>
-                <span class="sm:hidden font-mono text-[10px]">#${activeTrackingOrder.id.slice(-4)}</span>
+                <span>Takip Et</span>
               </button>
             ` : ''}
 
             <!-- Sepet Butonu (Uber Eats Yeşil Pill) -->
-            <button id="open-cart-btn" class="relative flex items-center gap-1 sm:gap-2 bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-bold px-2.5 sm:px-5 py-1.5 sm:py-2.5 rounded-full shadow-lg shadow-[#06C167]/25 transition duration-200 cursor-pointer shrink-0">
+            <button id="open-cart-btn" class="relative flex items-center gap-1.5 sm:gap-2 bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-bold px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-full shadow-lg shadow-[#06C167]/25 transition duration-200 cursor-pointer shrink-0">
               <svg class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="9" cy="21" r="1"></circle>
                 <circle cx="20" cy="21" r="1"></circle>
@@ -362,15 +361,20 @@ export function renderCustomerView(container, state, onStateChange) {
               </div>
             ` : ''}
 
-            <div class="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-200">
+            <div class="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-gray-200">
               <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
                 <span>⏱️</span>
                 <span class="font-semibold">25-35 Dakika Teslimat</span>
               </div>
-              <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
+              <button 
+                id="hero-reviews-pill-btn"
+                type="button" 
+                class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:scale-95 px-3 py-1.5 rounded-xl transition cursor-pointer border border-white/10"
+              >
                 <span>⭐</span>
                 <span class="font-semibold">${totalReviewsCount > 0 ? `${avgRating} Puan (${totalReviewsCount} Yorum)` : 'Müşteri Değerlendirmeleri'}</span>
-              </div>
+                <span class="text-[10px] text-amber-300">→</span>
+              </button>
             </div>
 
           </div>
@@ -626,8 +630,97 @@ export function renderCustomerView(container, state, onStateChange) {
 
     </div>
 
+    <!-- ========== MOBİL ALT NAVİGASYON ÇUBUĞU (Sticky Bottom Nav) ========== -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-gray-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-1 py-1.5 flex items-center justify-around">
+      
+      <!-- 1. Menü -->
+      <button 
+        id="mobile-nav-home-btn" 
+        type="button" 
+        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
+      >
+        <span class="text-xl">🍽️</span>
+        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Menü</span>
+      </button>
+
+      <!-- 2. Yorumlar -->
+      <button 
+        id="mobile-nav-reviews-btn" 
+        type="button" 
+        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-amber-600 active:scale-95 transition cursor-pointer"
+      >
+        <span class="text-xl">⭐</span>
+        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">${totalReviewsCount > 0 ? `${avgRating} Puan` : 'Yorumlar'}</span>
+      </button>
+
+      <!-- 3. Siparişlerim -->
+      <button 
+        id="mobile-nav-orders-btn" 
+        type="button" 
+        class="relative flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
+      >
+        <div class="relative">
+          <span class="text-xl">📋</span>
+          ${myOrders.length > 0 ? `
+            <span class="absolute -top-1 -right-2.5 w-4 h-4 bg-gray-900 text-white rounded-full text-[9px] font-black flex items-center justify-center">
+              ${myOrders.length}
+            </span>
+          ` : ''}
+        </div>
+        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Siparişlerim</span>
+      </button>
+
+      <!-- 4. İletişim / Bize Ulaşın -->
+      <button 
+        id="mobile-nav-contact-btn" 
+        type="button" 
+        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
+      >
+        <span class="text-xl">💬</span>
+        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Bize Ulaşın</span>
+      </button>
+
+      <!-- 5. Sepetim -->
+      <button 
+        id="mobile-nav-cart-btn" 
+        type="button" 
+        class="relative flex flex-col items-center justify-center flex-1 py-1 ${cartItemCount > 0 ? 'text-[#06C167]' : 'text-gray-700'} active:scale-95 transition cursor-pointer"
+      >
+        <div class="relative">
+          <span class="text-xl">🛒</span>
+          ${cartItemCount > 0 ? `
+            <span class="absolute -top-1 -right-2.5 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1 min-w-4 h-4 flex items-center justify-center animate-pulse">
+              ${cartItemCount}
+            </span>
+          ` : ''}
+        </div>
+        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Sepetim</span>
+      </button>
+      
+    </nav>
+
+    <!-- ========== MOBİL YÜZEN SEPET ÇUBUĞU (Hızlı Sepete Git) ========== -->
+    ${cartItemCount > 0 ? `
+      <div class="md:hidden fixed bottom-[68px] left-3 right-3 z-40">
+        <button 
+          id="mobile-floating-cart-bar-btn"
+          type="button"
+          class="w-full bg-[#06C167] hover:bg-[#05a557] active:scale-[0.98] text-white font-extrabold px-4 py-3 rounded-2xl shadow-xl shadow-[#06C167]/35 flex items-center justify-between transition cursor-pointer border border-white/20"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="bg-white text-[#06C167] text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs">${cartItemCount} Ürün</span>
+            <span class="text-sm font-black">Sepeti Görüntüle</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-sm font-black">
+            <span>₺${cartTotal}</span>
+            <span class="text-base">→</span>
+          </div>
+        </button>
+      </div>
+    ` : ''}
+
     <!-- ========== FOOTER ========== -->
-    <footer class="bg-[#0E1511] text-white mt-12">
+    <footer class="bg-[#0E1511] text-white mt-12 pb-20 md:pb-10">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
 
@@ -2721,6 +2814,71 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
   const footerLogoBtn = container.querySelector('#footer-logo-btn');
   if (footerLogoBtn) footerLogoBtn.addEventListener('click', handleGoHome);
+
+  // ===== MOBİL ALT NAVİGASYON VE HIZLI ERİŞİM BUTONLARI =====
+  const mobileNavHomeBtn = container.querySelector('#mobile-nav-home-btn');
+  if (mobileNavHomeBtn) {
+    mobileNavHomeBtn.addEventListener('click', () => {
+      onStateChange({
+        activeCategory: 'all',
+        isCartOpen: false,
+        isCheckoutOpen: false,
+        isLoginModalOpen: false,
+        isMyOrdersOpen: false,
+        showTrackingModal: false,
+        isReviewsModalOpen: false,
+        isContactModalOpen: false
+      });
+      const menuSection = document.querySelector('main') || document.querySelector('.category-btn');
+      if (menuSection) {
+        menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  }
+
+  const mobileNavReviewsBtn = container.querySelector('#mobile-nav-reviews-btn');
+  if (mobileNavReviewsBtn) {
+    mobileNavReviewsBtn.addEventListener('click', () => {
+      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: null });
+    });
+  }
+
+  const mobileNavOrdersBtn = container.querySelector('#mobile-nav-orders-btn');
+  if (mobileNavOrdersBtn) {
+    mobileNavOrdersBtn.addEventListener('click', () => {
+      onStateChange({ isMyOrdersOpen: true });
+    });
+  }
+
+  const mobileNavContactBtn = container.querySelector('#mobile-nav-contact-btn');
+  if (mobileNavContactBtn) {
+    mobileNavContactBtn.addEventListener('click', () => {
+      onStateChange({ isContactModalOpen: true });
+    });
+  }
+
+  const mobileNavCartBtn = container.querySelector('#mobile-nav-cart-btn');
+  if (mobileNavCartBtn) {
+    mobileNavCartBtn.addEventListener('click', () => {
+      onStateChange({ isCartOpen: true });
+    });
+  }
+
+  const mobileFloatingCartBtn = container.querySelector('#mobile-floating-cart-bar-btn');
+  if (mobileFloatingCartBtn) {
+    mobileFloatingCartBtn.addEventListener('click', () => {
+      onStateChange({ isCartOpen: true });
+    });
+  }
+
+  const heroReviewsPillBtn = container.querySelector('#hero-reviews-pill-btn');
+  if (heroReviewsPillBtn) {
+    heroReviewsPillBtn.addEventListener('click', () => {
+      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: null });
+    });
+  }
 
   // Google ile Hızlı Giriş Butonu
   const googleBtn = container.querySelector('#google-signin-btn');
