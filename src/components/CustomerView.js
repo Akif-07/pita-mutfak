@@ -2275,10 +2275,39 @@ function renderMyOrdersModal(myOrders, state) {
 
         <div class="p-5 flex-1 overflow-y-auto space-y-4">
           ${myOrders.length === 0 ? `
-            <div class="text-center py-12 text-gray-400">
-              <div class="text-4xl mb-2">🍽️</div>
-              <p class="font-bold text-gray-700 text-sm">Henüz bir siparişiniz bulunmuyor</p>
-              <p class="text-xs text-gray-400 mt-1">Leziz menümüzden ilk siparişinizi hemen oluşturabilirsiniz.</p>
+            <div class="text-center py-6 px-2">
+              <div class="w-16 h-16 bg-[#E8F8EE] rounded-3xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+                🎁
+              </div>
+              <h4 class="font-black text-gray-900 text-base">Henüz bir siparişiniz bulunmuyor</h4>
+              <p class="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                Pita Mutfak sıcak & taze lezzetleriyle tanışmanız için ilk siparişinize özel %20 indirim tanımlandı!
+              </p>
+
+              <!-- İLK SİPARİŞE ÖZEL İNDİRİM & MENÜYE YÖNLENDİRME KARTI -->
+              <div class="mt-5 p-4 rounded-2xl bg-gradient-to-br from-[#06C167]/15 via-[#E8F8EE] to-emerald-50 border border-[#06C167]/30 text-left flex flex-col sm:flex-row items-center justify-between gap-3.5 shadow-sm">
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-xl font-bold shadow-md shadow-[#06C167]/30 shrink-0">
+                    🍕
+                  </div>
+                  <div>
+                    <div class="text-xs font-black text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                      <span>İlk Siparişine %20 İndirim!</span>
+                      <span class="bg-[#06C167] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">PITA20</span>
+                    </div>
+                    <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Tavuk pilav, taze makarna ve çıtır pizza çeşitleri</p>
+                  </div>
+                </div>
+
+                <button 
+                  id="first-order-discount-direct-btn"
+                  type="button"
+                  class="w-full sm:w-auto bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold px-4 py-3 rounded-xl text-xs transition shadow-md shadow-[#06C167]/30 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <span>🍽️</span>
+                  <span>Hemen İndirimli Sipariş Ver</span>
+                </button>
+              </div>
             </div>
           ` : myOrders.map(order => {
             let badgeClass = 'bg-gray-100 text-gray-700';
@@ -3679,6 +3708,27 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const closeMyOrdersBtn = container.querySelector('#close-my-orders-btn');
   if (closeMyOrdersBtn) {
     closeMyOrdersBtn.addEventListener('click', () => onStateChange({ isMyOrdersOpen: false }));
+  }
+
+  // İlk Sipariş İndirimli Sipariş Ver Butonu (Menüye Yönlendir & İndirimi Tanımla)
+  const firstOrderDirectBtn = container.querySelector('#first-order-discount-direct-btn');
+  if (firstOrderDirectBtn) {
+    firstOrderDirectBtn.addEventListener('click', () => {
+      window.location.hash = '#/';
+      onStateChange({
+        isMyOrdersOpen: false,
+        firstOrderDiscountApplied: true,
+        activeCategory: 'all'
+      });
+      setTimeout(() => {
+        const menuEl = document.querySelector('main') || document.querySelector('.category-btn');
+        if (menuEl) {
+          menuEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          window.scrollTo({ top: 380, behavior: 'smooth' });
+        }
+      }, 100);
+    });
   }
 
   // Geçmiş siparişler içinden bir siparişi takip modaliyle açma
