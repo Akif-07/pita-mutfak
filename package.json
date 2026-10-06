@@ -1,6 +1,7 @@
 {
   "name": "pita-mutfak",
   "version": "1.0.0",
+  "type": "module",
   "description": "Pita Mutfak - Tavuk Pilav, Makarna ve Kuru Fasulye Online Sipariş & Kurye Doğrulama Sistemi",
   "scripts": {
     "start": "python server.py",

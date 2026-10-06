@@ -1024,7 +1024,6 @@ export async function customerLogin(identifier, password) {
 
   // 2. Veritabanındaki (Firestore & Local) kayıtlı müşterileri tara
   const allCustomers = await orderService.getCustomers();
-  const cleanLower = cleanId.toLowerCase();
   const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
   const inputNormPhone = normPhone(cleanId);
 
