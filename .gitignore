@@ -1,6 +1,7 @@
-# Dependencies
-node_modules/
+# System & Git
+.git/
 .wrangler/
+node_modules/
 .env
 .env.*
 
