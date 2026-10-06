@@ -37,16 +37,38 @@ export function renderCustomerView(container, state, onStateChange) {
   const restStatus = isRestaurantOpenNow(restaurantSettings);
   const isRestaurantOpen = restStatus.isOpen;
 
+  // Favoriler listesi
+  const favorites = (() => {
+    try { return JSON.parse(localStorage.getItem('pita_favorites') || '[]'); } catch (e) { return []; }
+  })();
+
+  // Kayıtlı Adresler ve Aktif Adres Başlığı
+  const savedAddresses = currentUser && currentUser.phone ? getSavedAddresses(currentUser.phone) : [];
+  const activeAddressText = state.selectedAddress || (currentUser && currentUser.address ? currentUser.address : (savedAddresses.length > 0 ? savedAddresses[0].text : 'Teslimat Adresi Seçin'));
+
   // Backend SQLite stok haritası
   const stockMap = {};
   (state.stockList || []).forEach(s => {
     stockMap[s.product_id] = s;
   });
 
-  // Kategoriye göre ürün filtreleme
-  const filteredMenu = activeCategory === 'all'
+  // Kategoriye, Favorilere ve Arama terimine göre ürün filtreleme
+  let filteredMenu = activeCategory === 'all'
     ? menu
     : menu.filter(item => item.category === activeCategory);
+
+  if (state.filterFavorites) {
+    filteredMenu = filteredMenu.filter(item => favorites.includes(item.id));
+  }
+
+  if (state.searchTerm && state.searchTerm.trim()) {
+    const q = state.searchTerm.trim().toLowerCase();
+    filteredMenu = filteredMenu.filter(item => 
+      item.name.toLowerCase().includes(q) || 
+      (item.description && item.description.toLowerCase().includes(q)) ||
+      (item.category && item.category.toLowerCase().includes(q))
+    );
+  }
 
   // Sepet hesaplamaları
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -94,7 +116,7 @@ export function renderCustomerView(container, state, onStateChange) {
   const cartTotal = Math.max(0, subtotal - discountAmount);
 
   container.innerHTML = `
-    <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-24 w-full max-w-full overflow-x-hidden">
+    <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-32 sm:pb-28 w-full max-w-full overflow-x-hidden">
       
       ${!isRestaurantOpen ? `
         <!-- Restoran Kapalı Uyarısı Bannerı -->
@@ -127,7 +149,7 @@ export function renderCustomerView(container, state, onStateChange) {
           </div>
         </div>
       ` : `
-        <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
+        <!-- Üst Bilgi ve İndirim Kap Bannerı -->
         <div class="bg-[#06C167] text-white py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium shadow-sm w-full max-w-full overflow-hidden">
           <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
@@ -164,43 +186,80 @@ export function renderCustomerView(container, state, onStateChange) {
       `}
 
 
-      <!-- Ana Header / Navigasyon -->
-      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-xs transition-all w-full max-w-full overflow-hidden">
-        <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
+      <!-- Ana Header / Navigasyon (Trendyol / Yemeksepeti / Getir Stili) -->
+      <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-xs transition-all w-full max-w-full overflow-hidden">
+        
+        <!-- Üst Satır: Logo + Teslimat Adresi + Asistan + Kuponlar + Profil -->
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 pt-2.5 pb-2 flex items-center justify-between gap-2">
           
-          <!-- Logo & Slogan -->
-          <a href="#/" class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 min-w-0 group" id="nav-logo-btn">
-            <div class="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition group-hover:scale-105 bg-[#06C167] shrink-0">
-              <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
+          <!-- Sol: Logo & Marka -->
+          <a href="#/" class="flex items-center gap-2 cursor-pointer shrink-0 group" id="nav-logo-btn">
+            <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl overflow-hidden shadow-sm bg-[#06C167] shrink-0 group-hover:scale-105 transition">
+              <img src="./assets/logo_app.jpg" alt="Pita Mutfak" class="w-full h-full object-cover">
             </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 sm:gap-2">
-                <h1 class="text-base sm:text-2xl font-black tracking-tight text-[#121212] leading-none group-hover:text-[#06C167] transition">pita<span class="text-[#06C167]">mutfak</span></h1>
-                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[10px] sm:text-[11px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                  <span class="w-1.5 h-1.5 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
-                  <span>${isRestaurantOpen ? 'Açık' : 'Kapalı'}</span>
-                  <span class="hidden md:inline text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
-                </span>
+            <div class="min-w-0 hidden sm:block">
+              <div class="flex items-center gap-1.5">
+                <span class="text-base sm:text-xl font-black text-gray-900 leading-none">pita<span class="text-[#06C167]">mutfak</span></span>
+                <span class="w-2 h-2 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'} shrink-0"></span>
               </div>
-              <p class="hidden sm:block text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
             </div>
           </a>
 
-          <!-- Sağ Taraf: Giriş Yap, Geçmiş Siparişler & Sepet Butonu -->
-          <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <!-- Orta: Teslimat Adresi Kapsülü (Trendyol Tarzı) -->
+          <button 
+            type="button"
+            id="header-address-pill-btn"
+            class="flex items-center gap-1.5 bg-gray-100/90 hover:bg-gray-200/80 active:scale-98 border border-gray-200/80 px-3 py-1.5 sm:py-2 rounded-full text-xs font-extrabold text-gray-800 transition cursor-pointer max-w-[170px] sm:max-w-xs truncate shadow-2xs"
+            title="Teslimat Adresini Değiştir"
+          >
+            <span class="text-sm shrink-0">📍</span>
+            <div class="min-w-0 text-left">
+              <span class="text-[9px] uppercase font-bold text-gray-400 block leading-tight hidden sm:block">Teslimat Adresi</span>
+              <span class="text-xs font-bold text-gray-900 truncate block">${activeAddressText}</span>
+            </div>
+            <span class="text-[10px] text-gray-400 shrink-0">▾</span>
+          </button>
+
+          <!-- Sağ: Asistan (Destek) + Kuponlar + Giriş/Profil -->
+          <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             
-            <!-- Kullanıcı Giriş / Profil Butonu -->
+            <!-- Asistan / Bize Ulaşın Butonu -->
+            <button 
+              id="header-asistan-btn" 
+              type="button" 
+              class="flex flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
+              title="Canlı Destek & İletişim"
+            >
+              <span class="text-base">💬</span>
+              <span class="text-[9px] font-bold text-gray-600 hidden sm:inline">Asistan</span>
+            </button>
+
+            <!-- Kuponlar Butonu -->
+            <button 
+              id="header-kuponlar-btn" 
+              type="button" 
+              class="relative flex flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
+              title="Kuponlarım ve İndirimler"
+            >
+              <div class="relative">
+                <span class="text-base">🎟️</span>
+                <span class="absolute -top-1 -right-2 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1 min-w-3.5 h-3.5 flex items-center justify-center shadow-xs">
+                  ${activeFlashDeal ? '2' : '1'}
+                </span>
+              </div>
+              <span class="text-[9px] font-bold text-gray-600 hidden sm:inline">Kuponlar</span>
+            </button>
+
+            <!-- Profil / Giriş -->
             ${currentUser ? `
               <div class="relative" id="user-profile-container">
                 <button 
                   id="user-profile-btn" 
                   type="button"
-                  class="flex items-center gap-1 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  class="flex items-center gap-1 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
                   <span>👤</span>
-                  <span class="max-w-[55px] sm:max-w-[100px] truncate">${currentUser.name}</span>
-                  ${!currentUser.phoneVerified ? '<span class="text-xs">⚠️</span>' : ''}
-                  <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform ${state.isProfileMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                  <span class="max-w-[50px] sm:max-w-[80px] truncate">${currentUser.name}</span>
                 </button>
                 <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
                   <div class="px-3 py-2 border-b border-gray-100 mb-1">
@@ -225,222 +284,139 @@ export function renderCustomerView(container, state, onStateChange) {
                   </div>
                 </div>
               </div>
-
-              <!-- Müşteri Mesaj / Bildirim Kutusu Butonu -->
-              <button 
-                id="open-customer-inbox-btn" 
-                class="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition cursor-pointer shadow-2xs shrink-0"
-                title="Yönetimden Gelen Mesajlar & Kuponlarım"
-              >
-                <span class="text-sm">🔔</span>
-                ${unreadMessagesCount > 0 ? `
-                  <span class="absolute -top-1 -right-1 min-w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-black flex items-center justify-center px-1 animate-pulse">
-                    ${unreadMessagesCount}
-                  </span>
-                ` : ''}
-              </button>
             ` : `
               <button 
                 id="open-login-btn" 
-                class="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
+                class="flex items-center gap-1 bg-[#06C167] hover:bg-[#05a557] text-white px-3 py-1.5 rounded-full text-xs font-extrabold transition cursor-pointer shadow-xs shrink-0"
               >
                 <span>👤</span>
-                <span class="text-xs">Giriş Yap</span>
+                <span>Giriş</span>
               </button>
             `}
 
-            <!-- Müşteri Yorumları & Puan Butonu (Masaüstü) -->
-            <button 
-              id="open-reviews-btn" 
-              class="hidden md:flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-3 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
-              title="Müşteri Değerlendirmeleri ve Yorumları (${totalReviewsCount} değerlendirme)"
-            >
-              <span>⭐</span>
-              <span>${totalReviewsCount > 0 ? avgRating : '5.0'}</span>
-              <span class="text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
-            </button>
-
-            <!-- Geçmiş Siparişlerim Butonu (Masaüstü) -->
-            <button 
-              id="my-orders-btn" 
-              class="hidden md:flex items-center justify-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
-              title="Siparişlerim"
-            >
-              <span>📋</span>
-              <span class="ml-1">Siparişlerim</span>
-              ${myOrders.length > 0 ? `
-                <span class="bg-gray-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full ml-1">
-                  ${myOrders.length}
-                </span>
-              ` : ''}
-            </button>
-
-            <!-- Canlı Takip Varsa Hızlı Buton (Yalnızca aktif/teslim edilmemiş siparişlerde - Masaüstü) -->
-            ${activeTrackingOrder && activeTrackingOrder.status !== 'delivered' && activeTrackingOrder.status !== 'cancelled' ? `
-              <button id="quick-track-btn" class="hidden md:flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer shrink-0">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-pulse"></span>
-                <span>Takip Et</span>
-              </button>
-            ` : ''}
-
-            <!-- Sepet Butonu (Uber Eats Yeşil Pill) -->
-            <button id="open-cart-btn" class="relative flex items-center gap-1.5 sm:gap-2 bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-bold px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-full shadow-lg shadow-[#06C167]/25 transition duration-200 cursor-pointer shrink-0">
-              <svg class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="9" cy="21" r="1"></circle>
-                <circle cx="20" cy="21" r="1"></circle>
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-              </svg>
-              <span class="hidden sm:inline text-sm">Sepet</span>
-              <span class="bg-white text-[#06C167] text-xs font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full min-w-[18px] text-center">
-                ${cartItemCount}
-              </span>
-              ${cartTotal > 0 ? `<span class="hidden md:inline border-l border-white/30 pl-2 text-sm font-semibold">₺${cartTotal}</span>` : ''}
-            </button>
-
           </div>
 
         </div>
+
+        <!-- İkinci Satır: Modern Arama Çubuğu (Search Bar) -->
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 pb-2.5">
+          <div class="relative flex items-center">
+            <span class="absolute left-3.5 text-gray-400 text-sm">🔍</span>
+            <input 
+              id="menu-search-input"
+              type="text"
+              value="${state.searchTerm || ''}"
+              placeholder="Restoran, ürün veya mutfak ara..."
+              class="w-full bg-gray-100 hover:bg-gray-100/90 focus:bg-white border border-gray-200/80 focus:border-[#06C167] rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-gray-900 placeholder-gray-400 outline-none transition shadow-2xs"
+            />
+            ${state.searchTerm ? `
+              <button id="clear-search-btn" class="absolute right-3 text-gray-400 hover:text-black text-xs font-bold p-1 cursor-pointer">✕</button>
+            ` : ''}
+          </div>
+        </div>
+
       </header>
 
-      <!-- Hero Banner & İLK SİPARİŞİNE İNDİRİMİ KAP KARTI -->
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-2">
-        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#121212] via-[#1A2E22] to-[#121212] text-white p-6 sm:p-10 shadow-xl">
-          <div class="relative z-10 max-w-xl">
-            
-            <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/15 px-3 py-1 rounded-full text-xs font-semibold text-[#06C167] mb-4">
-              <span class="w-2 h-2 rounded-full bg-[#06C167]"></span>
-              <span>Ev Yapımı Sıcak & Taze Lezzetler</span>
-            </div>
-
-            <h2 class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-3">
-              Usta Ellerden <span class="text-[#06C167]">Tavuk Pilav</span>, <span class="text-[#06C167]">Taze Makarna</span> ve <span class="text-[#06C167]">Çıtır Pizza</span>
-            </h2>
-
-            <p class="text-gray-300 text-sm sm:text-base mb-6 leading-relaxed">
-              Özel marine edilmiş çıtır ve tiftik tavuklar, tereyağlı nohutlu pilav, günlük krema ve fesleğenli makarnalar ile taş fırında nar gibi kızaran İtalyan hamurlu çıtır pizzalar sofranızda.
-            </p>
-
-            <!-- İNDİRİM KUTUSU (Özel Kod / İlk Sipariş / Kullanıldı) -->
-            ${hasCustomCode ? `
-              <div class="bg-gradient-to-r from-purple-600/30 to-white/10 border border-purple-400/50 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center text-2xl shadow-md">
-                    ⭐
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-black text-white">Size Özel %${currentUser.custom_discount} İndirim!</h4>
-                    <p class="text-xs text-gray-300">Kupon Kodu: <strong class="text-purple-300 font-mono tracking-wider">${currentUser.custom_code}</strong></p>
-                  </div>
-                </div>
-
-                <button 
-                  id="claim-discount-btn" 
-                  class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                >
-                  <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Uygula'}</span>
-                </button>
-              </div>
-            ` : isFirstOrderEligible ? `
-              <div class="bg-gradient-to-r from-[#06C167]/20 to-white/10 border border-[#06C167]/50 rounded-2xl p-4 backdrop-blur mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-xl bg-[#06C167] text-white flex items-center justify-center text-2xl shadow-md">
-                    🎁
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-black text-white">İlk Siparişine Özel %20 İndirim!</h4>
-                    <p class="text-xs text-gray-300">Kupon Kodu: <strong class="text-[#06C167] font-mono tracking-wider">PITA20</strong></p>
-                  </div>
-                </div>
-
-                <button 
-                  id="claim-discount-btn" 
-                  class="bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                >
-                  <span>${firstOrderDiscountApplied ? '✓ İndirim Sepete Eklendi' : 'İndirimi Hemen Kap!'}</span>
-                </button>
-              </div>
-            ` : ''}
-
-            <div class="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-gray-200">
-              <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl">
-                <span>⏱️</span>
-                <span class="font-semibold">25-35 Dakika Teslimat</span>
-              </div>
-              <button 
-                id="hero-reviews-pill-btn"
-                type="button" 
-                class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:scale-95 px-3 py-1.5 rounded-xl transition cursor-pointer border border-white/10"
-              >
-                <span>⭐</span>
-                <span class="font-semibold">${totalReviewsCount > 0 ? `${avgRating} Puan (${totalReviewsCount} Yorum)` : 'Müşteri Değerlendirmeleri'}</span>
-                <span class="text-[10px] text-amber-300">→</span>
-              </button>
-            </div>
-
+      <!-- Kampanyalar Vitrini (Trendyol / Yemeksepeti Kartları) -->
+      <div class="max-w-6xl mx-auto px-3 sm:px-6 pt-4 pb-1">
+        <div class="flex items-center justify-between mb-2.5">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-black text-gray-900">Kampanyalar</h3>
+            <span class="bg-emerald-100 text-[#06C167] text-xs font-black px-2 py-0.5 rounded-full">
+              ${activeFlashDeal ? '2' : '1'} Fırsat
+            </span>
           </div>
-          <div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 lg:opacity-30 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#06C167] to-transparent"></div>
+          <button 
+            type="button" 
+            id="view-all-campaigns-btn" 
+            class="text-xs font-bold text-[#06C167] hover:underline cursor-pointer flex items-center gap-1"
+          >
+            <span>Tümünü Gör</span>
+            <span>→</span>
+          </button>
+        </div>
+
+        <div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+          
+          <!-- Kart 1: Sepette %20 İndirim (PITA20) -->
+          <div 
+            id="campaign-card-first-order"
+            class="flex-shrink-0 w-72 sm:w-80 rounded-3xl p-4 bg-gradient-to-br from-[#06C167] via-[#05a557] to-emerald-800 text-white shadow-md relative overflow-hidden cursor-pointer active:scale-98 transition group"
+          >
+            <div class="relative z-10">
+              <div class="flex items-center justify-between">
+                <span class="bg-black/30 backdrop-blur text-amber-200 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">İlk Sipariş</span>
+                <span class="bg-white/20 text-white font-mono text-[11px] font-black px-2 py-0.5 rounded-lg border border-white/30">PITA20</span>
+              </div>
+              <h4 class="text-base font-black mt-2 leading-tight">SEPETTE %20 İNDİRİM</h4>
+              <p class="text-[11px] text-emerald-100 mt-1 line-clamp-2">Tavuk pilav, taze makarna ve çıtır pizzalarda geçerli fırsat!</p>
+              <div class="mt-3 flex items-center justify-between pt-2 border-t border-white/20">
+                <span class="text-[10px] font-bold text-emerald-200">Tüm Lezzetlerde</span>
+                <span class="bg-white text-[#06C167] text-xs font-black px-3 py-1 rounded-xl shadow-sm">
+                  ${firstOrderDiscountApplied ? 'Uygulandı ✓' : 'İndirimi Kap →'}
+                </span>
+              </div>
+            </div>
+            <div class="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-white/10 pointer-events-none"></div>
+          </div>
+
+          <!-- Kart 2: Canlı Flaş İndirim (Varsa) -->
+          ${activeFlashDeal ? `
+            <div 
+              data-add-flash-deal="${activeFlashDeal.productId}"
+              class="flex-shrink-0 w-72 sm:w-80 rounded-3xl p-4 bg-gradient-to-br from-amber-500 via-rose-600 to-red-600 text-white shadow-md relative overflow-hidden cursor-pointer active:scale-98 transition group"
+            >
+              <div class="relative z-10">
+                <div class="flex items-center justify-between">
+                  <span class="bg-black/40 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
+                    <span>⚡</span>
+                    <span>FLAŞ İNDİRİM</span>
+                  </span>
+                  <span class="bg-white/20 text-white font-mono text-xs font-bold px-2 py-0.5 rounded-full">⏱️ ${flashCountdownStr}</span>
+                </div>
+                <h4 class="text-base font-black mt-2 leading-tight truncate">${activeFlashDeal.productName}</h4>
+                <div class="flex items-baseline gap-2 mt-1">
+                  <span class="line-through text-amber-200/80 text-xs font-bold">₺${activeFlashDeal.originalPrice}</span>
+                  <span class="text-lg font-black text-white">₺${activeFlashDeal.flashPrice}</span>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-white/20">
+                  <span class="text-[10px] text-amber-100">Süre bitmeden kap!</span>
+                  <span class="bg-white text-rose-600 text-xs font-black px-3 py-1 rounded-xl shadow-sm">Hemen Ekle ⚡</span>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Kart 3: Hızlı & Sıcak Teslimat -->
+          <div class="flex-shrink-0 w-72 sm:w-80 rounded-3xl p-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white shadow-md relative overflow-hidden">
+            <div class="relative z-10">
+              <div class="flex items-center justify-between">
+                <span class="bg-[#06C167] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">Pita Express</span>
+                <span class="text-xs">🛵</span>
+              </div>
+              <h4 class="text-base font-black mt-2 leading-tight">25-35 DK HIZLI TESLİMAT</h4>
+              <p class="text-[11px] text-gray-300 mt-1">Özel ısı korumalı çantalarımızla sıcacık ve taze sofranızda.</p>
+              <div class="mt-3 flex items-center justify-between pt-2 border-t border-white/10">
+                <span class="text-[10px] text-gray-400">Ücretsiz Teslimat</span>
+                <span class="text-xs text-[#06C167] font-extrabold">Aktif 🟢</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <!-- CANLI FLAŞ İNDİRİM VİTRİN KARTI -->
-      ${activeFlashDeal ? `
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-1">
-          <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white p-5 sm:p-7 shadow-xl border-2 border-amber-300/60">
-            <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-5">
-              
-              <div class="flex items-center gap-4 sm:gap-6 w-full md:w-auto min-w-0">
-                <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-black/40 border-2 border-white/40 shadow-xl shrink-0">
-                  <img src="${activeFlashDeal.productImage}" alt="${activeFlashDeal.productName}" class="w-full h-full object-cover">
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2 flex-wrap mb-1">
-                    <span class="bg-black/50 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                      <span>⚡</span>
-                      <span>CANLI FLAŞ İNDİRİM</span>
-                    </span>
-                    <span class="bg-white/20 backdrop-blur text-white text-xs font-mono font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      <span>⏱️</span>
-                      <span data-flash-countdown>${flashCountdownStr}</span>
-                    </span>
-                  </div>
-                  <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight truncate">${activeFlashDeal.productName}</h3>
-                  <p class="text-xs text-amber-100 mt-1 max-w-md line-clamp-2">${activeFlashDeal.message || 'Geri sayım bitmeden hemen şok fiyata sipariş ver!'}</p>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-white/20 shrink-0">
-                <div class="text-left md:text-right">
-                  <div class="line-through text-amber-200/80 text-xs font-bold">₺${activeFlashDeal.originalPrice}</div>
-                  <div class="text-2xl sm:text-3xl font-black text-white">₺${activeFlashDeal.flashPrice}</div>
-                  <div class="text-[10px] font-extrabold text-amber-200">-%${Math.round((1 - activeFlashDeal.flashPrice / activeFlashDeal.originalPrice) * 100)} İNDİRİM</div>
-                </div>
-
-                <button 
-                  type="button"
-                  data-add-flash-deal="${activeFlashDeal.productId}"
-                  class="bg-white hover:bg-amber-100 active:scale-95 text-rose-600 font-black px-5 sm:px-6 py-3.5 rounded-2xl text-xs sm:text-sm transition shadow-xl cursor-pointer flex items-center gap-2 whitespace-nowrap"
-                >
-                  <span>⚡</span>
-                  <span>Hemen Sepete Ekle</span>
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
       <!-- Kategori Filtre Butonları (Pill Bar) -->
-      <div class="sticky top-20 z-20 bg-[#F7F9F8]/95 backdrop-blur py-4 border-b border-gray-200/60 shadow-xs">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6">
-          <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-1">
+      <div class="sticky top-28 sm:top-24 z-20 bg-[#F7F9F8]/95 backdrop-blur py-3 border-b border-gray-200/60 shadow-xs">
+        <div class="max-w-6xl mx-auto px-3 sm:px-6">
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
 
             ${categories.map(cat => {
-              const isActive = activeCategory === cat.id;
+              const isActive = activeCategory === cat.id && !state.filterFavorites;
               return `
                 <button
                   data-category="${cat.id}"
-                  class="category-btn whitespace-nowrap px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-sm
+                  class="category-btn whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer shadow-2xs
                   ${isActive 
                     ? 'bg-[#121212] text-white shadow-md scale-102' 
                     : 'bg-white text-gray-700 hover:bg-gray-100 hover:text-black border border-gray-200/80'}"
@@ -453,19 +429,41 @@ export function renderCustomerView(container, state, onStateChange) {
         </div>
       </div>
 
-      <!-- Menü Listesi (Grid) -->
-      <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+      <!-- Menü Listesi (Sana Özel Lezzetler Grid) -->
+      <main class="max-w-6xl mx-auto px-3 sm:px-6 pt-5">
         
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h3 class="text-xl sm:text-2xl font-black text-[#121212]">
-              ${categories.find(c => c.id === activeCategory)?.name || 'Menü'}
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg sm:text-xl font-black text-[#121212]">
+              ${state.filterFavorites 
+                ? '❤️ Favori Lezzetlerim' 
+                : state.searchTerm 
+                  ? `🔍 "${state.searchTerm}" Arama Sonuçları` 
+                  : (categories.find(c => c.id === activeCategory)?.name || 'Sana Özel Lezzetler')
+              }
             </h3>
-            <p class="text-xs text-gray-500 font-medium mt-0.5">${filteredMenu.length} leziz seçenek sizi bekliyor</p>
+            <span class="text-xs font-bold text-gray-400">(${filteredMenu.length} ürün)</span>
           </div>
+          ${state.filterFavorites ? `
+            <button id="clear-fav-filter-btn" class="text-xs font-bold text-[#06C167] hover:underline cursor-pointer">
+              Tümünü Göster
+            </button>
+          ` : ''}
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        ${filteredMenu.length === 0 ? `
+          <div class="text-center py-16 bg-white rounded-3xl border border-gray-100 p-6 my-4 shadow-xs">
+            <div class="text-5xl mb-3">${state.filterFavorites ? '🤍' : '🔍'}</div>
+            <h4 class="text-base font-black text-gray-900 mb-1">
+              ${state.filterFavorites ? 'Henüz favori lezzetiniz bulunmuyor' : 'Aradığınız kriterde ürün bulunamadı'}
+            </h4>
+            <p class="text-xs text-gray-500 max-w-sm mx-auto">
+              ${state.filterFavorites ? 'Beğendiğiniz lezzetlerin üzerindeki kalp simgesine dokunarak favorilerinize ekleyebilirsiniz.' : 'Lütfen farklı bir arama terimi deneyin veya kategorileri inceleyin.'}
+            </p>
+          </div>
+        ` : ''}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           ${filteredMenu.map(product => {
             const stockRecord = stockMap[product.id];
             const stockQty = stockRecord !== undefined ? stockRecord.quantity : (product.isAvailable ? 50 : 0);
@@ -475,31 +473,43 @@ export function renderCustomerView(container, state, onStateChange) {
             const prodCount = prodReviews.length;
             const prodRating = prodCount > 0 
               ? (prodReviews.reduce((sum, r) => sum + Number(r.rating), 0) / prodCount).toFixed(1)
-              : null;
+              : '5.0';
 
             const isFlashProduct = activeFlashDeal && product.id === activeFlashDeal.productId;
             const effectivePrice = isFlashProduct ? activeFlashDeal.flashPrice : product.price;
+            const isFav = favorites.includes(product.id);
 
             return `
               <div 
                 data-open-product-modal="${product.id}" 
-                class="bg-white rounded-3xl overflow-hidden border ${isFlashProduct ? 'border-2 border-rose-400 shadow-md ring-2 ring-rose-300/30' : 'border-gray-100 shadow-sm'} hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer ${!isAvailable ? 'opacity-60 grayscale cursor-not-allowed' : ''}"
+                class="bg-white rounded-3xl overflow-hidden border ${isFlashProduct ? 'border-2 border-rose-400 shadow-md ring-2 ring-rose-300/30' : 'border-gray-100 shadow-xs'} hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer relative ${!isAvailable ? 'opacity-60 grayscale cursor-not-allowed' : ''}"
               >
                 
-                <div class="relative h-48 w-full overflow-hidden bg-gray-100">
+                <div class="relative h-44 sm:h-48 w-full overflow-hidden bg-gray-100">
                   <img 
                     src="${product.image}" 
                     alt="${product.name}" 
                     class="w-full h-full object-cover transition duration-500 group-hover:scale-105"
                     loading="lazy"
                   />
+
+                  <!-- Favori Kalp Butonu (Getir / Trendyol Stili) -->
+                  <button 
+                    type="button"
+                    data-toggle-fav="${product.id}"
+                    class="absolute top-2.5 right-2.5 w-8 h-8 rounded-full ${isFav ? 'bg-rose-50 text-rose-500 shadow-md' : 'bg-white/80 backdrop-blur text-gray-400 hover:text-rose-500 shadow-xs'} flex items-center justify-center transition cursor-pointer z-10"
+                    title="Favorilere Ekle"
+                  >
+                    <span class="text-sm">${isFav ? '❤️' : '🤍'}</span>
+                  </button>
+
                   ${isFlashProduct ? `
-                    <span class="absolute top-3 left-3 bg-gradient-to-r from-rose-600 to-amber-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-lg animate-pulse flex items-center gap-1">
+                    <span class="absolute top-2.5 left-2.5 bg-gradient-to-r from-rose-600 to-amber-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-lg animate-pulse flex items-center gap-1">
                       <span>🔥 FLAŞ</span>
                       <span>(⏱️ <span data-flash-countdown>${flashCountdownStr}</span>)</span>
                     </span>
                   ` : product.badge ? `
-                    <span class="absolute top-3 left-3 bg-[#06C167] text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md">
+                    <span class="absolute top-2.5 left-2.5 bg-[#06C167] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md">
                       ${product.badge}
                     </span>
                   ` : ''}
@@ -512,41 +522,42 @@ export function renderCustomerView(container, state, onStateChange) {
                   ` : ''}
                 </div>
 
-                <div class="p-5 flex-1 flex flex-col justify-between">
+                <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between">
                   <div>
-                    <h4 class="font-extrabold text-base sm:text-lg text-[#121212] group-hover:text-[#06C167] transition">
+                    <h4 class="font-extrabold text-base text-[#121212] group-hover:text-[#06C167] transition">
                       ${product.name}
                     </h4>
-                    <!-- Yorum & Puan Rozeti -->
-                    <button 
-                      type="button" 
-                      data-open-product-reviews="${product.id}" 
-                      class="flex items-center gap-1.5 mt-1 text-xs font-semibold text-gray-600 hover:text-[#06C167] transition cursor-pointer"
-                      title="Ürün değerlendirmelerini gör"
-                    >
-                      <span class="text-amber-400">⭐</span>
-                      ${prodCount > 0 ? `
-                        <span class="font-bold text-gray-900">${prodRating}</span>
-                        <span class="text-[11px] text-gray-400 font-medium">(${prodCount} yorum)</span>
-                      ` : `
-                        <span class="text-[11px] text-gray-400 font-medium">Yorumlar (${prodCount})</span>
-                      `}
-                    </button>
+                    
+                    <!-- Yorum & Puan ve Teslimat Rozeti -->
+                    <div class="flex items-center gap-2 mt-1">
+                      <button 
+                        type="button" 
+                        data-open-product-reviews="${product.id}" 
+                        class="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded-full text-[11px] font-bold transition cursor-pointer"
+                        title="Ürün değerlendirmelerini gör"
+                      >
+                        <span>⭐</span>
+                        <span>${prodRating}</span>
+                        <span class="text-amber-700 text-[10px]">(${prodCount})</span>
+                      </button>
+                      <span class="text-[11px] text-gray-400 font-medium">• 20-30 dk</span>
+                    </div>
+
                     <p class="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">
                       ${product.description}
                     </p>
                   </div>
 
-                  <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
+                  <div class="mt-3.5 pt-3.5 border-t border-gray-100 flex items-center justify-between gap-2">
                     <div>
-                      <span class="text-[11px] text-gray-400 font-medium block">Fiyat</span>
+                      <span class="text-[10px] text-gray-400 font-medium block">Fiyat</span>
                       ${isFlashProduct ? `
                         <div class="flex items-baseline gap-1.5">
                           <span class="line-through text-gray-400 text-xs font-bold">₺${product.price}</span>
-                          <span class="text-base sm:text-lg font-black text-rose-600">₺${effectivePrice}</span>
+                          <span class="text-base font-black text-rose-600">₺${effectivePrice}</span>
                         </div>
                       ` : `
-                        <span class="text-base sm:text-lg font-black text-[#121212]">₺${product.price}</span>
+                        <span class="text-base font-black text-[#121212]">₺${product.price}</span>
                       `}
                     </div>
 
@@ -555,16 +566,16 @@ export function renderCustomerView(container, state, onStateChange) {
                         <button
                           type="button"
                           data-quick-order-id="${product.id}"
-                          class="quick-order-btn flex items-center gap-1 ${isFlashProduct ? 'bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-700 hover:to-amber-600' : 'bg-[#121212] hover:bg-black'} text-white px-2.5 sm:px-3 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                          class="quick-order-btn flex items-center gap-1 ${isFlashProduct ? 'bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-700' : 'bg-[#121212] hover:bg-black'} text-white px-2.5 py-1.5 rounded-xl font-bold text-xs transition duration-200 shadow-2xs cursor-pointer"
                           title="Hemen sepete ekle ve siparişe geç"
                         >
                           <span>⚡</span>
-                          <span>Hızlı Sipariş</span>
+                          <span>Hızlı</span>
                         </button>
                         <button
                           type="button"
                           data-product-id="${product.id}"
-                          class="add-product-btn flex items-center gap-1 ${isFlashProduct ? 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white' : 'bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white'} px-3 sm:px-3.5 py-2 rounded-2xl font-bold text-xs transition duration-200 shadow-sm cursor-pointer"
+                          class="add-product-btn flex items-center gap-1 ${isFlashProduct ? 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white' : 'bg-[#E8F8EE] hover:bg-[#06C167] text-[#06C167] hover:text-white'} px-3 py-1.5 rounded-xl font-bold text-xs transition duration-200 shadow-2xs cursor-pointer"
                         >
                           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -590,7 +601,6 @@ export function renderCustomerView(container, state, onStateChange) {
 
       <!-- Ürün Detay & Özelleştirme Modalı -->
       ${selectedProduct ? renderProductModal(selectedProduct, activeFlashDeal, flashCountdownStr) : ''}
-
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
       ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible, menu) : ''}
@@ -628,80 +638,52 @@ export function renderCustomerView(container, state, onStateChange) {
       <!-- Bize Ulaşın Modalı -->
       ${state.isContactModalOpen ? renderContactModal(currentUser) : ''}
 
+      <!-- Kampanyalar & Kuponlar Modalı -->
+      ${state.isCampaignsModalOpen ? renderCampaignsModal(state, currentUser, isFirstOrderEligible, activeFlashDeal, flashCountdownStr) : ''}
+
     </div>
 
-    <!-- ========== MOBİL ALT NAVİGASYON ÇUBUĞU (Sticky Bottom Nav) ========== -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-gray-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-1 py-1.5 flex items-center justify-around">
-      
-      <!-- 1. Menü -->
-      <button 
-        id="mobile-nav-home-btn" 
-        type="button" 
-        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
-      >
-        <span class="text-xl">🍽️</span>
-        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Menü</span>
-      </button>
+    <!-- ========== MOBİL SABİT KAMPANYA BİLGİ BANDI (Görseldeki Geri Sayımlı İndirim Bandı) ========== -->
+    ${!state.hideBottomDealStrip && isRestaurantOpen ? `
+      <div class="fixed bottom-16 sm:bottom-20 left-2 sm:left-4 right-2 sm:right-4 z-30 animate-in slide-in-from-bottom duration-300">
+        <div class="bg-gradient-to-r from-emerald-600 via-[#06C167] to-teal-600 text-white rounded-2xl px-3 sm:px-4 py-2.5 shadow-xl shadow-emerald-900/20 border border-white/20 flex items-center justify-between gap-2">
+          
+          <div class="flex items-center gap-2 min-w-0">
+            <!-- Geri Sayım Kutusu (Görseldeki 14:51 tarzı sayaç) -->
+            <div class="bg-black/30 text-amber-200 text-xs font-mono font-black px-2 py-1 rounded-xl border border-amber-300/30 flex items-center gap-1 shrink-0">
+              <span>⏱️</span>
+              <span data-flash-countdown>${flashCountdownStr}</span>
+            </div>
+            <p class="text-xs font-extrabold truncate">
+              ${activeFlashDeal ? `🔥 Flaş fırsat bitmeden sipariş ver!` : isFirstOrderEligible ? `İlk siparişinde %20 indirimi kap!` : `Pita Mutfak sıcak & taze lezzetleri kapında!`}
+            </p>
+          </div>
 
-      <!-- 2. Yorumlar -->
-      <button 
-        id="mobile-nav-reviews-btn" 
-        type="button" 
-        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-amber-600 active:scale-95 transition cursor-pointer"
-      >
-        <span class="text-xl">⭐</span>
-        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">${totalReviewsCount > 0 ? `${avgRating} Puan` : 'Yorumlar'}</span>
-      </button>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button 
+              type="button" 
+              id="bottom-strip-action-btn"
+              class="bg-white hover:bg-emerald-50 text-[#06C167] active:scale-95 text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer whitespace-nowrap"
+            >
+              ${activeFlashDeal ? 'Flaş Fırsat ⚡' : isFirstOrderEligible ? 'İndirimi Kap 🎁' : 'Menüyü Gör 🍽️'}
+            </button>
+            <button 
+              type="button" 
+              id="dismiss-bottom-deal-strip-btn" 
+              class="w-6 h-6 rounded-full bg-black/20 hover:bg-black/40 text-white/90 text-xs font-bold flex items-center justify-center transition cursor-pointer shrink-0"
+              title="Kapat"
+            >
+              ✕
+            </button>
+          </div>
 
-      <!-- 3. Siparişlerim -->
-      <button 
-        id="mobile-nav-orders-btn" 
-        type="button" 
-        class="relative flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
-      >
-        <div class="relative">
-          <span class="text-xl">📋</span>
-          ${myOrders.length > 0 ? `
-            <span class="absolute -top-1 -right-2.5 w-4 h-4 bg-gray-900 text-white rounded-full text-[9px] font-black flex items-center justify-center">
-              ${myOrders.length}
-            </span>
-          ` : ''}
         </div>
-        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Siparişlerim</span>
-      </button>
-
-      <!-- 4. İletişim / Bize Ulaşın -->
-      <button 
-        id="mobile-nav-contact-btn" 
-        type="button" 
-        class="flex flex-col items-center justify-center flex-1 py-1 text-gray-700 hover:text-[#06C167] active:scale-95 transition cursor-pointer"
-      >
-        <span class="text-xl">💬</span>
-        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Bize Ulaşın</span>
-      </button>
-
-      <!-- 5. Sepetim -->
-      <button 
-        id="mobile-nav-cart-btn" 
-        type="button" 
-        class="relative flex flex-col items-center justify-center flex-1 py-1 ${cartItemCount > 0 ? 'text-[#06C167]' : 'text-gray-700'} active:scale-95 transition cursor-pointer"
-      >
-        <div class="relative">
-          <span class="text-xl">🛒</span>
-          ${cartItemCount > 0 ? `
-            <span class="absolute -top-1 -right-2.5 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1 min-w-4 h-4 flex items-center justify-center animate-pulse">
-              ${cartItemCount}
-            </span>
-          ` : ''}
-        </div>
-        <span class="text-[10px] font-extrabold mt-0.5 tracking-tight">Sepetim</span>
-      </button>
-      
-    </nav>
+      </div>
+    ` : ''}
 
     <!-- ========== MOBİL YÜZEN SEPET ÇUBUĞU (Hızlı Sepete Git) ========== -->
     ${cartItemCount > 0 ? `
-      <div class="md:hidden fixed bottom-[68px] left-3 right-3 z-40">
+      <div class="fixed bottom-16 sm:bottom-20 left-3 right-3 z-30">
         <button 
           id="mobile-floating-cart-bar-btn"
           type="button"
@@ -718,6 +700,80 @@ export function renderCustomerView(container, state, onStateChange) {
         </button>
       </div>
     ` : ''}
+
+    <!-- ========== MOBİL 5'Lİ ALT NAVİGASYON ÇUBUĞU (Trendyol / Getir Arayüzü) ========== -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-gray-200/90 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-2 py-1.5 flex items-center justify-around safe-bottom">
+      
+      <!-- 1. Keşfet -->
+      <button 
+        id="tab-explore-btn" 
+        type="button" 
+        class="flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${!state.filterFavorites ? 'text-[#06C167] font-black' : 'text-gray-500 hover:text-black font-semibold'}"
+      >
+        <span class="text-xl">🧭</span>
+        <span class="text-[10px] tracking-tight mt-0.5">Keşfet</span>
+      </button>
+
+      <!-- 2. Favorilerim -->
+      <button 
+        id="tab-favorites-btn" 
+        type="button" 
+        class="flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${state.filterFavorites ? 'text-[#06C167] font-black' : 'text-gray-500 hover:text-black font-semibold'}"
+      >
+        <span class="text-xl">${state.filterFavorites ? '❤️' : '🤍'}</span>
+        <span class="text-[10px] tracking-tight mt-0.5">Favorilerim</span>
+      </button>
+
+      <!-- 3. Sepetim -->
+      <button 
+        id="tab-cart-btn" 
+        type="button" 
+        class="relative flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${cartItemCount > 0 ? 'text-[#06C167] font-black' : 'text-gray-500 hover:text-black font-semibold'}"
+      >
+        <div class="relative">
+          <span class="text-xl">🛍️</span>
+          ${cartItemCount > 0 ? `
+            <span class="absolute -top-1.5 -right-2.5 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1.5 min-w-4 h-4 flex items-center justify-center animate-pulse shadow-xs">
+              ${cartItemCount}
+            </span>
+          ` : ''}
+        </div>
+        <span class="text-[10px] tracking-tight mt-0.5">Sepetim</span>
+      </button>
+
+      <!-- 4. Siparişlerim -->
+      <button 
+        id="tab-orders-btn" 
+        type="button" 
+        class="relative flex flex-col items-center justify-center flex-1 py-1 text-gray-500 hover:text-black font-semibold transition cursor-pointer"
+      >
+        <div class="relative">
+          <span class="text-xl">🍽️</span>
+          ${myOrders.length > 0 ? `
+            <span class="absolute -top-1.5 -right-2.5 bg-gray-900 text-white rounded-full text-[9px] font-black px-1.5 min-w-4 h-4 flex items-center justify-center shadow-xs">
+              ${myOrders.length}
+            </span>
+          ` : ''}
+        </div>
+        <span class="text-[10px] tracking-tight mt-0.5">Siparişlerim</span>
+      </button>
+
+      <!-- 5. Kampanyalar -->
+      <button 
+        id="tab-campaigns-btn" 
+        type="button" 
+        class="relative flex flex-col items-center justify-center flex-1 py-1 text-gray-500 hover:text-black font-semibold transition cursor-pointer"
+      >
+        <div class="relative">
+          <span class="text-xl">🎁</span>
+          <span class="absolute -top-1.5 -right-2.5 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1 min-w-4 h-4 flex items-center justify-center shadow-xs">
+            ${activeFlashDeal ? '2' : '1'}
+          </span>
+        </div>
+        <span class="text-[10px] tracking-tight mt-0.5">Kampanyalar</span>
+      </button>
+
+    </nav>
 
     <!-- ========== FOOTER ========== -->
     <footer class="bg-[#0E1511] text-white mt-12 pb-20 md:pb-10">
@@ -760,6 +816,135 @@ export function renderCustomerView(container, state, onStateChange) {
   `;
 
   attachCustomerEventListeners(container, state, onStateChange, menu);
+}
+
+// Kuponlar & Kampanyalar Modalı (Trendyol / Getir Arayüzü)
+function renderCampaignsModal(state, currentUser, isFirstOrderEligible, activeFlashDeal, flashCountdownStr) {
+  const hasCustom = currentUser && currentUser.custom_code && currentUser.custom_discount > 0;
+
+  return `
+    <div id="campaigns-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-gray-100 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-xl font-bold shadow-xs">
+              🎁
+            </div>
+            <div>
+              <h3 class="font-extrabold text-base text-gray-900">Kuponlar & Kampanyalar</h3>
+              <p class="text-xs text-gray-400">Size özel indirimler ve fırsat kuponları</p>
+            </div>
+          </div>
+          <button id="close-campaigns-modal-btn" class="p-2 text-gray-400 hover:text-black rounded-xl transition cursor-pointer">✕</button>
+        </div>
+
+        <div class="overflow-y-auto py-4 space-y-3.5 flex-1">
+          
+          <!-- Kampanya 1: İlk Sipariş İndirimi -->
+          <div class="bg-gradient-to-br from-[#E8F8EE] via-white to-emerald-50/70 border border-[#06C167]/30 rounded-2xl p-4 shadow-xs relative">
+            <div class="flex items-start gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-[#06C167] text-white flex items-center justify-center text-xl font-black shadow-md shadow-[#06C167]/20 shrink-0">
+                %20
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="bg-[#06C167] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">İlk Sipariş</span>
+                  <span class="text-xs font-mono font-black text-emerald-900 bg-white border border-[#06C167]/30 px-2 py-0.5 rounded-md">PITA20</span>
+                </div>
+                <h4 class="font-black text-sm text-gray-900 mt-1">Tüm Menüde %20 İndirim</h4>
+                <p class="text-xs text-gray-500 mt-0.5">İlk kez sipariş verecek müşterilerimize özel sepette anında %20 indirim fırsatı.</p>
+              </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-emerald-100 flex items-center justify-between">
+              <span class="text-[11px] text-gray-400 font-medium">Koşulsuz • Tüm Lezzetlerde</span>
+              <button 
+                type="button"
+                id="apply-campaign-first-order-btn"
+                class="bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold px-4 py-2 rounded-xl text-xs transition shadow-md shadow-[#06C167]/20 cursor-pointer"
+              >
+                ${state.firstOrderDiscountApplied ? 'Uygulandı ✓' : 'Kuponu Uygula'}
+              </button>
+            </div>
+          </div>
+
+          <!-- Kampanya 2: Canlı Flaş İndirim (Varsa) -->
+          ${activeFlashDeal ? `
+            <div class="bg-gradient-to-br from-amber-500 via-rose-500 to-red-600 text-white rounded-2xl p-4 shadow-md relative overflow-hidden">
+              <div class="flex items-start gap-3">
+                <div class="w-12 h-12 rounded-2xl overflow-hidden bg-black/30 border border-white/40 shadow-md shrink-0">
+                  <img src="${activeFlashDeal.productImage}" alt="${activeFlashDeal.productName}" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="bg-black/50 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">⚡ Flaş İndirim</span>
+                    <span class="bg-white/20 text-white font-mono text-xs font-bold px-2 py-0.5 rounded-full">⏱️ ${flashCountdownStr}</span>
+                  </div>
+                  <h4 class="font-black text-sm text-white mt-1">${activeFlashDeal.productName}</h4>
+                  <p class="text-xs text-amber-100 mt-0.5">₺${activeFlashDeal.originalPrice} yerine sadece <strong class="text-white underline">₺${activeFlashDeal.flashPrice}</strong>!</p>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/20 flex items-center justify-between">
+                <span class="text-[11px] text-amber-100">Süre bitmeden hemen sepete ekle</span>
+                <button 
+                  type="button"
+                  data-add-flash-deal="${activeFlashDeal.productId}"
+                  class="bg-white hover:bg-amber-50 active:scale-95 text-rose-600 font-extrabold px-4 py-2 rounded-xl text-xs transition shadow-md cursor-pointer"
+                >
+                  ⚡ Sepete Ekle
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Kampanya 3: Kişiye Özel İndirim Kodu (Varsa) -->
+          ${hasCustom ? `
+            <div class="bg-gradient-to-br from-purple-50 via-white to-indigo-50 border border-purple-300 rounded-2xl p-4 shadow-xs relative">
+              <div class="flex items-start gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-2xl font-black shadow-md shadow-purple-600/30 shrink-0">
+                  ⭐
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="bg-purple-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Özel Tanımlı</span>
+                    <span class="text-xs font-mono font-black text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-lg">${currentUser.custom_code}</span>
+                  </div>
+                  <h4 class="font-extrabold text-sm text-gray-900 mt-1">Size Özel %${currentUser.custom_discount} İndirim</h4>
+                  <p class="text-xs text-gray-500 mt-0.5">Pita Mutfak tarafından adınıza özel tanımlanmış avantaj kuponu.</p>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-t border-purple-100 flex items-center justify-between">
+                <span class="text-[11px] text-gray-400">Hesabınıza tanımlı</span>
+                <button 
+                  type="button"
+                  id="apply-campaign-custom-btn"
+                  class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-extrabold px-4 py-2 rounded-xl text-xs transition shadow-md shadow-purple-600/20 cursor-pointer"
+                >
+                  ${state.firstOrderDiscountApplied ? 'Uygulandı ✓' : 'Kuponu Uygula'}
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Kampanya 4: Ücretsiz Hızlı Teslimat -->
+          <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl font-bold">
+                🛵
+              </div>
+              <div>
+                <h4 class="font-extrabold text-xs sm:text-sm text-gray-900">Ücretsiz & Hızlı Teslimat</h4>
+                <p class="text-xs text-gray-500">Tüm mahallelere ortalama 25-35 dakikada sıcak teslimat</p>
+              </div>
+            </div>
+            <span class="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">Aktif</span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  `;
 }
 
 // Bize Ulaşın (Contact) Modalı
@@ -2815,19 +3000,176 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   const footerLogoBtn = container.querySelector('#footer-logo-btn');
   if (footerLogoBtn) footerLogoBtn.addEventListener('click', handleGoHome);
 
-  // ===== MOBİL ALT NAVİGASYON VE HIZLI ERİŞİM BUTONLARI =====
-  const mobileNavHomeBtn = container.querySelector('#mobile-nav-home-btn');
-  if (mobileNavHomeBtn) {
-    mobileNavHomeBtn.addEventListener('click', () => {
+  // ===== TRENDYOL / GETİR STİLİ ARAMA ÇUBUĞU (SEARCH BAR) =====
+  const menuSearchInput = container.querySelector('#menu-search-input');
+  if (menuSearchInput) {
+    menuSearchInput.addEventListener('input', (e) => {
+      onStateChange({ searchTerm: e.target.value });
+    });
+  }
+
+  const clearSearchBtn = container.querySelector('#clear-search-btn');
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener('click', () => {
+      onStateChange({ searchTerm: '' });
+    });
+  }
+
+  // ===== FAVORİLER (LOCALSTORAGE PERSISTENCE) =====
+  container.querySelectorAll('[data-toggle-fav]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pId = btn.getAttribute('data-toggle-fav');
+      if (!pId) return;
+      let favs = [];
+      try {
+        favs = JSON.parse(localStorage.getItem('pita_favorites') || '[]');
+      } catch (err) { favs = []; }
+      if (favs.includes(pId)) {
+        favs = favs.filter(id => id !== pId);
+      } else {
+        favs.push(pId);
+      }
+      localStorage.setItem('pita_favorites', JSON.stringify(favs));
+      onStateChange({});
+    });
+  });
+
+  const clearFavFilterBtn = container.querySelector('#clear-fav-filter-btn');
+  if (clearFavFilterBtn) {
+    clearFavFilterBtn.addEventListener('click', () => {
+      onStateChange({ filterFavorites: false });
+    });
+  }
+
+  // ===== TESLİMAT ADRESİ KAPSÜLÜ (HEADER ADDRESS PILL) =====
+  const headerAddressPillBtn = container.querySelector('#header-address-pill-btn');
+  if (headerAddressPillBtn) {
+    headerAddressPillBtn.addEventListener('click', () => {
+      if (!state.currentUser) {
+        onStateChange({ 
+          isLoginModalOpen: true, 
+          loginNotice: 'Teslimat adresi seçmek ve sipariş vermek için lütfen giriş yapın.' 
+        });
+      } else {
+        onStateChange({ isAddressesOpen: true });
+      }
+    });
+  }
+
+  // ===== ASİSTAN & KAMPANYA VİTRİNİ & KUPONLAR =====
+  const headerAsistanBtn = container.querySelector('#header-asistan-btn');
+  if (headerAsistanBtn) {
+    headerAsistanBtn.addEventListener('click', () => {
+      onStateChange({ isContactModalOpen: true });
+    });
+  }
+
+  const headerKuponlarBtn = container.querySelector('#header-kuponlar-btn');
+  if (headerKuponlarBtn) {
+    headerKuponlarBtn.addEventListener('click', () => {
+      onStateChange({ isCampaignsModalOpen: true });
+    });
+  }
+
+  const viewAllCampaignsBtn = container.querySelector('#view-all-campaigns-btn');
+  if (viewAllCampaignsBtn) {
+    viewAllCampaignsBtn.addEventListener('click', () => {
+      onStateChange({ isCampaignsModalOpen: true });
+    });
+  }
+
+  const campaignCardFirstOrder = container.querySelector('#campaign-card-first-order');
+  if (campaignCardFirstOrder) {
+    campaignCardFirstOrder.addEventListener('click', handleClaim);
+  }
+
+  // Kuponlar & Kampanyalar Modalı Kapatma & Uygulama
+  const closeCampaignsModalBtn = container.querySelector('#close-campaigns-modal-btn');
+  if (closeCampaignsModalBtn) {
+    closeCampaignsModalBtn.addEventListener('click', () => {
+      onStateChange({ isCampaignsModalOpen: false });
+    });
+  }
+
+  const campaignsModalBackdrop = container.querySelector('#campaigns-modal-backdrop');
+  if (campaignsModalBackdrop) {
+    campaignsModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === campaignsModalBackdrop) {
+        onStateChange({ isCampaignsModalOpen: false });
+      }
+    });
+  }
+
+  const applyCampaignFirstOrderBtn = container.querySelector('#apply-campaign-first-order-btn');
+  if (applyCampaignFirstOrderBtn) {
+    applyCampaignFirstOrderBtn.addEventListener('click', () => {
+      onStateChange({ 
+        firstOrderDiscountApplied: true, 
+        isCampaignsModalOpen: false, 
+        isCartOpen: true 
+      });
+    });
+  }
+
+  const applyCampaignCustomBtn = container.querySelector('#apply-campaign-custom-btn');
+  if (applyCampaignCustomBtn) {
+    applyCampaignCustomBtn.addEventListener('click', () => {
+      onStateChange({ 
+        firstOrderDiscountApplied: true, 
+        isCampaignsModalOpen: false, 
+        isCartOpen: true 
+      });
+    });
+  }
+
+  // ===== MOBİL SABİT KAMPANYA BANDI (COUNTDOWN DEAL STRIP) =====
+  const dismissBottomDealStripBtn = container.querySelector('#dismiss-bottom-deal-strip-btn');
+  if (dismissBottomDealStripBtn) {
+    dismissBottomDealStripBtn.addEventListener('click', () => {
+      onStateChange({ hideBottomDealStrip: true });
+    });
+  }
+
+  const bottomStripActionBtn = container.querySelector('#bottom-strip-action-btn');
+  if (bottomStripActionBtn) {
+    bottomStripActionBtn.addEventListener('click', () => {
+      const activeDeal = state.activeFlashDeal || (orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null);
+      if (activeDeal && activeDeal.active && new Date(activeDeal.expiresAt).getTime() > Date.now()) {
+        const product = menu.find(p => p.id === activeDeal.productId);
+        if (product) {
+          onStateChange({ selectedProduct: product, modalQty: 1, modalOptionIndex: 0 });
+          return;
+        }
+      }
+      handleClaim();
+    });
+  }
+
+  // ===== MOBİL YÜZEN SEPET ÇUBUĞU =====
+  const mobileFloatingCartBtn = container.querySelector('#mobile-floating-cart-bar-btn');
+  if (mobileFloatingCartBtn) {
+    mobileFloatingCartBtn.addEventListener('click', () => {
+      onStateChange({ isCartOpen: true });
+    });
+  }
+
+  // ===== TRENDYOL / GETİR 5'Lİ ALT NAVİGASYON ÇUBUĞU =====
+  const tabExploreBtn = container.querySelector('#tab-explore-btn');
+  if (tabExploreBtn) {
+    tabExploreBtn.addEventListener('click', () => {
       onStateChange({
+        filterFavorites: false,
         activeCategory: 'all',
+        searchTerm: '',
         isCartOpen: false,
         isCheckoutOpen: false,
         isLoginModalOpen: false,
         isMyOrdersOpen: false,
         showTrackingModal: false,
         isReviewsModalOpen: false,
-        isContactModalOpen: false
+        isContactModalOpen: false,
+        isCampaignsModalOpen: false
       });
       const menuSection = document.querySelector('main') || document.querySelector('.category-btn');
       if (menuSection) {
@@ -2838,45 +3180,45 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
-  const mobileNavReviewsBtn = container.querySelector('#mobile-nav-reviews-btn');
-  if (mobileNavReviewsBtn) {
-    mobileNavReviewsBtn.addEventListener('click', () => {
-      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: null });
+  const tabFavoritesBtn = container.querySelector('#tab-favorites-btn');
+  if (tabFavoritesBtn) {
+    tabFavoritesBtn.addEventListener('click', () => {
+      onStateChange({ 
+        filterFavorites: true, 
+        isCartOpen: false, 
+        isCheckoutOpen: false, 
+        isCampaignsModalOpen: false 
+      });
+      const menuSection = document.querySelector('main');
+      if (menuSection) menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
-  const mobileNavOrdersBtn = container.querySelector('#mobile-nav-orders-btn');
-  if (mobileNavOrdersBtn) {
-    mobileNavOrdersBtn.addEventListener('click', () => {
-      onStateChange({ isMyOrdersOpen: true });
+  const tabCartBtn = container.querySelector('#tab-cart-btn');
+  if (tabCartBtn) {
+    tabCartBtn.addEventListener('click', () => {
+      onStateChange({ isCartOpen: true, isCampaignsModalOpen: false });
     });
   }
 
-  const mobileNavContactBtn = container.querySelector('#mobile-nav-contact-btn');
-  if (mobileNavContactBtn) {
-    mobileNavContactBtn.addEventListener('click', () => {
-      onStateChange({ isContactModalOpen: true });
+  const tabOrdersBtn = container.querySelector('#tab-orders-btn');
+  if (tabOrdersBtn) {
+    tabOrdersBtn.addEventListener('click', () => {
+      if (!state.currentUser) {
+        onStateChange({ 
+          isLoginModalOpen: true, 
+          loginNotice: 'Geçmiş siparişlerinizi ve sipariş durumunuzu görmek için lütfen giriş yapın.' 
+        });
+      } else {
+        onStateChange({ isMyOrdersOpen: true, isCampaignsModalOpen: false });
+      }
     });
   }
 
-  const mobileNavCartBtn = container.querySelector('#mobile-nav-cart-btn');
-  if (mobileNavCartBtn) {
-    mobileNavCartBtn.addEventListener('click', () => {
-      onStateChange({ isCartOpen: true });
-    });
-  }
-
-  const mobileFloatingCartBtn = container.querySelector('#mobile-floating-cart-bar-btn');
-  if (mobileFloatingCartBtn) {
-    mobileFloatingCartBtn.addEventListener('click', () => {
-      onStateChange({ isCartOpen: true });
-    });
-  }
-
-  const heroReviewsPillBtn = container.querySelector('#hero-reviews-pill-btn');
-  if (heroReviewsPillBtn) {
-    heroReviewsPillBtn.addEventListener('click', () => {
-      onStateChange({ isReviewsModalOpen: true, reviewsFilterProductId: null });
+  const tabCampaignsBtn = container.querySelector('#tab-campaigns-btn');
+  if (tabCampaignsBtn) {
+    tabCampaignsBtn.addEventListener('click', () => {
+      onStateChange({ isCampaignsModalOpen: true });
     });
   }
 
@@ -3947,8 +4289,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   // Ürün kartına tıklayarak modalı açma
   container.querySelectorAll('[data-open-product-modal]').forEach(card => {
     card.addEventListener('click', (e) => {
-      // Yorum butonu, hızlı sipariş veya ekle butonlarına tıklandıysa kart tıklamasını yut
-      if (e.target.closest('[data-open-product-reviews]') || e.target.closest('.quick-order-btn') || e.target.closest('.add-product-btn')) {
+      // Yorum butonu, hızlı sipariş, favori veya ekle butonlarına tıklandıysa kart tıklamasını yut
+      if (e.target.closest('[data-open-product-reviews]') || e.target.closest('.quick-order-btn') || e.target.closest('.add-product-btn') || e.target.closest('[data-toggle-fav]')) {
         return;
       }
       const pId = card.getAttribute('data-open-product-modal');
