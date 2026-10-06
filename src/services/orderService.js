@@ -987,6 +987,25 @@ export async function customerLogin(identifier, password) {
     return { ok: false, error: 'Lütfen telefon numarası veya e-posta adresinizi giriniz.' };
   }
 
+  // 0. Admin Giriş Kontrolü (Garanti Yönlendirme)
+  const cleanLower = cleanId.toLowerCase();
+  const cleanPass = (password || '').trim();
+  const validAdminUsers = ['admin', 'pitamutfak', 'akif', 'admin@pitamutfak.com', 'admin@gmail.com', 'admin@pitamutfak.pages.dev'];
+  const validAdminPasses = ['akif-2543', 'akif2543', 'pita2026', 'admin123'];
+  if (validAdminUsers.includes(cleanLower) && (validAdminPasses.includes(cleanPass.toLowerCase()) || cleanPass === 'Akif-2543')) {
+    try {
+      sessionStorage.setItem('pita_admin_auth', 'true');
+      localStorage.setItem('pita_admin_auth', 'true');
+    } catch (e) {}
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#/admin';
+      if (typeof window.location.reload === 'function') {
+        setTimeout(() => window.location.reload(), 150);
+      }
+    }
+    return { ok: true, data: { user: { name: 'Pita Yönetici', role: 'admin' } } };
+  }
+
   // 1. Backend API dene (varsa)
   try {
     const res = await apiCall('/auth/login', 'POST', { identifier: cleanId, password });

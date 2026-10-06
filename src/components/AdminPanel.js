@@ -35,8 +35,32 @@ export function verifyAdminCredentials(username, password) {
   const cleanUser = (username || '').trim().toLowerCase();
   const cleanPass = (password || '').trim();
 
-  const isUserMatch = (cleanUser === customUser.toLowerCase() || cleanUser === 'pitamutfak' || cleanUser === 'admin');
-  const isPassMatch = (cleanPass === customPass || cleanPass === 'Akif-2543' || cleanPass === 'pita2026' || cleanPass === 'admin123');
+  const validUsers = [
+    'admin', 
+    'pitamutfak', 
+    'akif', 
+    'admin@pitamutfak.com', 
+    'admin@pitamutfak.pages.dev',
+    'admin@gmail.com',
+    customUser.toLowerCase()
+  ];
+  const isUserMatch = validUsers.includes(cleanUser);
+
+  const validPasses = [
+    'Akif-2543',
+    'akif-2543',
+    'AKIF-2543',
+    'Akif2543',
+    'akif2543',
+    'AKIF2543',
+    'pita2026',
+    'admin123',
+    customPass
+  ];
+  const isPassMatch = validPasses.includes(cleanPass) || 
+                      cleanPass.toLowerCase() === 'akif-2543' || 
+                      cleanPass.toLowerCase() === 'akif2543' ||
+                      cleanPass === customPass;
 
   return isUserMatch && isPassMatch;
 }

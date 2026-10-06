@@ -2952,14 +2952,17 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(loginForm);
-      const identifier = formData.get('identifier').trim();
-      const password = (formData.get('password') || '').trim();
+      const idInput = loginForm.querySelector('#login-identifier-input') || loginForm.querySelector('[name="identifier"]');
+      const pwdInput = loginForm.querySelector('#login-password-input') || loginForm.querySelector('[name="password"]');
+
+      const identifier = (idInput ? idInput.value : (new FormData(loginForm).get('identifier') || '')).trim();
+      const password = (pwdInput ? pwdInput.value : (new FormData(loginForm).get('password') || '')).trim();
 
       // Admin Kullanıcı Adı / Şifresi Kontrolü: Doğruysa doğrudan Admin Paneline yönlendir!
       if (verifyAdminCredentials(identifier, password)) {
         setAdminLoggedIn(true);
         window.location.hash = '#/admin';
+        onStateChange({ currentView: 'admin', isLoginModalOpen: false });
         performSmoothReload('Yönetici paneline geçiliyor...');
         return;
       }
