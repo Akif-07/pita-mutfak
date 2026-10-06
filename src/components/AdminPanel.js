@@ -30,13 +30,13 @@ export function logoutAdmin() {
 
 export function verifyAdminCredentials(username, password) {
   const customUser = localStorage.getItem('pita_admin_custom_user') || 'admin';
-  const customPass = localStorage.getItem('pita_admin_custom_pass') || 'pita2026';
+  const customPass = localStorage.getItem('pita_admin_custom_pass') || 'Akif-2543';
   
   const cleanUser = (username || '').trim().toLowerCase();
   const cleanPass = (password || '').trim();
 
   const isUserMatch = (cleanUser === customUser.toLowerCase() || cleanUser === 'pitamutfak' || cleanUser === 'admin');
-  const isPassMatch = (cleanPass === customPass || cleanPass === 'pita2026' || cleanPass === 'admin123');
+  const isPassMatch = (cleanPass === customPass || cleanPass === 'Akif-2543' || cleanPass === 'pita2026' || cleanPass === 'admin123');
 
   return isUserMatch && isPassMatch;
 }
@@ -106,7 +106,7 @@ export function renderAdminPanel(container, state, onStateChange) {
                 <input type="checkbox" id="admin-remember-me" checked class="w-4 h-4 accent-[#06C167] rounded cursor-pointer" />
                 <span>Beni Hatırla</span>
               </label>
-              <span class="text-[11px] text-gray-500">Varsayılan: admin / pita2026</span>
+              <span class="text-[11px] text-gray-500">Varsayılan: admin / Akif-2543</span>
             </div>
 
             <button 
