@@ -169,13 +169,13 @@ export function renderCustomerView(container, state, onStateChange) {
         <div class="max-w-6xl mx-auto px-2.5 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
           
           <!-- Logo & Slogan -->
-          <div class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 min-w-0" id="nav-logo-btn">
-            <div class="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-[#06C167] shrink-0">
+          <a href="#/" class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 min-w-0 group" id="nav-logo-btn">
+            <div class="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition group-hover:scale-105 bg-[#06C167] shrink-0">
               <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 sm:gap-2">
-                <h1 class="text-base sm:text-2xl font-black tracking-tight text-[#121212] leading-none">pita<span class="text-[#06C167]">mutfak</span></h1>
+                <h1 class="text-base sm:text-2xl font-black tracking-tight text-[#121212] leading-none group-hover:text-[#06C167] transition">pita<span class="text-[#06C167]">mutfak</span></h1>
                 <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                   <span class="w-1.5 h-1.5 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
                   <span>${isRestaurantOpen ? 'Açık' : 'Kapalı'}</span>
@@ -184,7 +184,7 @@ export function renderCustomerView(container, state, onStateChange) {
               </div>
               <p class="hidden sm:block text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
             </div>
-          </div>
+          </a>
 
           <!-- Sağ Taraf: Giriş Yap, Geçmiş Siparişler & Sepet Butonu -->
           <div class="flex items-center gap-1 sm:gap-3 shrink-0">
@@ -632,15 +632,15 @@ export function renderCustomerView(container, state, onStateChange) {
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
 
           <!-- Logo & Slogan -->
-          <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-2xl overflow-hidden bg-[#06C167] flex-shrink-0">
+          <a href="#/" id="footer-logo-btn" class="flex items-center gap-3 cursor-pointer group">
+            <div class="w-12 h-12 rounded-2xl overflow-hidden bg-[#06C167] flex-shrink-0 group-hover:scale-105 transition">
               <img src="./assets/logo_app.jpg" alt="Pita Mutfak" class="w-full h-full object-cover">
             </div>
             <div>
-              <div class="text-xl font-black tracking-tight">pita<span class="text-[#06C167]">mutfak</span></div>
+              <div class="text-xl font-black tracking-tight group-hover:text-[#06C167] transition">pita<span class="text-[#06C167]">mutfak</span></div>
               <p class="text-xs text-gray-400 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
             </div>
-          </div>
+          </a>
 
           <!-- Linkler -->
           <div class="flex flex-wrap items-center gap-4 text-sm">
@@ -2665,6 +2665,33 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       window.location.reload();
     }, 350);
   }
+
+  // Ana Sayfa Logo ve Başlık Tıklaması (Tüm filtreleri ve modalları sıfırlayıp ana sayfaya git)
+  const handleGoHome = (e) => {
+    e.preventDefault();
+    window.location.hash = '#/';
+    onStateChange({
+      currentView: 'customer',
+      activeCategory: 'all',
+      isCartOpen: false,
+      isCheckoutOpen: false,
+      isLoginModalOpen: false,
+      isMyOrdersOpen: false,
+      showTrackingModal: false,
+      isReviewsModalOpen: false,
+      isContactModalOpen: false,
+      isProfileMenuOpen: false,
+      isCustomerInboxOpen: false,
+      selectedProduct: null
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navLogoBtn = container.querySelector('#nav-logo-btn');
+  if (navLogoBtn) navLogoBtn.addEventListener('click', handleGoHome);
+
+  const footerLogoBtn = container.querySelector('#footer-logo-btn');
+  if (footerLogoBtn) footerLogoBtn.addEventListener('click', handleGoHome);
 
   // Google ile Hızlı Giriş Butonu
   const googleBtn = container.querySelector('#google-signin-btn');
