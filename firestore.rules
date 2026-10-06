@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. SİPARİŞLER (Müşteri sipariş verebilir, takip edebilir; Yönetici ve kurye yönetebilir)
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    // 2. MÜŞTERİ PROFİLLERİ (Profil oluşturma, giriş ve indirim kodu senkronizasyonu)
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+
+    // 3. RESTORAN AYARLARI (Açık/Kapalı, Çalışma Saatleri)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // 4. MENÜ & STOK DURUMU
+    match /stock/{stockId} {
+      allow read, write: if true;
+    }
+
+    // 5. MÜŞTERİ DEĞERLENDİRME & YORUMLARI
+    match /reviews/{reviewId} {
+      allow read, write: if true;
+    }
+
+    // 6. FLAŞ İNDİRİM & KAMPANYALAR
+    match /campaigns/{campaignId} {
+      allow read, write: if true;
+    }
+
+    // 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ
+    match /presence/{presenceId} {
+      allow read, write: if true;
+    }
+
+    // 8. İLETİŞİM & BİZE ULAŞIN MESAJLARI
+    match /contact_messages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+
+    // 9. MUHASEBE & GİDERLER
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    // 10. GÜN SONU Z-RAPORLARI (KASA KAPANIŞLARI)
+    match /daily_closings/{closingId} {
+      allow read, write: if true;
+    }
+  }
+}
