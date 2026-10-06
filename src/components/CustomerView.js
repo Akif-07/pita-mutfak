@@ -94,23 +94,23 @@ export function renderCustomerView(container, state, onStateChange) {
   const cartTotal = Math.max(0, subtotal - discountAmount);
 
   container.innerHTML = `
-    <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-24">
+    <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-24 w-full max-w-full overflow-x-hidden">
       
       ${!isRestaurantOpen ? `
         <!-- Restoran Kapalı Uyarısı Bannerı -->
-        <div class="bg-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 text-center sticky top-0 z-40">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-          <span>⚠️ <strong>${restStatus.message || `Restoranımız şu anda kapalıdır. Çalışma saatlerimiz: ${restaurantSettings.openingHours || '10:00 - 23:00'}. Sipariş alımı geçici olarak durdurulmuştur.`}</strong></span>
+        <div class="bg-red-600 text-white py-2 px-3 sm:py-2.5 sm:px-4 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 text-center sticky top-0 z-40 w-full max-w-full overflow-hidden">
+          <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping shrink-0"></span>
+          <span class="break-words">⚠️ <strong>${restStatus.message || `Restoranımız şu anda kapalıdır (${restaurantSettings.openingHours || '10:00 - 23:00'}). Sipariş alımı geçici olarak durdurulmuştur.`}</strong></span>
         </div>
       ` : activeFlashDeal ? `
         <!-- CANLI FLAŞ İNDİRİM ÜST BANNERI -->
-        <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white py-2.5 px-4 text-xs sm:text-sm font-bold shadow-md sticky top-0 z-40 border-b border-white/20">
+        <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white py-2 px-3 sm:py-2.5 sm:px-4 text-xs sm:text-sm font-bold shadow-md sticky top-0 z-40 border-b border-white/20 w-full max-w-full overflow-hidden">
           <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-              <span>🔥 <strong>CANLI FLAŞ İNDİRİM:</strong> <span class="font-extrabold text-amber-200">${activeFlashDeal.productName}</span> şimdi <span class="line-through text-white/75 text-xs">₺${activeFlashDeal.originalPrice}</span> yerine sadece <strong class="text-white text-sm sm:text-base underline">₺${activeFlashDeal.flashPrice}</strong>!</span>
+            <div class="flex items-center gap-2 text-center sm:text-left">
+              <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping shrink-0"></span>
+              <span class="break-words">🔥 <strong>CANLI FLAŞ İNDİRİM:</strong> <span class="font-extrabold text-amber-200">${activeFlashDeal.productName}</span> şimdi <span class="line-through text-white/75 text-xs">₺${activeFlashDeal.originalPrice}</span> yerine sadece <strong class="text-white text-sm sm:text-base underline">₺${activeFlashDeal.flashPrice}</strong>!</span>
             </div>
-            <div class="flex items-center gap-2.5 shrink-0">
+            <div class="flex items-center gap-2 shrink-0">
               <span class="bg-black/40 text-amber-200 text-xs font-mono font-black px-2.5 py-1 rounded-full border border-amber-300/40 flex items-center gap-1 shadow-xs">
                 <span>⏱️</span>
                 <span data-flash-countdown>${flashCountdownStr}</span>
@@ -118,7 +118,7 @@ export function renderCustomerView(container, state, onStateChange) {
               <button 
                 type="button"
                 data-add-flash-deal="${activeFlashDeal.productId}"
-                class="bg-white hover:bg-amber-100 text-rose-600 active:scale-95 px-3.5 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-md whitespace-nowrap flex items-center gap-1.5"
+                class="bg-white hover:bg-amber-100 text-rose-600 active:scale-95 px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-md whitespace-nowrap flex items-center gap-1"
               >
                 <span>⚡</span>
                 <span>Sepete Ekle (₺${activeFlashDeal.flashPrice})</span>
@@ -128,35 +128,35 @@ export function renderCustomerView(container, state, onStateChange) {
         </div>
       ` : `
         <!-- Üst Bilgi ve İndirim Kap Bannerı (Uber Eats Stili) -->
-        <div class="bg-[#06C167] text-white py-2 px-4 text-xs sm:text-sm font-medium shadow-sm">
-          <div class="max-w-6xl mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping"></span>
+        <div class="bg-[#06C167] text-white py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium shadow-sm w-full max-w-full overflow-hidden">
+          <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping shrink-0"></span>
               ${hasCustomCode ? `
-                <span>🎉 Size özel %${currentUser.custom_discount} indirim kodunuz: <strong>${currentUser.custom_code}</strong> sepetinizde tanımlı!</span>
+                <span class="truncate sm:overflow-visible sm:whitespace-normal">🎉 Size özel %${currentUser.custom_discount} indirim kodunuz: <strong>${currentUser.custom_code}</strong></span>
               ` : isFirstOrderEligible ? `
-                <span>🎉 Pita Mutfak'a Hoş Geldiniz! İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
+                <span class="truncate sm:overflow-visible sm:whitespace-normal">🎉 İlk siparişinize özel <strong>%20 İndirim</strong> fırsatı!</span>
               ` : `
-                <span>🎉 Pita Mutfak lezzetleri kapınızda! Taze makarna, çıtır pizza ve enfes tavuk pilav.</span>
+                <span class="truncate sm:overflow-visible sm:whitespace-normal">🎉 Pita Mutfak sıcak & taze lezzetleri kapınızda!</span>
               `}
             </div>
             ${hasCustomCode ? `
               <button 
                 id="top-promo-claim-btn" 
-                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
               >
-                ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '⭐ İndirimi Kap'}
+                ${firstOrderDiscountApplied ? '✓ Tanımlandı' : '⭐ İndirimi Kap'}
               </button>
             ` : isFirstOrderEligible ? `
               <button 
                 id="top-promo-claim-btn" 
-                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+                class="bg-white text-[#06C167] hover:bg-[#E8F8EE] px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
               >
-                ${firstOrderDiscountApplied ? '✓ İndirim Tanımlandı' : '🎁 İndirimi Kap'}
+                ${firstOrderDiscountApplied ? '✓ Tanımlandı' : '🎁 İndirimi Kap'}
               </button>
             ` : `
-              <span class="bg-white/20 text-white px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
-                🛵 Hızlı & Sıcak Teslimat
+              <span class="bg-white/20 text-white px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0">
+                🛵 Hızlı Teslimat
               </span>
             `}
           </div>
@@ -165,29 +165,29 @@ export function renderCustomerView(container, state, onStateChange) {
 
 
       <!-- Ana Header / Navigasyon -->
-      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm transition-all">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm transition-all w-full max-w-full overflow-hidden">
+        <div class="max-w-6xl mx-auto px-2.5 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
           
           <!-- Logo & Slogan -->
-          <div class="flex items-center gap-3 cursor-pointer" id="nav-logo-btn">
-            <div class="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-[#06C167] flex-shrink-0">
+          <div class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 min-w-0" id="nav-logo-btn">
+            <div class="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-[#06C167]/20 transform transition hover:scale-105 bg-[#06C167] shrink-0">
               <img src="./assets/logo_app.jpg" alt="Pita Mutfak Logo" class="w-full h-full object-cover">
             </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h1 class="text-2xl font-black tracking-tight text-[#121212]">pita<span class="text-[#06C167]">mutfak</span></h1>
-                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[11px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs">
-                  <span class="w-2 h-2 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 sm:gap-2">
+                <h1 class="text-base sm:text-2xl font-black tracking-tight text-[#121212] leading-none">pita<span class="text-[#06C167]">mutfak</span></h1>
+                <span class="${isRestaurantOpen ? 'bg-[#E8F8EE] text-[#06C167]' : 'bg-red-100 text-red-600'} text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full ${isRestaurantOpen ? 'bg-[#06C167] animate-pulse' : 'bg-red-500'}"></span>
                   <span>${isRestaurantOpen ? 'Açık' : 'Kapalı'}</span>
-                  <span class="text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
+                  <span class="hidden md:inline text-gray-400 font-normal">(${restaurantSettings.openingHours || '10:00 - 23:00'})</span>
                 </span>
               </div>
-              <p class="text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
+              <p class="hidden sm:block text-xs text-gray-500 font-medium">Tavuk Pilav • Taze Makarna • Çıtır Pizza</p>
             </div>
           </div>
 
           <!-- Sağ Taraf: Giriş Yap, Geçmiş Siparişler & Sepet Butonu -->
-          <div class="flex items-center gap-2 sm:gap-3">
+          <div class="flex items-center gap-1 sm:gap-3 shrink-0">
             
             <!-- Kullanıcı Giriş / Profil Butonu -->
             ${currentUser ? `
@@ -195,12 +195,12 @@ export function renderCustomerView(container, state, onStateChange) {
                 <button 
                   id="user-profile-btn" 
                   type="button"
-                  class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  class="flex items-center gap-1 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
                   <span>👤</span>
-                  <span class="max-w-[100px] truncate">${currentUser.name}</span>
+                  <span class="max-w-[60px] sm:max-w-[100px] truncate">${currentUser.name}</span>
                   ${!currentUser.phoneVerified ? '<span class="text-xs">⚠️</span>' : ''}
-                  <svg class="w-3.5 h-3.5 transition-transform ${state.isProfileMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                  <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform ${state.isProfileMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
                   <div class="px-3 py-2 border-b border-gray-100 mb-1">
@@ -229,7 +229,7 @@ export function renderCustomerView(container, state, onStateChange) {
               <!-- Müşteri Mesaj / Bildirim Kutusu Butonu -->
               <button 
                 id="open-customer-inbox-btn" 
-                class="relative flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition cursor-pointer shadow-2xs"
+                class="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition cursor-pointer shadow-2xs shrink-0"
                 title="Yönetimden Gelen Mesajlar & Kuponlarım"
               >
                 <span class="text-sm">🔔</span>
@@ -242,34 +242,34 @@ export function renderCustomerView(container, state, onStateChange) {
             ` : `
               <button 
                 id="open-login-btn" 
-                class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 sm:px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                class="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
               >
                 <span>👤</span>
-                <span>Giriş Yap</span>
+                <span class="text-xs">Giriş Yap</span>
               </button>
             `}
 
             <!-- Müşteri Yorumları & Puan Butonu -->
             <button 
               id="open-reviews-btn" 
-              class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2.5 sm:px-3.5 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+              class="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
               title="Müşteri Değerlendirmeleri ve Yorumları (${totalReviewsCount} değerlendirme)"
             >
               <span>⭐</span>
               <span>${totalReviewsCount > 0 ? avgRating : '5.0'}</span>
-              <span class="text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
-              <span class="hidden sm:inline text-amber-700 font-semibold">Yorumlar</span>
+              <span class="hidden md:inline text-amber-700 text-[11px] font-black">(${totalReviewsCount})</span>
             </button>
 
             <!-- Geçmiş Siparişlerim Butonu -->
             <button 
               id="my-orders-btn" 
-              class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 sm:px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+              class="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
+              title="Siparişlerim"
             >
               <span>📋</span>
-              <span class="hidden sm:inline">Siparişlerim</span>
+              <span class="hidden sm:inline sm:ml-1">Siparişlerim</span>
               ${myOrders.length > 0 ? `
-                <span class="bg-gray-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                <span class="bg-gray-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full sm:ml-1">
                   ${myOrders.length}
                 </span>
               ` : ''}
@@ -277,22 +277,22 @@ export function renderCustomerView(container, state, onStateChange) {
 
             <!-- Canlı Takip Varsa Hızlı Buton (Yalnızca aktif/teslim edilmemiş siparişlerde) -->
             ${activeTrackingOrder && activeTrackingOrder.status !== 'delivered' && activeTrackingOrder.status !== 'cancelled' ? `
-              <button id="quick-track-btn" class="flex items-center gap-2 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-3 py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer">
-                <span class="w-2 h-2 rounded-full bg-[#06C167] animate-pulse"></span>
+              <button id="quick-track-btn" class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-bold hover:bg-[#06C167] hover:text-white transition shadow-sm cursor-pointer shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#06C167] animate-pulse"></span>
                 <span class="hidden sm:inline">Takip Et</span>
-                <span class="sm:hidden font-mono">#${activeTrackingOrder.id.slice(-4)}</span>
+                <span class="sm:hidden font-mono text-[10px]">#${activeTrackingOrder.id.slice(-4)}</span>
               </button>
             ` : ''}
 
             <!-- Sepet Butonu (Uber Eats Yeşil Pill) -->
-            <button id="open-cart-btn" class="relative flex items-center gap-2 bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-bold px-3.5 sm:px-5 py-2.5 rounded-full shadow-lg shadow-[#06C167]/25 transition duration-200 cursor-pointer">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <button id="open-cart-btn" class="relative flex items-center gap-1 sm:gap-2 bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-bold px-2.5 sm:px-5 py-1.5 sm:py-2.5 rounded-full shadow-lg shadow-[#06C167]/25 transition duration-200 cursor-pointer shrink-0">
+              <svg class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="9" cy="21" r="1"></circle>
                 <circle cx="20" cy="21" r="1"></circle>
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
               </svg>
               <span class="hidden sm:inline text-sm">Sepet</span>
-              <span class="bg-white text-[#06C167] text-xs font-extrabold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+              <span class="bg-white text-[#06C167] text-xs font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full min-w-[18px] text-center">
                 ${cartItemCount}
               </span>
               ${cartTotal > 0 ? `<span class="hidden md:inline border-l border-white/30 pl-2 text-sm font-semibold">₺${cartTotal}</span>` : ''}

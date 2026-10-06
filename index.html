@@ -37,10 +37,27 @@
   </script>
 
   <style>
+    html, body {
+      overflow-x: hidden !important;
+      width: 100%;
+      max-width: 100vw;
+      position: relative;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-overflow-scrolling: touch;
+    }
+
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
       background-color: #F7F9F8;
+    }
+
+    #app-content {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
     }
 
     /* Gizli kaydırma çubuğu */
@@ -53,7 +70,7 @@
     }
 
     /* Yumuşak geçişler */
-    * {
+    *, *:before, *:after {
       box-sizing: border-box;
     }
 

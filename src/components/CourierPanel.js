@@ -10,7 +10,7 @@ export function renderCourierPanel(container, state, onStateChange) {
   const completedDeliveries = orders.filter(o => o.status === 'delivered');
 
   container.innerHTML = `
-    <div class="min-h-screen bg-[#F0F4F2] text-[#121212] pb-24">
+    <div class="min-h-screen bg-[#F0F4F2] text-[#121212] pb-24 w-full max-w-full overflow-x-hidden">
       
       <!-- Kurye Üst Barı -->
       <header class="bg-[#121212] text-white sticky top-0 z-30 shadow-md">

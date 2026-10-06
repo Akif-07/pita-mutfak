@@ -273,7 +273,7 @@ export function renderAdminPanel(container, state, onStateChange) {
 
 
   container.innerHTML = `
-    <div class="min-h-screen bg-[#F4F6F5] text-[#121212] pb-20">
+    <div class="min-h-screen bg-[#F4F6F5] text-[#121212] pb-20 w-full max-w-full overflow-x-hidden">
       
       <!-- Üst Yönetici Navigasyon Barı (SADECE ADMİN PANELİNDE GÖZÜKÜR VE TÜM PANELLERE ERİŞİM SAĞLAR) -->
       <div class="bg-[#121212] text-white py-2.5 px-4 sm:px-6 border-b border-gray-800">

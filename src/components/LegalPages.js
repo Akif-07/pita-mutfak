@@ -12,6 +12,9 @@ const COMMON_STYLES = `
       background: #F7F9F8;
       min-height: 100vh;
       color: #121212;
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100%;
     }
     .legal-header {
       background: #0E1511;
