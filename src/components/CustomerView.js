@@ -115,6 +115,23 @@ export function renderCustomerView(container, state, onStateChange) {
     : 0;
   const cartTotal = Math.max(0, subtotal - discountAmount);
 
+  // Herhangi bir modal veya çekmece açık mı kontrolü (Mobilde buton çakışmalarını önlemek için)
+  const isAnyModalOpen = Boolean(
+    state.isCartOpen ||
+    state.isCheckoutOpen ||
+    state.isLoginModalOpen ||
+    state.isAddressesOpen ||
+    state.isPhoneVerifyOpen ||
+    state.isCampaignsModalOpen ||
+    state.isMyOrdersOpen ||
+    (state.activeTrackingOrder && state.showTrackingModal) ||
+    state.isReviewsModalOpen ||
+    state.isContactModalOpen ||
+    state.selectedProduct ||
+    state.reportingOrderId ||
+    state.reviewingOrderId
+  );
+
   container.innerHTML = `
     <div class="min-h-screen bg-[#F7F9F8] text-[#121212] pb-32 sm:pb-28 w-full max-w-full overflow-x-hidden">
       
@@ -644,7 +661,7 @@ export function renderCustomerView(container, state, onStateChange) {
     </div>
 
     <!-- ========== MOBİL SABİT KAMPANYA BİLGİ BANDI (Görseldeki Geri Sayımlı İndirim Bandı) ========== -->
-    ${!state.hideBottomDealStrip && isRestaurantOpen ? `
+    ${!state.hideBottomDealStrip && isRestaurantOpen && !isAnyModalOpen && cartItemCount === 0 ? `
       <div class="fixed bottom-16 sm:bottom-20 left-2 sm:left-4 right-2 sm:right-4 z-30 animate-in slide-in-from-bottom duration-300">
         <div class="bg-gradient-to-r from-emerald-600 via-[#06C167] to-teal-600 text-white rounded-2xl px-3 sm:px-4 py-2.5 shadow-xl shadow-emerald-900/20 border border-white/20 flex items-center justify-between gap-2">
           
@@ -682,7 +699,7 @@ export function renderCustomerView(container, state, onStateChange) {
     ` : ''}
 
     <!-- ========== MOBİL YÜZEN SEPET ÇUBUĞU (Hızlı Sepete Git) ========== -->
-    ${cartItemCount > 0 ? `
+    ${cartItemCount > 0 && !isAnyModalOpen ? `
       <div class="fixed bottom-16 sm:bottom-20 left-3 right-3 z-30">
         <button 
           id="mobile-floating-cart-bar-btn"
@@ -702,7 +719,7 @@ export function renderCustomerView(container, state, onStateChange) {
     ` : ''}
 
     <!-- ========== MOBİL 5'Lİ ALT NAVİGASYON ÇUBUĞU (Trendyol / Getir Arayüzü) ========== -->
-    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-gray-200/90 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-2 py-1.5 flex items-center justify-around safe-bottom">
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-gray-200/90 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-2 py-1.5 ${isAnyModalOpen ? 'hidden' : 'flex'} items-center justify-around safe-bottom">
       
       <!-- 1. Keşfet -->
       <button 
@@ -2029,7 +2046,7 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
         </div>
 
         ${cart.length > 0 ? `
-          <div class="p-5 bg-gray-50/80 border-t border-gray-100 space-y-3">
+          <div class="p-4 sm:p-5 bg-gray-50/95 border-t border-gray-100 space-y-3 sticky bottom-0 bg-white shadow-[0_-8px_20px_rgba(0,0,0,0.05)] pb-6 sm:pb-5 z-20">
             
             <!-- İLK SİPARİŞ İNDİRİMİ VEYA ÖZEL KOD ROZETİ (Uygula / İptal Et) -->
             ${(() => {
@@ -2130,12 +2147,12 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
   const savedAddresses = userPhone ? getSavedAddresses(userPhone) : [];
 
   return `
-    <div id="checkout-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+    <div id="checkout-modal-backdrop" class="fixed inset-0 z-[60] bg-black/70 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+      <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 my-auto max-h-[94vh] flex flex-col overflow-hidden">
         
-        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+        <div class="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between shrink-0 bg-white sticky top-0 z-20">
           <div>
-            <h3 class="font-extrabold text-lg text-[#121212]">Siparişinizi Tamamlayın</h3>
+            <h3 class="font-extrabold text-base sm:text-lg text-[#121212]">Siparişinizi Tamamlayın</h3>
             <p class="text-xs text-gray-500">Teslimat adresinizi ve ödeme yönteminizi seçiniz</p>
           </div>
           <button id="close-checkout-btn" class="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition cursor-pointer">
@@ -2145,19 +2162,20 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
 
         ${phoneBlocked ? `
           <!-- Telefon doğrulama zorunlu engel bandı -->
-          <div class="bg-orange-50 border-b border-orange-200 px-5 py-3.5 flex items-center gap-3">
+          <div class="bg-orange-50 border-b border-orange-200 px-4 sm:px-5 py-3 flex items-center gap-3 shrink-0">
             <span class="text-2xl">📱</span>
             <div class="flex-1">
               <p class="text-xs font-black text-orange-900">Sipariş için telefon doğrulaması zorunludur</p>
               <p class="text-[11px] text-orange-700 mt-0.5 leading-snug">Kurye teslimatı ve sipariş güvenliği için numaranızı onaylamanız gerekmektedir.</p>
             </div>
-            <button id="checkout-verify-phone-btn" type="button" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-3.5 py-2 rounded-xl transition cursor-pointer whitespace-nowrap shadow-xs">
+            <button id="checkout-verify-phone-btn" type="button" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-3 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap shadow-xs">
               Doğrula 📱
             </button>
           </div>
         ` : ''}
 
-        <form id="checkout-form" class="p-6 space-y-4" ${phoneBlocked ? 'data-phone-blocked="true"' : ''}>
+        <div class="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
+          <form id="checkout-form" class="space-y-4" ${phoneBlocked ? 'data-phone-blocked="true"' : ''}>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -2287,7 +2305,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
             </div>
           ` : ''}
 
-          <div class="pt-4 border-t border-gray-100 flex items-center justify-between gap-4">
+          <div class="pt-3 border-t border-gray-100 flex items-center justify-between gap-3 sticky bottom-0 bg-white py-2.5 z-20 mt-4">
             <div>
               <span class="text-xs text-gray-400 block">Ödenecek Tutar</span>
               <span class="text-xl font-black text-[#06C167]">₺${cartTotal}</span>
@@ -2312,7 +2330,8 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
             `}
           </div>
 
-        </form>
+          </form>
+        </div>
 
       </div>
     </div>
