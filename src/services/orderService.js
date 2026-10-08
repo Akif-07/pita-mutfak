@@ -523,21 +523,34 @@ export function setCurrentUser(user) {
 }
 
 export function getMyOrders(ordersList = null, user = null) {
-  const myIds = getMyOrderIds();
   const allOrders = Array.isArray(ordersList) ? ordersList : getStoredOrders();
   const currentUser = user || getCurrentUser();
-  const currentPhone = currentUser ? (currentUser.phone || '').replace(/\D/g, '') : '';
-  const currentEmail = currentUser && currentUser.email ? currentUser.email.trim().toLowerCase() : '';
-  const currentUid = currentUser ? (currentUser.uid || currentUser.id || '') : '';
+  
+  // Giriş yapmamış kullanıcı için başka müşterilerin siparişlerini ASLA gösterme
+  if (!currentUser) {
+    const sessionIds = getMyOrderIds();
+    if (!sessionIds || sessionIds.length === 0) return [];
+    return allOrders.filter(o => o && o.id && sessionIds.includes(String(o.id)));
+  }
+
+  const currentPhone = (currentUser.phone || '').replace(/\D/g, '').slice(-10);
+  const currentEmail = currentUser.email ? currentUser.email.trim().toLowerCase() : '';
+  const currentUid = String(currentUser.uid || currentUser.id || '').trim();
 
   return allOrders.filter(o => {
-    if (myIds.includes(o.id) || myIds.includes(String(o.id))) return true;
-    if (currentUid && (o.userId === currentUid || o.customerId === currentUid)) return true;
-    if (currentEmail && o.customerEmail && o.customerEmail.trim().toLowerCase() === currentEmail) return true;
-    if (currentPhone && o.customerPhone) {
-      const orderPhone = o.customerPhone.replace(/\D/g, '');
-      if (orderPhone && (orderPhone === currentPhone || orderPhone.endsWith(currentPhone) || currentPhone.endsWith(orderPhone))) {
-        addMyOrderId(o.id);
+    if (!o) return false;
+    // 1. UID / Müşteri ID Eşleşmesi
+    if (currentUid && (String(o.userId) === currentUid || String(o.customerId) === currentUid)) {
+      return true;
+    }
+    // 2. E-posta Eşleşmesi
+    if (currentEmail && o.customerEmail && o.customerEmail.trim().toLowerCase() === currentEmail) {
+      return true;
+    }
+    // 3. Telefon Eşleşmesi (En az 10 hane ile güvenli kontrol)
+    if (currentPhone && currentPhone.length >= 10 && o.customerPhone) {
+      const orderPhone = o.customerPhone.replace(/\D/g, '').slice(-10);
+      if (orderPhone && orderPhone === currentPhone) {
         return true;
       }
     }
@@ -636,43 +649,115 @@ export function saveCustomerLocally(customer) {
   saveStoredCustomers(current);
 }
 
-// =================== ADRES DEFTERI (LOCALSTORAGE) ===================
+// =================== ADRES DEFTERI (LOCALSTORAGE & MÜŞTERİ PROFİLİ) ===================
 
-export function getSavedAddresses(phone) {
+export function getAddressStorageKey(userOrPhone) {
+  if (!userOrPhone) return 'pita_addresses_guest';
+  if (typeof userOrPhone === 'string') {
+    const cleaned = userOrPhone.replace(/\D/g, '');
+    return cleaned ? `pita_addresses_${cleaned}` : `pita_addresses_${userOrPhone.trim().toLowerCase()}`;
+  }
+  const id = userOrPhone.uid || userOrPhone.id || (userOrPhone.phone ? userOrPhone.phone.replace(/\D/g, '') : '') || userOrPhone.email || 'guest';
+  return `pita_addresses_${String(id).replace(/\D/g, '') || String(id)}`;
+}
+
+export function getSavedAddresses(userOrPhone) {
   try {
-    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
+    const currentUser = typeof userOrPhone === 'object' ? userOrPhone : getCurrentUser();
+    const key = getAddressStorageKey(userOrPhone || currentUser);
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    let list = raw ? JSON.parse(raw) : [];
+
+    // Kullanıcının profilindeki kayıtlı adresleri de ekle
+    if (currentUser && Array.isArray(currentUser.addresses)) {
+      currentUser.addresses.forEach(addr => {
+        if (addr && addr.text && !list.some(a => a.text === addr.text || (addr.id && a.id === addr.id))) {
+          list.push(addr);
+        }
+      });
+    }
+
+    // Kullanıcının varsayılan tekil adresi varsa ve listede yoksa ekle
+    if (currentUser && currentUser.address && currentUser.address.trim()) {
+      const defaultText = currentUser.address.trim();
+      if (!list.some(a => a.text === defaultText)) {
+        list.unshift({
+          id: 'addr_default',
+          title: 'Kayıtlı Adresim',
+          text: defaultText,
+          savedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    return list;
   } catch (e) {
     return [];
   }
 }
 
-export function saveAddress(phone, addressText) {
+export function saveAddress(userOrPhone, addressText, title = '') {
   if (!addressText || !addressText.trim()) return null;
   try {
-    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
-    const addresses = getSavedAddresses(phone);
-    const newAddr = {
-      id: `addr_${Date.now()}`,
-      text: addressText.trim(),
-      savedAt: new Date().toISOString()
-    };
-    addresses.unshift(newAddr);
-    // En fazla 5 adres tut
-    const trimmed = addresses.slice(0, 5);
+    const currentUser = typeof userOrPhone === 'object' ? userOrPhone : getCurrentUser();
+    const key = getAddressStorageKey(userOrPhone || currentUser);
+    const addresses = getSavedAddresses(userOrPhone || currentUser);
+    const cleanText = addressText.trim();
+    
+    // Zaten varsa başa taşı
+    const existingIdx = addresses.findIndex(a => a.text.toLowerCase() === cleanText.toLowerCase());
+    let targetAddr;
+    if (existingIdx >= 0) {
+      targetAddr = addresses[existingIdx];
+      if (title) targetAddr.title = title;
+      addresses.splice(existingIdx, 1);
+    } else {
+      targetAddr = {
+        id: `addr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        title: title || (addresses.length === 0 ? 'Ev' : (addresses.length === 1 ? 'İş' : 'Diğer')),
+        text: cleanText,
+        savedAt: new Date().toISOString()
+      };
+    }
+    addresses.unshift(targetAddr);
+    const trimmed = addresses.slice(0, 10);
     localStorage.setItem(key, JSON.stringify(trimmed));
-    return newAddr;
+
+    // CurrentUser profilini de güncelle
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        address: cleanText,
+        addresses: trimmed
+      };
+      setCurrentUser(updatedUser);
+      saveCustomerLocally(updatedUser);
+      try { syncCustomerToFirestore(updatedUser); } catch (e) {}
+    }
+
+    return targetAddr;
   } catch (e) {
     return null;
   }
 }
 
-export function deleteAddress(phone, addressId) {
+export function deleteAddress(userOrPhone, addressId) {
   try {
-    const key = `pita_addresses_${(phone || 'guest').replace(/\D/g, '')}`;
-    const addresses = getSavedAddresses(phone).filter(a => a.id !== addressId);
+    const currentUser = typeof userOrPhone === 'object' ? userOrPhone : getCurrentUser();
+    const key = getAddressStorageKey(userOrPhone || currentUser);
+    const addresses = getSavedAddresses(userOrPhone || currentUser).filter(a => a.id !== addressId);
     localStorage.setItem(key, JSON.stringify(addresses));
+
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        addresses: addresses,
+        address: addresses.length > 0 ? addresses[0].text : ''
+      };
+      setCurrentUser(updatedUser);
+      saveCustomerLocally(updatedUser);
+      try { syncCustomerToFirestore(updatedUser); } catch (e) {}
+    }
     return true;
   } catch (e) {
     return false;

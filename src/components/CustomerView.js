@@ -32,7 +32,7 @@ export function renderCustomerView(container, state, onStateChange) {
   const currentUser = state.currentUser || getCurrentUser();
   const { cart, activeCategory, selectedProduct, activeTrackingOrder, firstOrderDiscountApplied, discountPercentage } = state;
   const menu = orderService.getMenu();
-  const myOrders = orderService.getMyOrders(state.orders);
+  const myOrders = orderService.getMyOrders(state.orders, currentUser);
   const restaurantSettings = state.restaurantSettings || orderService.getRestaurantSettings();
   const restStatus = isRestaurantOpenNow(restaurantSettings);
   const isRestaurantOpen = restStatus.isOpen;
@@ -273,30 +273,37 @@ export function renderCustomerView(container, state, onStateChange) {
                 <button 
                   id="user-profile-btn" 
                   type="button"
-                  class="flex items-center gap-1 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
-                  <span>👤</span>
-                  <span class="max-w-[50px] sm:max-w-[80px] truncate">${currentUser.name}</span>
+                  <span class="text-sm">👤</span>
+                  <span class="max-w-[70px] sm:max-w-[100px] truncate">${currentUser.name || 'Hesabım'}</span>
+                  <span class="text-[10px] text-[#06C167]/70">▾</span>
                 </button>
-                <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50">
-                  <div class="px-3 py-2 border-b border-gray-100 mb-1">
-                    <p class="text-xs font-bold text-gray-900 truncate">${currentUser.name}</p>
-                    <p class="text-[11px] text-gray-400 font-mono">${currentUser.phone || currentUser.email || 'Telefon girilmedi'}</p>
+                <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div class="px-3 py-2.5 bg-gray-50/80 rounded-xl mb-1.5 border border-gray-100">
+                    <p class="text-xs font-black text-gray-900 truncate flex items-center gap-1.5">
+                      <span>👤</span>
+                      <span>${currentUser.name || 'Pita Misafiri'}</span>
+                    </p>
+                    <p class="text-[11px] text-gray-500 font-mono mt-0.5">${currentUser.phone || currentUser.email || 'Telefon girilmedi'}</p>
                     ${currentUser.phoneVerified 
-                      ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full mt-1">✓ Doğrulandı</span>'
-                      : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full mt-1">⚠️ Telefon Doğrulanmadı</span>'
+                      ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full mt-1 border border-emerald-200">✓ Telefon Doğrulandı</span>'
+                      : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1 border border-orange-200">⚠️ Doğrulanmadı</span>'
                     }
                   </div>
+                  <button id="open-my-orders-from-profile-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                    <span>📋</span><span>Siparişlerim (${myOrders.length})</span>
+                  </button>
                   <button id="open-addresses-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
                     <span>📍</span><span>Adreslerim</span>
                   </button>
                   <button id="open-phone-verify-btn" class="w-full text-left text-xs font-semibold ${currentUser.phoneVerified ? 'text-gray-700' : 'text-orange-600 font-bold'} hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
                     <span>📞</span>
-                    <span>${currentUser.phoneVerified ? 'Telefonum' : 'Telefonu Doğrula!'}</span>
+                    <span>${currentUser.phoneVerified ? 'Telefon Numaram' : 'Telefonu Doğrula!'}</span>
                   </button>
-                  <div class="border-t border-gray-100 mt-1 pt-1">
-                    <button id="logout-btn" type="button" class="w-full text-left text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                      <span>🚪</span><span>Çıkış Yap</span>
+                  <div class="border-t border-gray-100 mt-1.5 pt-1.5">
+                    <button id="logout-btn" type="button" class="w-full text-left text-xs font-black text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                      <span>🚪</span><span>Çıkış Yap (Oturumu Kapat)</span>
                     </button>
                   </div>
                 </div>
@@ -629,7 +636,7 @@ export function renderCustomerView(container, state, onStateChange) {
       ${activeTrackingOrder && state.showTrackingModal ? renderTrackingModal(activeTrackingOrder) : ''}
 
       <!-- Geçmiş Siparişlerim Modalı -->
-      ${state.isMyOrdersOpen ? renderMyOrdersModal(myOrders, state) : ''}
+      ${state.isMyOrdersOpen ? renderMyOrdersModal(myOrders, state, currentUser) : ''}
 
       <!-- Sorun Bildirme Modalı -->
       ${state.reportingOrderId ? renderIssueModal(state.reportingOrderId, state) : ''}
@@ -808,14 +815,36 @@ export function renderCustomerView(container, state, onStateChange) {
             </div>
           </a>
 
-          <!-- Linkler -->
-          <div class="flex flex-wrap items-center gap-4 text-sm">
+          <!-- Linkler & Kullanıcı Alanı -->
+          <div class="flex flex-wrap items-center gap-3 text-sm">
             <button id="footer-contact-btn" class="flex items-center gap-2 bg-[#06C167] hover:bg-[#05a557] text-white font-bold px-4 py-2.5 rounded-xl transition cursor-pointer text-xs shadow-lg shadow-[#06C167]/30">
               <span>💬</span>
               <span>Bize Ulaşın</span>
             </button>
             <a href="#/privacy" class="text-gray-400 hover:text-white text-xs font-medium transition">🔒 Gizlilik Politikası</a>
             <a href="#/terms" class="text-gray-400 hover:text-white text-xs font-medium transition">📋 Kullanım Şartları</a>
+            
+            ${currentUser ? `
+              <div class="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-1.5 border border-white/15 ml-auto sm:ml-2">
+                <span class="text-xs">👤 <strong>${currentUser.name || 'Misafir'}</strong></span>
+                <button 
+                  id="footer-logout-btn" 
+                  type="button" 
+                  class="bg-red-500/80 hover:bg-red-600 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg transition cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  🚪 Çıkış
+                </button>
+              </div>
+            ` : `
+              <button 
+                id="footer-login-btn" 
+                type="button" 
+                class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>👤</span>
+                <span>Giriş Yap</span>
+              </button>
+            `}
           </div>
         </div>
 
@@ -1583,8 +1612,7 @@ function renderReviewsModal(state) {
 
 // =================== ADRES DEFTERI MODALI ===================
 function renderAddressesModal(currentUser) {
-  const phone = currentUser ? currentUser.phone : '';
-  const addresses = phone ? getSavedAddresses(phone) : [];
+  const addresses = getSavedAddresses(currentUser);
 
   return `
     <div id="addresses-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1594,8 +1622,8 @@ function renderAddressesModal(currentUser) {
           <div class="flex items-center gap-2">
             <div class="w-9 h-9 rounded-xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-base font-bold">📍</div>
             <div>
-              <h3 class="font-black text-base text-gray-900">Adreslerim</h3>
-              <p class="text-[11px] text-gray-400">Kayıtlı teslimat adresleriniz</p>
+              <h3 class="font-black text-base text-gray-900">Kayıtlı Adreslerim</h3>
+              <p class="text-[11px] text-gray-400">Siparişlerinizde otomatik kullanılır</p>
             </div>
           </div>
           <button id="close-addresses-btn" class="p-1.5 text-gray-400 hover:text-black cursor-pointer">✕</button>
@@ -1605,16 +1633,22 @@ function renderAddressesModal(currentUser) {
           <div class="text-center py-6 text-gray-400">
             <p class="text-3xl mb-2">📍</p>
             <p class="text-sm font-semibold">Henüz kayıtlı adresiniz yok</p>
-            <p class="text-xs mt-1">Aşağıya yeni adres ekleyebilirsiniz</p>
+            <p class="text-xs mt-1">Aşağıdan ev, iş vb. teslimat adresi ekleyebilirsiniz</p>
           </div>
         ` : `
           <div class="space-y-2 mb-4">
             ${addresses.map(addr => `
-              <div class="flex items-start gap-2 bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                <span class="text-[#06C167] mt-0.5 shrink-0">📍</span>
-                <p class="text-xs text-gray-700 font-medium flex-1 leading-relaxed">${addr.text}</p>
+              <div class="flex items-start gap-2.5 bg-gray-50 rounded-2xl p-3.5 border border-gray-100">
+                <span class="text-[#06C167] mt-0.5 shrink-0 text-sm">📍</span>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-black text-gray-900">${addr.title || 'Adres'}</span>
+                    <span class="text-[10px] text-gray-400 font-mono">${addr.savedAt ? new Date(addr.savedAt).toLocaleDateString('tr-TR') : ''}</span>
+                  </div>
+                  <p class="text-xs text-gray-600 font-medium leading-relaxed mt-0.5 break-words">${addr.text}</p>
+                </div>
                 <button 
-                  class="delete-addr-btn text-red-400 hover:text-red-600 text-sm cursor-pointer shrink-0 transition p-1"
+                  class="delete-addr-btn text-red-400 hover:text-red-600 text-sm cursor-pointer shrink-0 transition p-1.5 hover:bg-red-50 rounded-lg"
                   data-addr-id="${addr.id}"
                   title="Sil"
                 >✕</button>
@@ -1625,20 +1659,41 @@ function renderAddressesModal(currentUser) {
 
         <div class="border-t border-gray-100 pt-4">
           <p class="text-xs font-bold text-gray-700 mb-2">Yeni Adres Ekle</p>
-          <form id="add-address-form" class="space-y-2">
-            <textarea 
-              name="newAddress"
-              id="new-address-input"
-              rows="3"
-              placeholder="Ör: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5"
-              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
-              required
-            ></textarea>
+          <form id="add-address-form" class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-gray-600 mb-1">Adres Başlığı</label>
+              <div class="flex gap-2">
+                <label class="flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl cursor-pointer hover:border-[#06C167]">
+                  <input type="radio" name="addressTitle" value="Ev" checked class="accent-[#06C167]" />
+                  <span>🏠 Ev</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl cursor-pointer hover:border-[#06C167]">
+                  <input type="radio" name="addressTitle" value="İş" class="accent-[#06C167]" />
+                  <span>🏢 İş</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl cursor-pointer hover:border-[#06C167]">
+                  <input type="radio" name="addressTitle" value="Diğer" class="accent-[#06C167]" />
+                  <span>📍 Diğer</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-gray-600 mb-1">Açık Adres (Mahalle, Sokak, No, Daire) *</label>
+              <textarea 
+                name="newAddress"
+                id="new-address-input"
+                rows="3"
+                placeholder="Ör: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5"
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+                required
+              ></textarea>
+            </div>
             <button 
               type="submit"
-              class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+              class="w-full bg-[#06C167] hover:bg-[#05a557] active:scale-98 text-white font-extrabold py-2.5 rounded-xl text-xs transition cursor-pointer shadow-md shadow-[#06C167]/20 flex items-center justify-center gap-1.5"
             >
-              + Adresi Kaydet
+              <span>+</span>
+              <span>Adresi Kaydet</span>
             </button>
           </form>
         </div>
@@ -2124,7 +2179,7 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
                 id="proceed-checkout-btn" 
                 class="w-full bg-[#06C167] hover:bg-[#05a557] text-white font-bold py-3.5 rounded-2xl text-sm shadow-lg shadow-[#06C167]/30 transition transform active:scale-98 flex items-center justify-center gap-2 mt-3 cursor-pointer"
               >
-                <span>Siparişi Onayla ve Gönder</span>
+                <span>${currentUser ? 'Siparişi Onayla ve Gönder' : 'Giriş Yap ve Sipariş Ver'}</span>
                 <span>• ₺${cartTotal}</span>
               </button>
             `}
@@ -2138,13 +2193,46 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
 
 // Sipariş Tamamlama / Checkout Modalı
 function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) {
+  // Giriş yapmamış kullanıcı doğrudan sipariş veremez, önce giriş yapmalı
+  if (!currentUser) {
+    return `
+      <div id="checkout-modal-backdrop" class="fixed inset-0 z-[60] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200 p-6 text-center">
+          <div class="w-16 h-16 rounded-3xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+            👤
+          </div>
+          <h3 class="font-black text-lg text-gray-900">Sipariş İçin Giriş Yapın</h3>
+          <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">
+            Siparişinizi oluşturmak, adreslerinizi kaydetmek ve indirimlerden faydalanmak için lütfen giriş yapın veya ücretsiz hesap oluşturun.
+          </p>
+          <div class="mt-5 space-y-2">
+            <button 
+              id="checkout-login-now-btn" 
+              type="button" 
+              class="w-full bg-[#06C167] hover:bg-[#05a557] active:scale-98 text-white font-extrabold py-3.5 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-[#06C167]/30 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>🔑</span>
+              <span>Giriş Yap / Kayıt Ol</span>
+            </button>
+            <button 
+              id="close-checkout-btn" 
+              type="button" 
+              class="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+            >
+              Vazgeç
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // Telefon doğrulandı mı? (HERKES İÇİN ZORUNLU)
-  const isPhoneVerified = currentUser && Boolean(currentUser.phoneVerified);
+  const isPhoneVerified = Boolean(currentUser.phoneVerified);
   const phoneBlocked = !isPhoneVerified;
 
   // Kayıtlı adresler
-  const userPhone = currentUser ? currentUser.phone : '';
-  const savedAddresses = userPhone ? getSavedAddresses(userPhone) : [];
+  const savedAddresses = getSavedAddresses(currentUser);
 
   return `
     <div id="checkout-modal-backdrop" class="fixed inset-0 z-[60] bg-black/70 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
@@ -2185,9 +2273,9 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
                 name="customerName" 
                 id="checkout-customer-name"
                 required 
-                value="${currentUser ? (currentUser.name || '') : ''}"
+                value="${currentUser.name || ''}"
                 placeholder="Örn: Ahmet Yılmaz" 
-                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none bg-white"
               />
             </div>
             <div>
@@ -2207,7 +2295,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
                 name="customerPhone" 
                 id="checkout-customer-phone"
                 required 
-                value="${currentUser ? (currentUser.phone || '') : ''}"
+                value="${currentUser.phone || ''}"
                 placeholder="05XX XXX XX XX" 
                 ${isPhoneVerified ? 'readonly' : ''}
                 class="w-full text-xs px-3.5 py-2.5 rounded-xl border ${phoneBlocked ? 'border-orange-300 bg-orange-50/50 focus:border-orange-500' : 'border-gray-200 focus:border-[#06C167] bg-gray-50 text-gray-600'} outline-none transition"
@@ -2215,35 +2303,60 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
             </div>
           </div>
 
+          <!-- Teslimat Adresi & Kayıtlı Adres Seçimi -->
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1">Teslimat Adresi (Mahalle, Sokak, Bina No, Daire) *</label>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-bold text-gray-700">Teslimat Adresiniz *</label>
+              ${savedAddresses.length > 0 ? `
+                <button type="button" id="toggle-new-address-input-btn" class="text-[11px] text-[#06C167] font-bold hover:underline cursor-pointer">
+                  + Yeni Adres Yaz
+                </button>
+              ` : ''}
+            </div>
+
             ${savedAddresses.length > 0 ? `
-              <div class="flex flex-wrap gap-1.5 mb-2">
-                <span class="text-[10px] text-gray-400 font-semibold flex items-center">📍 Kayıtlı:</span>
-                ${savedAddresses.map(addr => `
-                  <button 
-                    type="button" 
-                    class="saved-addr-pill text-[10px] bg-[#E8F8EE] text-[#06C167] border border-[#06C167]/30 px-2 py-1 rounded-full font-semibold hover:bg-[#06C167] hover:text-white transition cursor-pointer max-w-[180px] truncate"
-                    data-addr="${addr.text.replace(/"/g, '&quot;')}"
-                    title="${addr.text.replace(/"/g, '&quot;')}"
-                  >${addr.text.length > 30 ? addr.text.slice(0, 30) + '…' : addr.text}</button>
+              <div class="space-y-2 mb-3" id="saved-addresses-list-container">
+                <p class="text-[11px] text-gray-400 font-medium">Kayıtlı adreslerinizden birini seçin:</p>
+                ${savedAddresses.map((addr, idx) => `
+                  <label class="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-2xl border ${idx === 0 ? 'border-[#06C167] bg-[#E8F8EE]/60' : 'border-gray-200 bg-gray-50/60'} cursor-pointer hover:border-[#06C167] transition saved-address-card">
+                    <input 
+                      type="radio" 
+                      name="selectedSavedAddress" 
+                      value="${addr.text.replace(/"/g, '&quot;')}" 
+                      ${idx === 0 ? 'checked' : ''} 
+                      class="saved-addr-radio accent-[#06C167] mt-1 shrink-0" 
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between gap-1">
+                        <span class="text-xs font-black text-gray-900 flex items-center gap-1">
+                          <span>📍</span>
+                          <span>${addr.title || 'Kayıtlı Adres'}</span>
+                        </span>
+                      </div>
+                      <p class="text-xs text-gray-600 mt-0.5 leading-snug break-words">${addr.text}</p>
+                    </div>
+                  </label>
                 `).join('')}
               </div>
             ` : ''}
-            <div class="relative">
+
+            <div id="custom-address-container" class="${savedAddresses.length > 0 ? 'hidden' : 'block'} space-y-2">
               <textarea 
                 name="deliveryAddress" 
                 id="delivery-address-textarea"
                 rows="3" 
                 required
                 placeholder="Örn: Atatürk Mah. İnönü Cad. Güneş Apt. No:14 Kat:3 Daire:5" 
-                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none"
-              ></textarea>
-              ${currentUser && userPhone ? `
-                <button type="button" id="save-current-address-btn" class="absolute bottom-2 right-2 text-[10px] text-[#06C167] hover:text-[#05a557] font-bold cursor-pointer bg-white border border-[#06C167]/30 px-2 py-1 rounded-lg transition">
-                  + Kaydet
-                </button>
-              ` : ''}
+                class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#06C167] focus:ring-1 focus:ring-[#06C167] outline-none bg-white transition"
+              >${savedAddresses.length > 0 ? savedAddresses[0].text : ''}</textarea>
+
+              <div class="flex items-center justify-between bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-2.5">
+                <label class="flex items-center gap-2 text-xs font-semibold text-gray-800 cursor-pointer">
+                  <input type="checkbox" id="save-address-checkbox" name="saveAddressCheckbox" checked class="accent-[#06C167] rounded w-4 h-4" />
+                  <span>Bu adresi adreslerime otomatik kaydet</span>
+                </label>
+                <span class="text-[10px] text-[#06C167] font-bold">✓ Tekrar girmeyin</span>
+              </div>
             </div>
           </div>
 
@@ -2552,7 +2665,9 @@ function renderTrackingModal(order) {
 }
 
 // Geçmiş Siparişlerim Modalı
-function renderMyOrdersModal(myOrders, state) {
+function renderMyOrdersModal(myOrders, state, currentUser) {
+  const activeUser = currentUser || state.currentUser;
+
   return `
     <div id="my-orders-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div class="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
@@ -2562,7 +2677,7 @@ function renderMyOrdersModal(myOrders, state) {
             <span class="text-xl">📋</span>
             <div>
               <h3 class="font-extrabold text-lg text-[#121212]">Geçmiş Siparişlerim</h3>
-              <p class="text-xs text-gray-500">Daha önce verdiğiniz tüm siparişler ve destek</p>
+              <p class="text-xs text-gray-500">${activeUser ? (activeUser.name || 'Hesabınızdaki Siparişler') : 'Sipariş geçmişi ve canlı destek'}</p>
             </div>
           </div>
           <button id="close-my-orders-btn" class="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition cursor-pointer">
@@ -2571,7 +2686,27 @@ function renderMyOrdersModal(myOrders, state) {
         </div>
 
         <div class="p-5 flex-1 overflow-y-auto space-y-4">
-          ${myOrders.length === 0 ? `
+          ${!activeUser ? `
+            <div class="text-center py-8 px-4">
+              <div class="w-16 h-16 bg-emerald-50 text-[#06C167] rounded-3xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+                🔐
+              </div>
+              <h4 class="font-black text-gray-900 text-base">Giriş Yapmanız Gerekiyor</h4>
+              <p class="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                Geçmiş siparişlerinizi, teslimat durumunu ve 8 haneli teslimat kodunuzu görebilmek için lütfen hesabınıza giriş yapın.
+              </p>
+              <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2 max-w-xs mx-auto">
+                <button 
+                  id="my-orders-login-btn" 
+                  type="button" 
+                  class="w-full bg-[#06C167] hover:bg-[#05a557] active:scale-95 text-white font-extrabold px-5 py-3.5 rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#06C167]/30 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>🔑</span>
+                  <span>Giriş Yap / Kayıt Ol</span>
+                </button>
+              </div>
+            </div>
+          ` : myOrders.length === 0 ? `
             <div class="text-center py-6 px-2">
               <div class="w-16 h-16 bg-[#E8F8EE] rounded-3xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
                 🎁
@@ -3932,8 +4067,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     btn.addEventListener('click', () => {
       const addrId = btn.getAttribute('data-addr-id');
       const user = state.currentUser || getCurrentUser();
-      if (!user || !user.phone) return;
-      deleteAddress(user.phone, addrId);
+      if (!user) return;
+      deleteAddress(user, addrId);
       // Modal'ı yenile
       onStateChange({ isAddressesOpen: true });
     });
@@ -3945,28 +4080,59 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     addAddressForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const user = state.currentUser || getCurrentUser();
-      if (!user || !user.phone) return;
+      if (!user) return;
       const newAddrInput = addAddressForm.querySelector('#new-address-input');
       const addrText = (newAddrInput?.value || '').trim();
+      const titleRadio = addAddressForm.querySelector('input[name="addressTitle"]:checked');
+      const title = titleRadio ? titleRadio.value : 'Ev';
       if (!addrText) return;
-      saveAddress(user.phone, addrText);
+      saveAddress(user, addrText, title);
       // Modal'ı yenile
       onStateChange({ isAddressesOpen: true });
     });
   }
 
-  // Checkout'ta Adres Kaydet butonu (textarea içindeki + Kaydet)
-  const saveCurrentAddressBtn = container.querySelector('#save-current-address-btn');
-  if (saveCurrentAddressBtn) {
-    saveCurrentAddressBtn.addEventListener('click', () => {
-      const user = state.currentUser || getCurrentUser();
-      if (!user || !user.phone) return;
-      const textarea = container.querySelector('#delivery-address-textarea');
-      const addrText = (textarea?.value || '').trim();
-      if (!addrText) { alert('Önce bir adres yazınız.'); return; }
-      saveAddress(user.phone, addrText);
-      saveCurrentAddressBtn.textContent = '✓ Kaydedildi!';
-      setTimeout(() => { saveCurrentAddressBtn.textContent = '+ Kaydet'; }, 2000);
+  // Checkout'ta Kayıtlı Adres Seçimi (Radio Cards)
+  const savedAddrRadios = container.querySelectorAll('.saved-addr-radio');
+  const deliveryAddressTextarea = container.querySelector('#delivery-address-textarea');
+  savedAddrRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (deliveryAddressTextarea) {
+        deliveryAddressTextarea.value = e.target.value;
+      }
+      container.querySelectorAll('.saved-address-card').forEach(card => {
+        card.classList.remove('border-[#06C167]', 'bg-[#E8F8EE]/60');
+        card.classList.add('border-gray-200', 'bg-gray-50/60');
+      });
+      const parentLabel = radio.closest('.saved-address-card');
+      if (parentLabel) {
+        parentLabel.classList.remove('border-gray-200', 'bg-gray-50/60');
+        parentLabel.classList.add('border-[#06C167]', 'bg-[#E8F8EE]/60');
+      }
+    });
+  });
+
+  // Checkout'ta Yeni Adres Girişini Aç / Kapat
+  const toggleNewAddressBtn = container.querySelector('#toggle-new-address-input-btn');
+  const customAddressContainer = container.querySelector('#custom-address-container');
+  if (toggleNewAddressBtn && customAddressContainer) {
+    toggleNewAddressBtn.addEventListener('click', () => {
+      const isHidden = customAddressContainer.classList.contains('hidden');
+      if (isHidden) {
+        customAddressContainer.classList.remove('hidden');
+        toggleNewAddressBtn.textContent = '📍 Kayıtlı Adresleri Göster';
+        if (deliveryAddressTextarea) {
+          deliveryAddressTextarea.value = '';
+          deliveryAddressTextarea.focus();
+        }
+      } else {
+        customAddressContainer.classList.add('hidden');
+        toggleNewAddressBtn.textContent = '+ Yeni Adres Yaz';
+        const checkedRadio = container.querySelector('.saved-addr-radio:checked');
+        if (checkedRadio && deliveryAddressTextarea) {
+          deliveryAddressTextarea.value = checkedRadio.value;
+        }
+      }
     });
   }
 
@@ -3974,10 +4140,9 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   container.querySelectorAll('.saved-addr-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       const addrText = pill.getAttribute('data-addr');
-      const textarea = container.querySelector('#delivery-address-textarea');
-      if (textarea) {
-        textarea.value = addrText;
-        textarea.focus();
+      if (deliveryAddressTextarea) {
+        deliveryAddressTextarea.value = addrText;
+        deliveryAddressTextarea.focus();
       }
     });
   });
@@ -4600,7 +4765,92 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         alert(`⚠️ ${currentRestStatus.message || 'Restoranımız şu anda kapalıdır. Sipariş verilememektedir.'}`);
         return;
       }
+
+      // Giriş yapılmamışsa doğrudan giriş / kayıt modalına yönlendir
+      if (!state.currentUser) {
+        onStateChange({
+          pendingCheckout: true,
+          isCartOpen: false,
+          isLoginModalOpen: true,
+          loginNotice: 'Siparişinizi tamamlamak ve teslimat adreslerinizi hesabınıza kaydetmek için lütfen giriş yapın veya ücretsiz hesap oluşturun.'
+        });
+        return;
+      }
+
       onStateChange({ isCartOpen: false, isCheckoutOpen: true });
+    });
+  }
+
+  // Checkout "Giriş Yap / Kayıt Ol" butonu (Misafir engeli ekranı)
+  const checkoutLoginNowBtn = container.querySelector('#checkout-login-now-btn');
+  if (checkoutLoginNowBtn) {
+    checkoutLoginNowBtn.addEventListener('click', () => {
+      onStateChange({
+        isCheckoutOpen: false,
+        isLoginModalOpen: true,
+        pendingCheckout: true,
+        loginNotice: 'Siparişinizi tamamlamak için lütfen giriş yapın veya kayıt olun.'
+      });
+    });
+  }
+
+  // Siparişlerim "Giriş Yap / Kayıt Ol" butonu
+  const myOrdersLoginBtn = container.querySelector('#my-orders-login-btn');
+  if (myOrdersLoginBtn) {
+    myOrdersLoginBtn.addEventListener('click', () => {
+      onStateChange({
+        isMyOrdersOpen: false,
+        isLoginModalOpen: true,
+        loginNotice: 'Geçmiş siparişlerinizi görüntülemek için lütfen giriş yapın.'
+      });
+    });
+  }
+
+  // Profil Menüsünden "Siparişlerim" Butonu
+  const openMyOrdersProfileBtn = container.querySelector('#open-my-orders-from-profile-btn');
+  if (openMyOrdersProfileBtn) {
+    openMyOrdersProfileBtn.addEventListener('click', () => {
+      onStateChange({ isMyOrdersOpen: true, isProfileMenuOpen: false });
+    });
+  }
+
+  // İlk Siparişe Özel İndirim Doğrudan Sipariş Ver Butonu (Siparişlerim modalından)
+  const firstOrderDiscountDirectBtn = container.querySelector('#first-order-discount-direct-btn');
+  if (firstOrderDiscountDirectBtn) {
+    firstOrderDiscountDirectBtn.addEventListener('click', () => {
+      onStateChange({
+        isMyOrdersOpen: false,
+        firstOrderDiscountApplied: true
+      });
+      const menuSection = document.querySelector('main');
+      if (menuSection) menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // Footer Çıkış & Giriş Butonları
+  const footerLogoutBtn = container.querySelector('#footer-logout-btn');
+  if (footerLogoutBtn) {
+    footerLogoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      sessionStorage.setItem('pita_explicit_logout', 'true');
+      try { await firebaseSignOut(); } catch (err) {}
+      setCurrentUser(null);
+      orderService.removePresence();
+      onStateChange({
+        currentUser: null,
+        isProfileMenuOpen: false,
+        isCustomerInboxOpen: false,
+        isAddressesOpen: false,
+        isPhoneVerifyOpen: false
+      });
+      performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
+    });
+  }
+
+  const footerLoginBtn = container.querySelector('#footer-login-btn');
+  if (footerLoginBtn) {
+    footerLoginBtn.addEventListener('click', () => {
+      onStateChange({ isLoginModalOpen: true });
     });
   }
 
@@ -4674,11 +4924,19 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         return;
       }
 
+      // Adresi otomatik kaydet (Kullanıcı giriş yapmışsa ve checkbox seçiliyse veya varsayılan olarak)
+      const saveAddressCheckbox = checkoutForm.querySelector('#save-address-checkbox');
+      const shouldSaveAddr = saveAddressCheckbox ? saveAddressCheckbox.checked : true;
+      if (shouldSaveAddr && activeUser) {
+        saveAddress(activeUser, deliveryAddress);
+      }
+
       // Kullanıcı bilgilerini güncelle
       activeUser = {
         ...activeUser,
         name: customerName,
-        phone: customerPhone || activeUser.phone
+        phone: customerPhone || activeUser.phone,
+        address: deliveryAddress
       };
 
       setCurrentUser(activeUser);
