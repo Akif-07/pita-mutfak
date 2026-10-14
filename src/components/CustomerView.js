@@ -275,44 +275,56 @@ export function renderCustomerView(container, state, onStateChange) {
 
             <!-- Profil / Giriş -->
             ${currentUser ? `
-              <div class="relative" id="user-profile-container">
-                <button 
-                  id="user-profile-btn" 
-                  type="button"
-                  class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
-                >
-                  <span class="text-sm">👤</span>
-                  <span class="max-w-[70px] sm:max-w-[100px] truncate">${currentUser.name || 'Hesabım'}</span>
-                  <span class="text-[10px] text-[#06C167]/70">▾</span>
-                </button>
-                <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div class="px-3 py-2.5 bg-gray-50/80 rounded-xl mb-1.5 border border-gray-100">
-                    <p class="text-xs font-black text-gray-900 truncate flex items-center gap-1.5">
-                      <span>👤</span>
-                      <span>${currentUser.name || 'Pita Misafiri'}</span>
-                    </p>
-                    <p class="text-[11px] text-gray-500 font-mono mt-0.5">${currentUser.phone || currentUser.email || 'Telefon girilmedi'}</p>
-                    ${currentUser.phoneVerified 
-                      ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full mt-1 border border-emerald-200">✓ Telefon Doğrulandı</span>'
-                      : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1 border border-orange-200">⚠️ Doğrulanmadı</span>'
-                    }
-                  </div>
-                  <button id="open-my-orders-from-profile-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                    <span>📋</span><span>Siparişlerim (${myOrders.length})</span>
+              <div class="flex items-center gap-1.5" id="user-profile-wrapper">
+                <div class="relative" id="user-profile-container">
+                  <button 
+                    id="user-profile-btn" 
+                    type="button"
+                    class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  >
+                    <span class="text-sm">👤</span>
+                    <span class="max-w-[70px] sm:max-w-[100px] truncate">${currentUser.name || 'Hesabım'}</span>
+                    <span class="text-[10px] text-[#06C167]/70">▾</span>
                   </button>
-                  <button id="open-addresses-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                    <span>📍</span><span>Adreslerim</span>
-                  </button>
-                  <button id="open-phone-verify-btn" class="w-full text-left text-xs font-semibold ${currentUser.phoneVerified ? 'text-gray-700' : 'text-orange-600 font-bold'} hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                    <span>📞</span>
-                    <span>${currentUser.phoneVerified ? 'Telefon Numaram' : 'Telefonu Doğrula!'}</span>
-                  </button>
-                  <div class="border-t border-gray-100 mt-1.5 pt-1.5">
-                    <button id="logout-btn" type="button" class="w-full text-left text-xs font-black text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                      <span>🚪</span><span>Çıkış Yap (Oturumu Kapat)</span>
+                  <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div class="px-3 py-2.5 bg-gray-50/80 rounded-xl mb-1.5 border border-gray-100">
+                      <p class="text-xs font-black text-gray-900 truncate flex items-center gap-1.5">
+                        <span>👤</span>
+                        <span>${currentUser.name || 'Pita Misafiri'}</span>
+                      </p>
+                      <p class="text-[11px] text-gray-500 font-mono mt-0.5">${currentUser.phone || currentUser.email || 'Telefon girilmedi'}</p>
+                      ${currentUser.phoneVerified 
+                        ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full mt-1 border border-emerald-200">✓ Telefon Doğrulandı</span>'
+                        : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1 border border-orange-200">⚠️ Doğrulanmadı</span>'
+                      }
+                    </div>
+                    <button id="open-my-orders-from-profile-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                      <span>📋</span><span>Siparişlerim (${myOrders.length})</span>
                     </button>
+                    <button id="open-addresses-btn" class="w-full text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                      <span>📍</span><span>Adreslerim</span>
+                    </button>
+                    <button id="open-phone-verify-btn" class="w-full text-left text-xs font-semibold ${currentUser.phoneVerified ? 'text-gray-700' : 'text-orange-600 font-bold'} hover:bg-gray-50 p-2 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                      <span>📞</span>
+                      <span>${currentUser.phoneVerified ? 'Telefon Numaram' : 'Telefonu Doğrula!'}</span>
+                    </button>
+                    <div class="border-t border-gray-100 mt-1.5 pt-1.5">
+                      <button id="logout-btn" type="button" class="w-full text-left text-xs font-black text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                        <span>🚪</span><span>Çıkış Yap (Oturumu Kapat)</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
+                <!-- Hızlı Çıkış Butonu (Navbar'da Doğrudan Görünür) -->
+                <button 
+                  id="header-logout-btn" 
+                  type="button" 
+                  title="Hesaptan Çıkış Yap"
+                  class="flex items-center gap-1 bg-red-50 hover:bg-red-100 active:scale-95 text-red-600 border border-red-200/80 px-2.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                >
+                  <span class="text-xs">🚪</span>
+                  <span class="hidden sm:inline text-[11px]">Çıkış</span>
+                </button>
               </div>
             ` : `
               <button 
@@ -2272,6 +2284,28 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
         ` : ''}
 
         <div class="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
+          <!-- Aktif Giriş Yapan Hesap ve Çıkış Butonu -->
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-sm font-bold shrink-0">
+                👤
+              </div>
+              <div class="min-w-0">
+                <span class="text-xs font-black text-gray-900 truncate block">${currentUser.name || 'Pita Misafiri'}</span>
+                <span class="text-[10px] text-gray-500 font-mono block">${currentUser.phone || currentUser.email || ''}</span>
+              </div>
+            </div>
+            <button 
+              id="checkout-logout-btn" 
+              type="button" 
+              class="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-white hover:bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
+              title="Hesaptan çıkış yap ve başka hesapla giriş yap"
+            >
+              <span>🚪</span>
+              <span>Çıkış Yap</span>
+            </button>
+          </div>
+
           <form id="checkout-form" class="space-y-4" ${phoneBlocked ? 'data-phone-blocked="true"' : ''}>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2714,9 +2748,22 @@ function renderMyOrdersModal(myOrders, state, currentUser) {
               <p class="text-xs text-gray-500">${activeUser ? (activeUser.name || 'Hesabınızdaki Siparişler') : 'Sipariş geçmişi ve canlı destek'}</p>
             </div>
           </div>
-          <button id="close-my-orders-btn" class="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition cursor-pointer">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <div class="flex items-center gap-2">
+            ${activeUser ? `
+              <button 
+                id="my-orders-logout-btn" 
+                type="button" 
+                title="Hesaptan Çıkış Yap"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 active:scale-95 text-red-600 border border-red-200 text-xs font-bold transition cursor-pointer shadow-2xs"
+              >
+                <span>🚪</span>
+                <span>Çıkış Yap</span>
+              </button>
+            ` : ''}
+            <button id="close-my-orders-btn" class="p-2 rounded-xl text-gray-400 hover:text-black hover:bg-gray-100 transition cursor-pointer">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
 
         <div class="p-5 flex-1 overflow-y-auto space-y-4">
@@ -3973,39 +4020,48 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   }
 
   // Çıkış Yap (Google, Phone ve Local Storage tam oturum temizliği)
-  const logoutBtn = container.querySelector('#logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async (e) => {
+  const executeUserLogout = async (e) => {
+    if (e) {
       e.preventDefault();
       e.stopPropagation();
-      
-      // 1. Kalıcı çıkış flag'i belirle (Firebase persistent auth otomatik geri oturum açmasın)
-      sessionStorage.setItem('pita_explicit_logout', 'true');
+    }
+    
+    // 1. Kalıcı çıkış flag'i belirle (Firebase persistent auth otomatik geri oturum açmasın)
+    sessionStorage.setItem('pita_explicit_logout', 'true');
 
-      // 2. Firebase Google oturumunu kapat
-      try {
-        await firebaseSignOut();
-      } catch (err) {
-        console.warn("firebaseSignOut çağrısı:", err);
-      }
+    // 2. Firebase Google oturumunu kapat
+    try {
+      await firebaseSignOut();
+    } catch (err) {
+      console.warn("firebaseSignOut çağrısı:", err);
+    }
 
-      // 3. Yerel kullanıcı verilerini temizle
-      setCurrentUser(null);
-      orderService.removePresence();
+    // 3. Yerel kullanıcı verilerini temizle
+    setCurrentUser(null);
+    orderService.removePresence();
 
-      // 4. State'i hemen güncelle
-      onStateChange({ 
-        currentUser: null, 
-        isProfileMenuOpen: false,
-        isCustomerInboxOpen: false,
-        isAddressesOpen: false,
-        isPhoneVerifyOpen: false
-      });
-
-      // 5. Ekranı yenile
-      performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
+    // 4. State'i hemen güncelle
+    onStateChange({ 
+      currentUser: null, 
+      isProfileMenuOpen: false,
+      isCustomerInboxOpen: false,
+      isAddressesOpen: false,
+      isPhoneVerifyOpen: false,
+      isMyOrdersOpen: false,
+      isCheckoutOpen: false
     });
-  }
+
+    // 5. Ekranı yenile
+    performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
+  };
+
+  // Tüm Çıkış Butonlarını Dinle (Header Navbar, Profil Menüsü, Siparişlerim Modalı, Checkout Modalı, Footer)
+  ['#logout-btn', '#header-logout-btn', '#my-orders-logout-btn', '#checkout-logout-btn', '#footer-logout-btn'].forEach(selector => {
+    const btn = container.querySelector(selector);
+    if (btn) {
+      btn.addEventListener('click', executeUserLogout);
+    }
+  });
 
   // =================== PROFİL DROPDOWN BUTONLARI ===================
 
@@ -4864,21 +4920,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   // Footer Çıkış & Giriş Butonları
   const footerLogoutBtn = container.querySelector('#footer-logout-btn');
   if (footerLogoutBtn) {
-    footerLogoutBtn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      sessionStorage.setItem('pita_explicit_logout', 'true');
-      try { await firebaseSignOut(); } catch (err) {}
-      setCurrentUser(null);
-      orderService.removePresence();
-      onStateChange({
-        currentUser: null,
-        isProfileMenuOpen: false,
-        isCustomerInboxOpen: false,
-        isAddressesOpen: false,
-        isPhoneVerifyOpen: false
-      });
-      performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
-    });
+    footerLogoutBtn.addEventListener('click', executeUserLogout);
   }
 
   const footerLoginBtn = container.querySelector('#footer-login-btn');
