@@ -2,10 +2,10 @@
 import { orderService, getCurrentUser, isFirstOrderDiscountAvailable, removePresence, getGoogleRedirectResult, initAuthListener, syncCustomerToFirestore, firebaseSignOut } from './services/orderService.js';
 
 
-import { renderCustomerView } from './components/CustomerView.js';
-import { renderAdminPanel } from './components/AdminPanel.js';
-import { renderCourierPanel } from './components/CourierPanel.js';
-import { renderPrivacyPolicy, renderTermsOfService } from './components/LegalPages.js';
+import { renderCustomerView } from './components/CustomerView.js?v=2.2';
+import { renderAdminPanel } from './components/AdminPanel.js?v=2.2';
+import { renderCourierPanel } from './components/CourierPanel.js?v=2.2';
+import { renderPrivacyPolicy, renderTermsOfService } from './components/LegalPages.js?v=2.2';
 
 const initialUser = getCurrentUser();
 const initialOrders = orderService.getOrders();
