@@ -130,6 +130,7 @@ export function renderCustomerView(container, state, onStateChange) {
     state.isPhoneVerifyOpen ||
     state.isCampaignsModalOpen ||
     state.isMyOrdersOpen ||
+    state.isProfileModalOpen ||
     (state.activeTrackingOrder && state.showTrackingModal) ||
     state.isReviewsModalOpen ||
     state.isContactModalOpen ||
@@ -210,7 +211,7 @@ export function renderCustomerView(container, state, onStateChange) {
 
 
       <!-- Ana Header / Navigasyon (Trendyol / Yemeksepeti / Getir Stili) -->
-      <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-xs transition-all w-full max-w-full overflow-hidden">
+      <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-xs transition-all w-full max-w-full">
         
         <!-- Üst Satır: Logo + Teslimat Adresi + Asistan + Kuponlar + Profil -->
         <div class="max-w-6xl mx-auto px-3 sm:px-6 pt-2.5 pb-2 flex items-center justify-between gap-2">
@@ -232,7 +233,7 @@ export function renderCustomerView(container, state, onStateChange) {
           <button 
             type="button"
             id="header-address-pill-btn"
-            class="flex items-center gap-1.5 bg-gray-100/90 hover:bg-gray-200/80 active:scale-98 border border-gray-200/80 px-3 py-1.5 sm:py-2 rounded-full text-xs font-extrabold text-gray-800 transition cursor-pointer max-w-[170px] sm:max-w-xs truncate shadow-2xs"
+            class="flex items-center gap-1.5 bg-gray-100/90 hover:bg-gray-200/80 active:scale-98 border border-gray-200/80 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-extrabold text-gray-800 transition cursor-pointer max-w-[120px] xs:max-w-[150px] sm:max-w-xs truncate shadow-2xs shrink"
             title="Teslimat Adresini Değiştir"
           >
             <span class="text-sm shrink-0">📍</span>
@@ -246,22 +247,22 @@ export function renderCustomerView(container, state, onStateChange) {
           <!-- Sağ: Asistan (Destek) + Kuponlar + Giriş/Profil -->
           <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             
-            <!-- Asistan / Bize Ulaşın Butonu -->
+            <!-- Asistan / Bize Ulaşın Butonu (Mobilde alttaki Profil/Hesabım sekmesinden erişilir) -->
             <button 
               id="header-asistan-btn" 
               type="button" 
-              class="flex flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
+              class="hidden md:flex flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
               title="Canlı Destek & İletişim"
             >
               <span class="text-base">💬</span>
               <span class="text-[9px] font-bold text-gray-600 hidden sm:inline">Asistan</span>
             </button>
 
-            <!-- Kuponlar Butonu -->
+            <!-- Kuponlar Butonu (Mobilde alttaki Profil/Hesabım sekmesinden erişilir) -->
             <button 
               id="header-kuponlar-btn" 
               type="button" 
-              class="relative flex flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
+              class="hidden md:flex relative flex-col items-center justify-center text-gray-700 hover:text-[#06C167] p-1.5 sm:px-2 rounded-xl transition cursor-pointer"
               title="Kuponlarım ve İndirimler"
             >
               <div class="relative">
@@ -275,15 +276,16 @@ export function renderCustomerView(container, state, onStateChange) {
 
             <!-- Profil / Giriş -->
             ${currentUser ? `
-              <div class="flex items-center gap-1.5" id="user-profile-wrapper">
+              <div class="flex items-center gap-1 sm:gap-1.5 shrink-0" id="user-profile-wrapper">
                 <div class="relative" id="user-profile-container">
                   <button 
                     id="user-profile-btn" 
                     type="button"
-                    class="flex items-center gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                    class="flex items-center gap-1 sm:gap-1.5 bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
+                    title="Profil Menüsü"
                   >
                     <span class="text-sm">👤</span>
-                    <span class="max-w-[70px] sm:max-w-[100px] truncate">${currentUser.name || 'Hesabım'}</span>
+                    <span class="max-w-[65px] xs:max-w-[85px] sm:max-w-[110px] truncate">${currentUser.name ? currentUser.name.split(' ')[0] : 'Hesabım'}</span>
                     <span class="text-[10px] text-[#06C167]/70">▾</span>
                   </button>
                   <div id="user-profile-dropdown" class="${state.isProfileMenuOpen ? 'block' : 'hidden'} absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
@@ -315,15 +317,16 @@ export function renderCustomerView(container, state, onStateChange) {
                     </div>
                   </div>
                 </div>
-                <!-- Hızlı Çıkış Butonu (Navbar'da Doğrudan Görünür) -->
+
+                <!-- Hızlı Çıkış Butonu (Navbar'da Doğrudan ve Her Cihazda Görünür) -->
                 <button 
                   id="header-logout-btn" 
                   type="button" 
                   title="Hesaptan Çıkış Yap"
-                  class="flex items-center gap-1 bg-red-50 hover:bg-red-100 active:scale-95 text-red-600 border border-red-200/80 px-2.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs"
+                  class="flex items-center gap-1 bg-red-50 hover:bg-red-100 active:scale-95 text-red-600 border border-red-200/80 px-2 sm:px-2.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs shrink-0"
                 >
                   <span class="text-xs">🚪</span>
-                  <span class="hidden sm:inline text-[11px]">Çıkış</span>
+                  <span class="text-[11px] font-bold">Çıkış</span>
                 </button>
               </div>
             ` : `
@@ -674,6 +677,9 @@ export function renderCustomerView(container, state, onStateChange) {
       <!-- Adreslerim Modalı -->
       ${state.isAddressesOpen ? renderAddressesModal(currentUser) : ''}
 
+      <!-- Kullanıcı Profil / Hesabım Modalı -->
+      ${state.isProfileModalOpen ? renderProfileModal(currentUser, myOrders, state) : ''}
+
       <!-- Telefon Doğrulama Modalı -->
       ${state.isPhoneVerifyOpen ? renderPhoneVerifyModal(currentUser, state) : ''}
 
@@ -800,19 +806,16 @@ export function renderCustomerView(container, state, onStateChange) {
         <span class="text-[10px] tracking-tight mt-0.5">Siparişlerim</span>
       </button>
 
-      <!-- 5. Kampanyalar -->
+      <!-- 5. Profil / Hesabım -->
       <button 
-        id="tab-campaigns-btn" 
+        id="tab-profile-btn" 
         type="button" 
-        class="relative flex flex-col items-center justify-center flex-1 py-1 text-gray-500 hover:text-black font-semibold transition cursor-pointer"
+        class="relative flex flex-col items-center justify-center flex-1 py-1 ${currentUser ? 'text-emerald-700 font-extrabold' : 'text-gray-500 hover:text-black font-semibold'} transition cursor-pointer"
       >
-        <div class="relative">
-          <span class="text-xl">🎁</span>
-          <span class="absolute -top-1.5 -right-2.5 bg-[#06C167] text-white rounded-full text-[9px] font-black px-1 min-w-4 h-4 flex items-center justify-center shadow-xs">
-            ${activeFlashDeal ? '2' : '1'}
-          </span>
-        </div>
-        <span class="text-[10px] tracking-tight mt-0.5">Kampanyalar</span>
+        <span class="text-xl">👤</span>
+        <span class="text-[10px] tracking-tight mt-0.5 truncate max-w-[62px]">
+          ${currentUser ? (currentUser.name ? currentUser.name.split(' ')[0] : 'Hesabım') : 'Giriş Yap'}
+        </span>
       </button>
 
     </nav>
@@ -1623,6 +1626,163 @@ function renderReviewsModal(state) {
               </div>
             `;
           }).join('')}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// =================== KULLANICI PROFİL & HESABIM MODALI ===================
+function renderProfileModal(currentUser, myOrders = [], state = {}) {
+  const activeUser = currentUser || getCurrentUser();
+  const userName = activeUser ? (activeUser.name || 'Pita Misafiri') : 'Misafir Kullanıcı';
+  const userPhone = activeUser ? (activeUser.phone || '') : '';
+  const userEmail = activeUser ? (activeUser.email || '') : '';
+  const isVerified = Boolean(activeUser && activeUser.phoneVerified);
+  const orderCount = Array.isArray(myOrders) ? myOrders.length : 0;
+
+  return `
+    <div id="profile-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+        
+        <!-- Üst Başlık & Kapat Butonu -->
+        <div class="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/50 via-white to-white">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-[#E8F8EE] text-[#06C167] flex items-center justify-center text-lg font-bold shadow-xs">
+              👤
+            </div>
+            <div>
+              <h3 class="font-extrabold text-base text-gray-900 leading-tight">Hesabım & Profilim</h3>
+              <p class="text-[11px] text-gray-500 font-medium">Pita Mutfak Üyelik Detayları</p>
+            </div>
+          </div>
+          <button id="close-profile-modal-btn" type="button" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-black flex items-center justify-center text-sm font-bold transition cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+          <!-- Kullanıcı Bilgi Kartı -->
+          <div class="p-3.5 bg-gray-50/80 rounded-2xl border border-gray-100 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <span class="text-xs uppercase tracking-wider font-extrabold text-gray-400 block leading-tight">Kullanıcı Adı</span>
+                <p class="text-sm font-black text-gray-900 truncate mt-0.5">${userName}</p>
+              </div>
+              ${isVerified ? `
+                <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-100/80 border border-emerald-300 px-2.5 py-1 rounded-full shrink-0 shadow-2xs">
+                  ✓ Doğrulandı
+                </span>
+              ` : `
+                <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-700 bg-amber-100/80 border border-amber-300 px-2.5 py-1 rounded-full shrink-0 shadow-2xs">
+                  ⚠️ Onaysız
+                </span>
+              `}
+            </div>
+
+            <div class="pt-1.5 border-t border-gray-200/60 flex flex-col gap-0.5 text-xs text-gray-600 font-medium">
+              ${userPhone ? `<p class="flex items-center gap-1.5"><span class="text-gray-400">📞</span> <span class="font-mono font-bold text-gray-800">${userPhone}</span></p>` : ''}
+              ${userEmail ? `<p class="flex items-center gap-1.5"><span class="text-gray-400">✉️</span> <span class="font-mono text-gray-700">${userEmail}</span></p>` : ''}
+            </div>
+
+            ${!isVerified ? `
+              <div class="pt-2">
+                <button 
+                  id="profile-modal-verify-btn" 
+                  type="button" 
+                  class="w-full bg-amber-500 hover:bg-amber-600 active:scale-98 text-white font-extrabold text-xs py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <span>📱</span>
+                  <span>Telefon Numaranızı Doğrulayın</span>
+                </button>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Hızlı Menü Seçenekleri -->
+          <div class="space-y-1.5">
+            <p class="text-[11px] uppercase tracking-wider font-extrabold text-gray-400 px-1">Kısayollar</p>
+            
+            <button 
+              id="profile-modal-orders-btn" 
+              type="button" 
+              class="w-full text-left p-3 rounded-2xl hover:bg-gray-50 border border-gray-100 transition flex items-center justify-between group cursor-pointer"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold">📋</div>
+                <div>
+                  <p class="text-xs font-black text-gray-900">Siparişlerim</p>
+                  <p class="text-[11px] text-gray-500">Geçmiş ve aktif siparişlerinizi görüntüleyin</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                ${orderCount > 0 ? `<span class="bg-gray-900 text-white text-[10px] font-black px-2 py-0.5 rounded-full">${orderCount}</span>` : ''}
+                <span class="text-gray-300 group-hover:text-gray-600 font-bold">›</span>
+              </div>
+            </button>
+
+            <button 
+              id="profile-modal-addresses-btn" 
+              type="button" 
+              class="w-full text-left p-3 rounded-2xl hover:bg-gray-50 border border-gray-100 transition flex items-center justify-between group cursor-pointer"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold">📍</div>
+                <div>
+                  <p class="text-xs font-black text-gray-900">Kayıtlı Adreslerim</p>
+                  <p class="text-[11px] text-gray-500">Ev, iş teslimat adreslerinizi yönetin</p>
+                </div>
+              </div>
+              <span class="text-gray-300 group-hover:text-gray-600 font-bold">›</span>
+            </button>
+
+            <button 
+              id="profile-modal-campaigns-btn" 
+              type="button" 
+              class="w-full text-left p-3 rounded-2xl hover:bg-gray-50 border border-gray-100 transition flex items-center justify-between group cursor-pointer"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-sm font-bold">🎟️</div>
+                <div>
+                  <p class="text-xs font-black text-gray-900">Kuponlar & Kampanyalar</p>
+                  <p class="text-[11px] text-gray-500">Size özel indirimler ve fırsatlar</p>
+                </div>
+              </div>
+              <span class="text-gray-300 group-hover:text-gray-600 font-bold">›</span>
+            </button>
+
+            <button 
+              id="profile-modal-contact-btn" 
+              type="button" 
+              class="w-full text-left p-3 rounded-2xl hover:bg-gray-50 border border-gray-100 transition flex items-center justify-between group cursor-pointer"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-bold">💬</div>
+                <div>
+                  <p class="text-xs font-black text-gray-900">Canlı Destek & İletişim</p>
+                  <p class="text-[11px] text-gray-500">Mutfak yetkilisine doğrudan bağlanın</p>
+                </div>
+              </div>
+              <span class="text-gray-300 group-hover:text-gray-600 font-bold">›</span>
+            </button>
+          </div>
+
+          <!-- BÜYÜK VE BELİRGİN ÇIKIŞ YAP BUTONU -->
+          <div class="pt-3 border-t border-gray-100">
+            <button 
+              id="profile-modal-logout-btn" 
+              type="button" 
+              class="w-full py-3.5 px-4 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-98 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 transition cursor-pointer"
+            >
+              <span class="text-base">🚪</span>
+              <span>Hesabımdan Çıkış Yap (Oturumu Kapat)</span>
+            </button>
+            <p class="text-[10px] text-gray-400 text-center mt-2">
+              Çıkış yaptığınızda sepetinizdeki ürünler ve bilgileriniz cihazınızda güvende kalır.
+            </p>
+          </div>
+
         </div>
 
       </div>
@@ -3450,6 +3610,21 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
+  const tabProfileBtn = container.querySelector('#tab-profile-btn');
+  if (tabProfileBtn) {
+    tabProfileBtn.addEventListener('click', () => {
+      const activeUser = state.currentUser || getCurrentUser();
+      if (activeUser) {
+        onStateChange({ isProfileModalOpen: true });
+      } else {
+        onStateChange({ 
+          isLoginModalOpen: true, 
+          loginNotice: 'Hesabınıza erişmek veya siparişlerinizi takip etmek için giriş yapın.' 
+        });
+      }
+    });
+  }
+
   const tabCampaignsBtn = container.querySelector('#tab-campaigns-btn');
   if (tabCampaignsBtn) {
     tabCampaignsBtn.addEventListener('click', () => {
@@ -3996,12 +4171,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   }
 
-  // =================== PROFİL & ÇIKIŞ DROPDOWN İŞLEMLERİ ===================
+  // =================== PROFİL & ÇIKIŞ DROPDOWN / MODAL İŞLEMLERİ ===================
   const userProfileBtn = container.querySelector('#user-profile-btn');
   if (userProfileBtn) {
     userProfileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      onStateChange({ isProfileMenuOpen: !state.isProfileMenuOpen });
+      onStateChange({ isProfileModalOpen: true, isProfileMenuOpen: false });
     });
   }
 
@@ -4017,6 +4192,63 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     setTimeout(() => {
       document.addEventListener('click', handleOutsideClick);
     }, 0);
+  }
+
+  // =================== PROFİL MODALI ETKİLEŞİMLERİ ===================
+  const closeProfileModalBtn = container.querySelector('#close-profile-modal-btn');
+  if (closeProfileModalBtn) {
+    closeProfileModalBtn.addEventListener('click', () => {
+      onStateChange({ isProfileModalOpen: false });
+    });
+  }
+
+  const profileModalBackdrop = container.querySelector('#profile-modal-backdrop');
+  if (profileModalBackdrop) {
+    profileModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === profileModalBackdrop) {
+        onStateChange({ isProfileModalOpen: false });
+      }
+    });
+  }
+
+  const profileModalOrdersBtn = container.querySelector('#profile-modal-orders-btn');
+  if (profileModalOrdersBtn) {
+    profileModalOrdersBtn.addEventListener('click', () => {
+      onStateChange({ isProfileModalOpen: false, isMyOrdersOpen: true });
+    });
+  }
+
+  const profileModalAddressesBtn = container.querySelector('#profile-modal-addresses-btn');
+  if (profileModalAddressesBtn) {
+    profileModalAddressesBtn.addEventListener('click', () => {
+      onStateChange({ isProfileModalOpen: false, isAddressesOpen: true });
+    });
+  }
+
+  const profileModalCampaignsBtn = container.querySelector('#profile-modal-campaigns-btn');
+  if (profileModalCampaignsBtn) {
+    profileModalCampaignsBtn.addEventListener('click', () => {
+      onStateChange({ isProfileModalOpen: false, isCampaignsModalOpen: true });
+    });
+  }
+
+  const profileModalContactBtn = container.querySelector('#profile-modal-contact-btn');
+  if (profileModalContactBtn) {
+    profileModalContactBtn.addEventListener('click', () => {
+      onStateChange({ isProfileModalOpen: false, isContactModalOpen: true });
+    });
+  }
+
+  const profileModalVerifyBtn = container.querySelector('#profile-modal-verify-btn');
+  if (profileModalVerifyBtn) {
+    profileModalVerifyBtn.addEventListener('click', () => {
+      onStateChange({ 
+        isProfileModalOpen: false, 
+        isPhoneVerifyOpen: true, 
+        phoneVerifyStep: 'send', 
+        phoneVerifyError: '' 
+      });
+    });
   }
 
   // Çıkış Yap (Google, Phone ve Local Storage tam oturum temizliği)
@@ -4044,6 +4276,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     onStateChange({ 
       currentUser: null, 
       isProfileMenuOpen: false,
+      isProfileModalOpen: false,
       isCustomerInboxOpen: false,
       isAddressesOpen: false,
       isPhoneVerifyOpen: false,
@@ -4055,8 +4288,8 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     performSmoothReload('Oturum kapatıldı, çıkış yapılıyor...');
   };
 
-  // Tüm Çıkış Butonlarını Dinle (Header Navbar, Profil Menüsü, Siparişlerim Modalı, Checkout Modalı, Footer)
-  ['#logout-btn', '#header-logout-btn', '#my-orders-logout-btn', '#checkout-logout-btn', '#footer-logout-btn'].forEach(selector => {
+  // Tüm Çıkış Butonlarını Dinle (Header Navbar, Profil Menüsü/Modalı, Siparişlerim Modalı, Checkout Modalı, Footer)
+  ['#logout-btn', '#header-logout-btn', '#profile-modal-logout-btn', '#my-orders-logout-btn', '#checkout-logout-btn', '#footer-logout-btn'].forEach(selector => {
     const btn = container.querySelector(selector);
     if (btn) {
       btn.addEventListener('click', executeUserLogout);
