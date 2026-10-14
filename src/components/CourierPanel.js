@@ -204,7 +204,7 @@ function renderActiveDeliveryCard(delivery, state) {
             </div>
           </div>
           <div class="text-right pl-3 shrink-0">
-            <span class="text-[10px] text-gray-400 block">${delivery.paymentMethod === 'cash' ? '💵 Kapıda Nakit Tahsilat' : '🏦 EFT/Havale ile Ödendi'}</span>
+            <span class="text-[10px] text-gray-400 block">${delivery.paymentMethod === 'cash' ? '💵 Kapıda Nakit Tahsilat' : (delivery.paymentMethod === 'card_door' ? '💳 Kapıda POS Tahsilat' : '🏦 EFT/Havale ile Ödendi')}</span>
             <span class="text-base font-black text-[#06C167]">₺${delivery.totalAmount}</span>
           </div>
         </div>

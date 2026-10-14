@@ -417,8 +417,9 @@ class PitaMutfakHandler(http.server.SimpleHTTPRequestHandler):
                     return
 
                 stored = VERIFICATION_CODES.get(identifier) or (email and VERIFICATION_CODES.get(email)) or (phone and VERIFICATION_CODES.get(phone))
-                # Test/demo kolaylığı için 123456 veya üretilen kod kabul edilir
-                is_valid_code = (stored and stored.get('code') == input_code) or (input_code == "123456")
+                # Doğrulama kodu kontrolü (yalnızca yerel test için PITA_DEBUG ortam değişkeni varsa 123456 kabul edilir)
+                is_debug = os.environ.get('PITA_DEBUG', '').lower() in ('1', 'true', 'yes')
+                is_valid_code = (stored and stored.get('code') == input_code) or (is_debug and input_code == "123456")
 
                 if not is_valid_code:
                     self.send_json(400, {"error": "Hatalı doğrulama kodu! Lütfen size iletilen 6 haneli kodu kontrol ediniz."})

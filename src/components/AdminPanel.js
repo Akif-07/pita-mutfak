@@ -870,7 +870,7 @@ function renderOrderCard(order) {
         <div class="pt-3 border-t border-gray-100 flex items-center justify-between mb-4">
           <div>
             <span class="text-xs font-bold text-gray-700 block">
-              ${order.paymentMethod === 'cash' ? '💵 Kapıda Nakit' : '🏦 EFT / Havale'}
+              ${order.paymentMethod === 'cash' ? '💵 Kapıda Nakit' : (order.paymentMethod === 'card_door' ? '💳 Kapıda Kredi Kartı' : '🏦 EFT / Havale')}
             </span>
             ${order.discountAmount > 0 ? `
               <span class="text-[11px] text-[#06C167] font-bold">

@@ -28,6 +28,12 @@ import {
 import { categories } from '../data/initialMenu.js';
 import { verifyAdminCredentials, setAdminLoggedIn } from './AdminPanel.js';
 
+const isDevMode = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname === '0.0.0.0'
+);
+
 export function renderCustomerView(container, state, onStateChange) {
   const currentUser = state.currentUser || getCurrentUser();
   const { cart, activeCategory, selectedProduct, activeTrackingOrder, firstOrderDiscountApplied, discountPercentage } = state;
@@ -1168,11 +1174,12 @@ function renderLoginModal(state) {
               </p>
             </div>
 
-            <!-- Demo Kod Bildirim Bandı -->
+            ${isDevMode && state.verificationCodeHint ? `
+            <!-- Demo Kod Bildirim Bandı (Yalnızca Local Geliştirme) -->
             <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between">
               <div>
-                <span class="block text-[11px] text-emerald-700 font-bold">💡 SMS / Demo Doğrulama Kodu:</span>
-                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.verificationCodeHint || '123456'}</span>
+                <span class="block text-[11px] text-emerald-700 font-bold">🛠️ Test Doğrulama Kodu:</span>
+                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.verificationCodeHint}</span>
               </div>
               <button 
                 type="button" 
@@ -1182,6 +1189,7 @@ function renderLoginModal(state) {
                 Kodu Doldur
               </button>
             </div>
+            ` : ''}
 
             <form id="verify-code-form" class="space-y-4">
               <div>
@@ -1762,14 +1770,14 @@ function renderPhoneVerifyModal(currentUser, state) {
               <span class="text-2xl shrink-0">📲</span>
               <div class="flex-1">
                 <span class="block text-xs font-black text-emerald-900">SMS Gönderildi!</span>
-                <span class="text-[11px] text-emerald-700 leading-snug">Google Firebase ile <strong>${state.pendingPhoneVerify || ''}</strong> numarasına iletilen 6 haneli kodu giriniz.</span>
+                <span class="text-[11px] text-emerald-700 leading-snug"><strong>${state.pendingPhoneVerify || ''}</strong> numarasına iletilen 6 haneli kodu giriniz.</span>
               </div>
             </div>
-          ` : `
+          ` : (isDevMode && state.phoneVerifyCodeHint ? `
             <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between mb-4">
               <div>
-                <span class="block text-[11px] text-emerald-700 font-bold">💡 Doğrulama Kodu:</span>
-                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.phoneVerifyCodeHint || '123456'}</span>
+                <span class="block text-[11px] text-emerald-700 font-bold">🛠️ Test Kodu:</span>
+                <span class="font-mono text-base font-black tracking-widest text-[#06C167]">${state.phoneVerifyCodeHint}</span>
               </div>
               <button 
                 type="button"
@@ -1779,7 +1787,7 @@ function renderPhoneVerifyModal(currentUser, state) {
                 Kodu Doldur
               </button>
             </div>
-          `}
+          ` : '')}
           <form id="phone-verify-code-form" class="space-y-3">
             <div>
 
@@ -1817,19 +1825,20 @@ function renderPhoneVerifyModal(currentUser, state) {
               </button>
             </div>
 
-
-            <!-- SMS Gelmedi mi / Alternatif Test Kodu Desteği -->
-            <div class="p-3 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] text-gray-600 mt-2">
+            ${isDevMode ? `
+            <!-- SMS Gelmedi mi / Alternatif Test Kodu Desteği (Yalnızca Local Geliştirme) -->
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-800 mt-2">
               <div class="flex items-center justify-between">
-                <span class="font-bold text-gray-800">SMS gelmedi mi?</span>
+                <span class="font-bold">🛠️ Test Modu (Local):</span>
                 <button type="button" id="use-test-code-btn" class="text-[#06C167] hover:text-[#05a557] font-black underline cursor-pointer">
                   Test Kodunu Doldur (123456)
                 </button>
               </div>
-              <p class="text-[10px] text-gray-400 mt-1 leading-relaxed">
-                Operatör / SMS gecikmesi durumunda veya test aşamasında <strong>123456</strong> kodunu kullanarak doğrulayabilirsiniz.
+              <p class="text-[10px] text-amber-600 mt-1 leading-relaxed">
+                Bu alan yalnızca geliştirme ortamında gösterilmektedir.
               </p>
             </div>
+            ` : ''}
 
             <button 
               type="button" 
@@ -2372,12 +2381,20 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
 
           <div>
             <label class="block text-xs font-bold text-gray-700 mb-1.5">Ödeme Yöntemi *</label>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <label class="flex items-center gap-2.5 p-3 rounded-2xl border border-gray-200 cursor-pointer has-[:checked]:border-[#06C167] has-[:checked]:bg-[#E8F8EE] transition">
                 <input type="radio" name="paymentMethod" value="cash" checked class="accent-[#06C167] w-4 h-4">
                 <div>
                   <span class="text-xs font-black text-gray-900 block">💵 Kapıda Nakit</span>
-                  <span class="text-[10px] text-gray-500">Teslimatta nakit ödeme</span>
+                  <span class="text-[10px] text-gray-500">Teslimatta nakit</span>
+                </div>
+              </label>
+
+              <label class="flex items-center gap-2.5 p-3 rounded-2xl border border-gray-200 cursor-pointer has-[:checked]:border-[#06C167] has-[:checked]:bg-[#E8F8EE] transition">
+                <input type="radio" name="paymentMethod" value="card_door" class="accent-[#06C167] w-4 h-4">
+                <div>
+                  <span class="text-xs font-black text-gray-900 block">💳 Kapıda Kredi Kartı</span>
+                  <span class="text-[10px] text-gray-500">Kuryede mobil POS</span>
                 </div>
               </label>
 
@@ -2385,7 +2402,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
                 <input type="radio" name="paymentMethod" value="eft" class="accent-[#06C167] w-4 h-4">
                 <div>
                   <span class="text-xs font-black text-gray-900 block">🏦 EFT / Havale</span>
-                  <span class="text-[10px] text-gray-500">Banka hesabına havale</span>
+                  <span class="text-[10px] text-gray-500">Banka hesabına</span>
                 </div>
               </label>
             </div>
@@ -2409,6 +2426,23 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
                 💡 Lütfen açıklama kısmına <strong>Adınızı</strong> yazınız.
               </p>
             </div>
+          </div>
+
+          <!-- Yasal Bilgilendirme & Mesafeli Satış Onayı -->
+          <div class="p-3.5 bg-gray-50 border border-gray-200 rounded-2xl">
+            <label class="flex items-start gap-2.5 cursor-pointer">
+              <input 
+                type="checkbox" 
+                name="acceptTerms" 
+                id="checkout-accept-terms" 
+                required 
+                class="accent-[#06C167] w-4 h-4 mt-0.5 shrink-0 rounded cursor-pointer"
+              />
+              <span class="text-[11px] text-gray-700 leading-snug">
+                <a href="#/terms" target="_blank" class="text-[#06C167] font-bold underline">Ön Bilgilendirme Koşulları</a>'nı ve 
+                <a href="#/terms" target="_blank" class="text-[#06C167] font-bold underline">Mesafeli Satış Sözleşmesi</a>'ni okudum, kabul ediyorum.
+              </span>
+            </label>
           </div>
 
           ${discountAmount > 0 ? `
@@ -2647,7 +2681,7 @@ function renderTrackingModal(order) {
             ` : ''}
             <div class="flex justify-between text-gray-900 font-extrabold text-sm pt-2 border-t border-gray-100">
               <span>Toplam:</span>
-              <span class="text-[#06C167]">₺${order.totalAmount} (${order.paymentMethod === 'cash' ? 'Kapıda Nakit' : 'EFT / Havale'})</span>
+              <span class="text-[#06C167]">₺${order.totalAmount} (${order.paymentMethod === 'cash' ? 'Kapıda Nakit' : (order.paymentMethod === 'card_door' ? 'Kapıda Kredi Kartı' : 'EFT / Havale')})</span>
             </div>
           </div>
 
@@ -2788,7 +2822,7 @@ function renderMyOrdersModal(myOrders, state, currentUser) {
 
                 <div class="flex items-center justify-between pt-2 border-t border-gray-200/60">
                   <div>
-                    <span class="text-[10px] text-gray-400 block">${order.paymentMethod === 'cash' ? 'Kapıda Nakit' : 'EFT / Havale'}</span>
+                    <span class="text-[10px] text-gray-400 block">${order.paymentMethod === 'cash' ? 'Kapıda Nakit' : (order.paymentMethod === 'card_door' ? 'Kapıda Kredi Kartı' : 'EFT / Havale')}</span>
                     <span class="text-sm font-black text-[#06C167]">₺${order.totalAmount}</span>
                   </div>
 
@@ -3439,7 +3473,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
 
       try {
         const res = await sendVerificationCode(phone, '', phone);
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (isDevMode ? '123456' : '');
         onStateChange({
           authMode: 'verify',
           authError: '',
@@ -3451,7 +3485,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           authMode: 'verify',
           authError: '',
           pendingVerificationData: { phone, identifier: phone, isPhoneLogin: true },
-          verificationCodeHint: '123456'
+          verificationCodeHint: isDevMode ? '123456' : ''
         });
       }
     });
@@ -3494,7 +3528,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const identifier = phone || email;
       try {
         const res = await sendVerificationCode(identifier, name, phone);
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : '123456';
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (isDevMode ? '123456' : '');
         
         onStateChange({
           authMode: 'verify',
@@ -3508,7 +3542,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           authMode: 'verify',
           authError: '',
           pendingVerificationData: { name, email, phone, password, identifier },
-          verificationCodeHint: '123456'
+          verificationCodeHint: isDevMode ? '123456' : ''
         });
       }
     });
@@ -4006,7 +4040,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     if (targetPhone && targetPhone.replace(/\D/g, '').length >= 10) {
       try {
         const res = await sendVerificationCode(targetPhone, targetName, targetPhone);
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : (isDevMode ? '123456' : ''));
         onStateChange({
           isPhoneVerifyOpen: true,
           isCheckoutOpen: false,
@@ -4190,7 +4224,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
           return;
         }
 
-        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
+        const codeHint = (res.ok && res.data && res.data.code) ? res.data.code : (res.firebase ? '' : (isDevMode ? '123456' : ''));
 
         // Kullanıcı objesinde telefon numarasını güncelle (henüz kayıtlı değilse)
         if (user && !user.phone) {
@@ -4221,7 +4255,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (fillPhoneVerifyCodeBtn) {
     fillPhoneVerifyCodeBtn.addEventListener('click', () => {
       const codeInput = container.querySelector('#phone-otp-input');
-      if (codeInput) codeInput.value = state.phoneVerifyCodeHint || '123456';
+      if (codeInput) codeInput.value = state.phoneVerifyCodeHint || (isDevMode ? '123456' : '');
     });
   }
 
@@ -4230,7 +4264,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
   if (useTestCodeBtn) {
     useTestCodeBtn.addEventListener('click', () => {
       const codeInput = container.querySelector('#phone-otp-input');
-      if (codeInput) {
+      if (codeInput && isDevMode) {
         codeInput.value = '123456';
         codeInput.focus();
       }
@@ -4278,7 +4312,7 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       try {
         const res = await sendVerificationCode(phone, user ? user.name : 'Müşteri', phone);
         if (res.ok) {
-          const codeHint = (res.data && res.data.code) ? res.data.code : (res.firebase ? '' : '123456');
+          const codeHint = (res.data && res.data.code) ? res.data.code : (res.firebase ? '' : (isDevMode ? '123456' : ''));
           onStateChange({
             phoneVerifyStep: 'verify',
             pendingPhoneVerify: phone,
@@ -4904,6 +4938,12 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       const deliveryAddress = (formData.get('deliveryAddress') || '').trim();
       const orderNote = (formData.get('orderNote') || '').trim();
       const paymentMethod = formData.get('paymentMethod');
+      const acceptTerms = formData.get('acceptTerms');
+
+      if (!acceptTerms) {
+        alert("⚠️ Lütfen devam etmek için Ön Bilgilendirme Koşulları ve Mesafeli Satış Sözleşmesi'ni okuyup onaylayınız.");
+        return;
+      }
 
       if (!customerName || !customerPhone || !deliveryAddress) {
         alert("Lütfen Ad Soyad, Telefon Numarası ve Teslimat Adresi alanlarını eksiksiz doldurunuz.");

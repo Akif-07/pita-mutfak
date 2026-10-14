@@ -1,0 +1,9 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /#/admin
+Disallow: /#/kurye
+Disallow: /#/courier
+
+Sitemap: https://pitamutfak.com/sitemap.xml

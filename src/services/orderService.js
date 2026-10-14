@@ -861,6 +861,12 @@ export async function markMessageAsRead(messageId) {
   return apiCall(`/messages/${encodeURIComponent(messageId)}/read`, 'PUT');
 }
 
+const isDevMode = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname === '0.0.0.0'
+);
+
 // E-posta veya SMS Doğrulama Kodu İste
 export async function sendVerificationCode(identifier, name = '', phone = '') {
   const isPhone = !identifier.includes('@');
@@ -931,7 +937,7 @@ export async function sendVerificationCode(identifier, name = '', phone = '') {
 export async function verifyAndRegister(payload) {
   const identifier = (payload.identifier || payload.email || payload.phone || '').trim().toLowerCase();
   const inputCode = (payload.code || '').trim();
-  const isTestCode = inputCode === '123456';
+  const isTestCode = isDevMode && inputCode === '123456';
   let fbUser = null;
 
   // Şifre kontrolü: Kayıt olurken şifre en az 6 karakter olmalıdır
@@ -953,7 +959,7 @@ export async function verifyAndRegister(payload) {
     } catch (e) {}
   }
 
-  const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
+  const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || (isDevMode ? '123456' : null);
 
   let res = await apiCall('/auth/verify-and-register', 'POST', payload);
   if (res.ok && res.data && (res.data.user || res.data.customer)) {
@@ -971,8 +977,9 @@ export async function verifyAndRegister(payload) {
     return { ok: true, data: { user } };
   }
 
-  // Doğrulama kontrolü: Firebase onayı, üretilen kod veya varsayılan 123456 kabul edilir
-  if (fbUser || inputCode === storedCode || inputCode === '123456') {
+  // Doğrulama kontrolü: Firebase onayı, hafızadaki doğrulama kodu veya yalnızca yerel geliştirmede (localhost) 123456 kabul edilir
+  const isCodeValid = (storedCode && inputCode === storedCode) || (isDevMode && inputCode === '123456');
+  if (fbUser || isCodeValid) {
     const isEmail = identifier.includes('@');
     const user = {
       uid: fbUser ? fbUser.uid : '',
@@ -996,7 +1003,7 @@ export async function verifyAndRegister(payload) {
 // Telefon doğrulamasını güncelle (profil veya sipariş üzerinden doğrulama)
 export async function verifyPhone(phone, code, name = '') {
   const inputCode = (code || '').trim();
-  const isTestCode = inputCode === '123456' || (phone && inputCode === sessionStorage.getItem(`pita_verify_${phone.trim().toLowerCase()}`));
+  const isTestCode = (isDevMode && inputCode === '123456') || (phone && inputCode === sessionStorage.getItem(`pita_verify_${phone.trim().toLowerCase()}`));
   let firebaseSuccess = false;
   let firebaseUser = null;
 
@@ -1015,15 +1022,15 @@ export async function verifyPhone(phone, code, name = '') {
     }
   }
 
-  // 2. Firebase oturumu yoksa veya test koduysa yerel/sessionStorage kontrolü
+  // 2. Firebase oturumu yoksa veya yerel geliştirme ise sessionStorage kontrolü
   if (!firebaseSuccess) {
     const identifier = (phone || '').trim().toLowerCase();
-    const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || '123456';
-    if (inputCode !== storedCode && inputCode !== '123456') {
+    const storedCode = (identifier ? sessionStorage.getItem(`pita_verify_${identifier}`) : null) || (isDevMode ? '123456' : null);
+    const isCodeValid = (storedCode && inputCode === storedCode) || (isDevMode && inputCode === '123456');
+    if (!isCodeValid) {
       return { ok: false, error: 'Doğrulama kodu hatalı! Lütfen kodu kontrol ediniz.' };
     }
   }
-
 
   // Backend'e telefon doğrulandı bilgisini gönder
   try {

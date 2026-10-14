@@ -1,9 +1,9 @@
 // Pita Mutfak - Gizlilik Politikası & Hizmet Şartları Sayfaları
 const BRAND_NAME = 'Pita Mutfak';
 const BRAND_EMAIL = 'destek@pitamutfak.com';
-const BRAND_WEBSITE = 'https://pita-mutfak.vercel.app';
-const BRAND_PHONE = '+90 5XX XXX XX XX';
-const LAST_UPDATE_DATE = '24 Eylül 2026';
+const BRAND_WEBSITE = 'https://pitamutfak.com';
+const BRAND_PHONE = '+90 (212) 000 00 00';
+const LAST_UPDATE_DATE = '14 Ekim 2026';
 
 const COMMON_STYLES = `
   <style>
@@ -448,12 +448,20 @@ export function renderTermsOfService(container) {
         </div>
 
         <div class="legal-card">
-          <h2><span class="section-num">5</span> İptal ve İade Politikası</h2>
-          <ul>
-            <li>Yemek hazırlığı başlamadan yapılan iptaller ücretsiz işlenir.</li>
-            <li>Hazırlık aşamasındaki siparişler iptal edilemez.</li>
-            <li>Yanlış veya eksik ürün teslimatında, fotoğraflı şikayet ile 24 saat içinde iade/yenileme hakkı doğar.</li>
-            <li>İade talepleri <a href="mailto:${BRAND_EMAIL}">${BRAND_EMAIL}</a> adresine iletilmelidir.</li>
+          <h2><span class="section-num">5</span> Mesafeli Satış, İptal ve Cayma Hakkı İstisnası</h2>
+          <p>
+            Platformumuz üzerinden verilen siparişler 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği hükümlerine tabidir.
+          </p>
+          <div class="legal-highlight">
+            ⚖️ <strong>Yasal Cayma Hakkı İstisnası:</strong> Mesafeli Sözleşmeler Yönetmeliği'nin 15. maddesinin 1. fıkrasının (c) bendi gereğince; 
+            <em>"Çabuk bozulabilen veya son kullanma tarihi geçebilecek malların teslimine ilişkin sözleşmelerde tüketici cayma hakkını kullanamaz."</em>
+            Hazırlanmış sıcak yemekler bu kapsamda olduğundan, mutfakta hazırlanmaya başlanmış veya teslim edilmiş siparişlerde cayma hakkı bulunmamaktadır.
+          </div>
+          <ul style="margin-top: 12px;">
+            <li>Sipariş, restoran tarafından onaylanıp hazırlığa başlanmadan önce iptal edilebilir.</li>
+            <li>Hazırlık aşamasına geçen veya kuryeye verilen siparişler iptal edilemez.</li>
+            <li>Eksik veya hatalı ürün teslimatında, teslimat anında kuryeye veya 24 saat içinde fotoğraflı olarak destek ekibimize bildirildiğinde telafi veya iade sağlanır.</li>
+            <li>İade ve destek talepleri <a href="mailto:${BRAND_EMAIL}">${BRAND_EMAIL}</a> adresine iletilmelidir.</li>
           </ul>
         </div>
 
