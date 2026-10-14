@@ -234,89 +234,65 @@ export async function syncCustomerToFirestore(customer) {
   try {
     const ctx = await getFirestoreContext();
     if (!ctx || !ctx.db) return false;
-    const { db, doc, setDoc, collection, getDocs, deleteDoc } = ctx;
+    const { db, doc, setDoc, getDoc } = ctx;
     const clean = cleanForFirestore(customer);
+    if (!clean) return false;
+
+    // GİZLİLİK & GÜVENLİK (KVKK): Şifreleri ve hassas kimlik doğrulama alanlarını Firestore'a ASLA yazma!
+    delete clean.password;
+    delete clean.plainPassword;
+    delete clean.pass;
 
     // Normalize phone: strip non-digits, take last 10 digits
     const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
     const custPhone = normPhone(clean.phone);
     const custEmail = (clean.email || '').toLowerCase().trim();
 
-    // 1. Search all existing customers for a match by email or phone
-    let existingDoc = null;
+    // 1. Determine canonical key: prefer phone, then email, then uid
+    const rawKey = (custPhone.length >= 7 ? custPhone : null) || custEmail || clean.uid || clean.id || `cust-${Date.now()}`;
+    const key = String(rawKey).replace(/[\/\#\$\[\]]/g, '_');
+    const custRef = doc(db, "customers", key);
+
+    // 2. Fetch existing document directly with getDoc (koleksiyon taraması yapmadan hedefli okuma)
     let existingData = null;
-    const duplicateDocs = []; // docs to delete after merge
-
     try {
-      const snap = await getDocs(collection(db, "customers"));
-      snap.forEach(d => {
-        const data = d.data();
-        const docPhone = normPhone(data.phone);
-        const docEmail = (data.email || '').toLowerCase().trim();
-
-        const phoneMatch = custPhone.length >= 7 && docPhone.length >= 7 && custPhone === docPhone;
-        const emailMatch = custEmail && docEmail && custEmail === docEmail;
-
-        if (phoneMatch || emailMatch) {
-          if (!existingDoc) {
-            // First match — this is the record we'll update
-            existingDoc = d;
-            existingData = data;
-          } else {
-            // Additional matches — these are duplicates to clean up
-            duplicateDocs.push(d);
-          }
-        }
-      });
+      const snap = await getDoc(custRef);
+      if (snap.exists()) {
+        existingData = snap.data();
+      }
     } catch (e) {
-      console.warn("Firestore müşteri arama hatası:", e);
+      console.warn("Firestore müşteri arama:", e);
     }
 
-    // 2. Merge fields: keep the most complete data
+    // 3. Merge fields: keep the most complete data
     let merged = { ...clean };
     if (existingData) {
       merged = {
         ...existingData,
         ...clean,
-        // Preserve non-empty fields from existing record
         name: clean.name || existingData.name || '',
         email: clean.email || existingData.email || '',
         phone: clean.phone || existingData.phone || '',
         uid: clean.uid || existingData.uid || '',
         photoURL: clean.photoURL || existingData.photoURL || '',
-        // Accumulate order stats
         total_orders: Math.max(Number(existingData.total_orders) || 0, Number(clean.total_orders) || 0),
         total_spent: Math.max(Number(existingData.total_spent) || 0, Number(clean.total_spent) || 0),
-        // Keep the earliest registration date
         registered_at: existingData.registered_at || clean.registered_at || new Date().toISOString(),
-        // Preserve verified status
         phoneVerified: clean.phoneVerified || existingData.phoneVerified || false,
         is_verified: clean.is_verified || existingData.is_verified || 0
       };
     }
 
-    // 3. Determine canonical key: prefer phone, then email, then uid
-    const mergedPhone = normPhone(merged.phone);
-    const mergedEmail = (merged.email || '').toLowerCase().trim();
-    const rawKey = (mergedPhone.length >= 7 ? merged.phone : null) || mergedEmail || merged.uid || `cust-${Date.now()}`;
-    const key = String(rawKey).replace(/[\/\#\$\[\]]/g, '_');
+    // Tekrar garantiye al: parola alanı hiçbir şartta yazılamaz
+    delete merged.password;
+    delete merged.plainPassword;
+    delete merged.pass;
 
     // 4. Write the merged record
-    const custRef = doc(db, "customers", key);
     await setDoc(custRef, {
       ...merged,
       _updatedAt: new Date().toISOString()
     }, { merge: true });
-
-    // 5. Clean up: delete old doc if it had a different key, plus any duplicates
-    if (existingDoc && existingDoc.id !== key) {
-      try { await deleteDoc(doc(db, "customers", existingDoc.id)); } catch (e) {}
-    }
-    for (const dupDoc of duplicateDocs) {
-      if (dupDoc.id !== key) {
-        try { await deleteDoc(doc(db, "customers", dupDoc.id)); } catch (e) {}
-      }
-    }
 
     return true;
   } catch (e) {
@@ -324,6 +300,40 @@ export async function syncCustomerToFirestore(customer) {
     return false;
   }
 }
+
+// Belirli bir müşteriyi ID / Telefon / E-posta ile Firestore'dan doğrudan getirme (koleksiyon taramadan)
+export async function getCustomerFromFirestore(identifier) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db || !identifier) return null;
+    const { db, doc, getDoc } = ctx;
+    const cleanId = String(identifier).trim();
+    const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+    const phoneKey = normPhone(cleanId);
+    const emailKey = cleanId.toLowerCase().replace(/[\/\#\$\[\]]/g, '_');
+
+    // 1. Telefon anahtarı ile dene (en yaygın)
+    if (phoneKey.length >= 7) {
+      const snap = await getDoc(doc(db, "customers", phoneKey));
+      if (snap.exists()) return snap.data();
+    }
+    // 2. E-posta anahtarı ile dene
+    if (emailKey.includes('@')) {
+      const snap = await getDoc(doc(db, "customers", emailKey));
+      if (snap.exists()) return snap.data();
+    }
+    // 3. Ham anahtar ile dene
+    const rawKey = cleanId.replace(/[\/\#\$\[\]]/g, '_');
+    const snap = await getDoc(doc(db, "customers", rawKey));
+    if (snap.exists()) return snap.data();
+
+    return null;
+  } catch (e) {
+    console.warn("Firestore tekil müşteri getirme hatası:", e);
+    return null;
+  }
+}
+
 
 export async function getCustomersFromFirestore() {
   try {
@@ -925,9 +935,7 @@ export async function pingPresence(user = null) {
     const presenceData = {
       id: sid,
       lastSeen: Date.now(),
-      name: isLogged ? (activeUser.name || activeUser.email?.split('@')[0] || 'Müşteri') : 'Misafir',
-      email: isLogged ? (activeUser.email || '') : '',
-      phone: isLogged ? (activeUser.phone || '') : '',
+      name: isLogged ? (activeUser.name || 'Müşteri') : 'Misafir',
       isLoggedIn: isLogged,
       view: viewName,
       _updatedAt: new Date().toISOString()

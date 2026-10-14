@@ -9,6 +9,7 @@ import {
   subscribeFirestoreReviews,
   syncCustomerToFirestore,
   getCustomersFromFirestore,
+  getCustomerFromFirestore,
   deleteCustomerFromFirestore,
   syncStockToFirestore,
   subscribeFirestoreStock,
@@ -986,7 +987,6 @@ export async function verifyAndRegister(payload) {
       name: payload.name || (isEmail ? identifier.split('@')[0] : 'Pita Misafiri'),
       email: payload.email || (isEmail ? identifier : ''),
       phone: fbUser ? fbUser.phone : (payload.phone || (!isEmail ? identifier : '')),
-      password: payload.password || '',
       auth_provider: isEmail ? 'email' : 'phone',
       registered_at: new Date().toISOString(),
       phoneVerified: !isEmail || Boolean(fbUser)
@@ -1114,17 +1114,8 @@ export async function customerLogin(identifier, password) {
     }
   } catch (e) {}
 
-  // 2. Veritabanındaki (Firestore & Local) kayıtlı müşterileri tara
-  const allCustomers = await orderService.getCustomers();
-  const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
-  const inputNormPhone = normPhone(cleanId);
-
-  const foundCustomer = allCustomers.find(c => {
-    if (c.email && c.email.toLowerCase() === cleanLower) return true;
-    if (c.phone && (c.phone === cleanId || (inputNormPhone.length >= 7 && normPhone(c.phone) === inputNormPhone))) return true;
-    if (c.identifier && c.identifier.toLowerCase() === cleanLower) return true;
-    return false;
-  });
+  // 2. Müşteriyi doğrudan hedefli olarak sorgula (Tüm müşteri veritabanını taramaz)
+  const foundCustomer = await orderService.getCustomer(cleanId);
 
   if (!foundCustomer) {
     return { 
@@ -1620,8 +1611,45 @@ export const orderService = {
     };
   },
 
+  // Tekil Müşteri Getirme (KVKK ve Gizlilik Uyumlu — Tüm veritabanını taramaz)
+  async getCustomer(identifier) {
+    if (!identifier) return null;
+    const cleanId = String(identifier).trim();
+    const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+    const searchPhone = normPhone(cleanId);
+    const searchLower = cleanId.toLowerCase();
+
+    // 1. Önce yerel hafızadan kontrol et
+    const localCust = getStoredCustomers();
+    const foundLocal = localCust.find(c => {
+      if (c.email && c.email.toLowerCase() === searchLower) return true;
+      if (c.phone && (c.phone === cleanId || (searchPhone.length >= 7 && normPhone(c.phone) === searchPhone))) return true;
+      if (c.identifier && c.identifier.toLowerCase() === searchLower) return true;
+      if (c.uid && c.uid === cleanId) return true;
+      return false;
+    });
+    if (foundLocal) return foundLocal;
+
+    // 2. Buluttan tekil getir (doğrudan ID ile hedefli okuma)
+    try {
+      const cloud = await getCustomerFromFirestore(cleanId);
+      if (cloud) return cloud;
+    } catch (e) {}
+
+    return null;
+  },
+
   // Backend & Firestore Müşteri Yönetimi
   async getCustomers() {
+    // Güvenlik & Gizlilik (KVKK): Yalnızca yetkili yönetici paneli tüm müşteri listesini çekebilir!
+    // Normal müşteri veya misafir oturumlarında tüm veritabanı ASLA çekilemez.
+    const isAdmin = typeof sessionStorage !== 'undefined' && 
+      (sessionStorage.getItem('pita_admin_auth') === 'true' || localStorage.getItem('pita_admin_auth') === 'true');
+
+    if (!isAdmin) {
+      return getStoredCustomers();
+    }
+
     let cloudCust = [];
     try {
       cloudCust = await getCustomersFromFirestore();
@@ -2642,4 +2670,6 @@ export function subscribeFlashDeal(callback) {
     clearInterval(interval);
   };
 }
+
+export const getCustomer = (identifier) => orderService.getCustomer(identifier);
 

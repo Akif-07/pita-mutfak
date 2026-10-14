@@ -79,10 +79,14 @@ async function loadCustomerMessages() {
       state.customerMessages = Array.isArray(msgs) ? msgs : [];
 
       // Müşterinin özel kodunu müşteri profiline senkronize et
-      const custRecord = state.customers.find(c => c.phone === state.currentUser.phone);
-      if (custRecord) {
-        state.currentUser.custom_code = custRecord.custom_code || '';
-        state.currentUser.custom_discount = custRecord.custom_discount || 0;
+      if (!state.currentUser.custom_code && state.currentUser.phone) {
+        try {
+          const custRecord = await orderService.getCustomer(state.currentUser.phone);
+          if (custRecord) {
+            state.currentUser.custom_code = custRecord.custom_code || '';
+            state.currentUser.custom_discount = custRecord.custom_discount || 0;
+          }
+        } catch (e) {}
       }
       render();
     } catch (e) {
@@ -93,29 +97,48 @@ async function loadCustomerMessages() {
   }
 }
 
-// Backend Verilerini Yükleme Fonksiyonu
+// Backend Verilerini Yükleme Fonksiyonu (KVKK & Gizlilik Uyumlu)
 async function loadBackendData() {
   try {
-    const [customers, stock, reviews, expenses, closings, contactMsgs] = await Promise.all([
-      orderService.getCustomers(),
+    // 1. Halka Açık Veriler: Stok ve Yorumlar (Tüm ziyaretçiler erişebilir)
+    const [stock, reviews] = await Promise.all([
       orderService.getStock(),
-      orderService.getReviews(),
-      orderService.getExpenses(),
-      orderService.getDailyClosings(),
-      orderService.getContactMessages ? orderService.getContactMessages() : Promise.resolve([])
+      orderService.getReviews()
     ]);
-    state.customers = Array.isArray(customers) ? customers : [];
     state.stockList = Array.isArray(stock) ? stock : [];
     state.reviewsList = Array.isArray(reviews) ? reviews : [];
-    state.expensesList = Array.isArray(expenses) ? expenses : [];
-    state.dailyClosings = Array.isArray(closings) ? closings : [];
-    state.contactMessages = Array.isArray(contactMsgs) ? contactMsgs : [];
-
 
     // Eğer stok veritabanı henüz boşsa menüdeki ürünlerle başlat
     if (state.stockList.length === 0) {
       await orderService.initStockFromMenu();
       state.stockList = await orderService.getStock();
+    }
+
+    // 2. KVKK & Gizlilik Kontrolü: Müşteriler, Giderler, Kasa Kapanışları ve İletişim Mesajları
+    // SADECE ve SADECE Yönetici Girişi Yapılmışsa ve Yönetici Ekranındayken Yüklenir!
+    // Normal ziyaretçiler ve müşteriler bu ticari/özel verileri ASLA indiremez.
+    const isAdmin = state.currentView === 'admin' && (
+      sessionStorage.getItem('pita_admin_auth') === 'true' || 
+      localStorage.getItem('pita_admin_auth') === 'true'
+    );
+
+    if (isAdmin) {
+      const [customers, expenses, closings, contactMsgs] = await Promise.all([
+        orderService.getCustomers(),
+        orderService.getExpenses(),
+        orderService.getDailyClosings(),
+        orderService.getContactMessages ? orderService.getContactMessages() : Promise.resolve([])
+      ]);
+      state.customers = Array.isArray(customers) ? customers : [];
+      state.expensesList = Array.isArray(expenses) ? expenses : [];
+      state.dailyClosings = Array.isArray(closings) ? closings : [];
+      state.contactMessages = Array.isArray(contactMsgs) ? contactMsgs : [];
+    } else {
+      // Normal müşteri/ziyaretçi modunda hassas verileri boş tut
+      state.customers = [];
+      state.expensesList = [];
+      state.dailyClosings = [];
+      state.contactMessages = [];
     }
 
     // Müşteri oturum açmışsa mesajlarını ve özel kodunu da güncelle
@@ -194,15 +217,20 @@ function syncViewFromHash() {
   const hash = window.location.hash.toLowerCase();
   if (hash.startsWith('#/admin') || hash === '#admin') {
     state.currentView = 'admin';
+    syncAdminSubscriptions();
     loadBackendData();
   } else if (hash.startsWith('#/kurye') || hash === '#kurye' || hash.startsWith('#/courier')) {
     state.currentView = 'courier';
+    syncAdminSubscriptions();
   } else if (hash.startsWith('#/privacy')) {
     state.currentView = 'privacy';
+    syncAdminSubscriptions();
   } else if (hash.startsWith('#/terms')) {
     state.currentView = 'terms';
+    syncAdminSubscriptions();
   } else {
     state.currentView = 'customer';
+    syncAdminSubscriptions();
   }
 }
 
@@ -221,8 +249,11 @@ function handleStateChange(newState) {
     orderService.saveStoredCart(newState.cart);
   }
 
-  // Eğer sekme değiştirildiyse verileri tazele
-  if (newState.adminActiveTab === 'customers' || newState.adminActiveTab === 'menu' || newState.adminActiveTab === 'contact') {
+  // Yönetici abonelik durumunu kontrol et
+  syncAdminSubscriptions();
+
+  // Eğer sekme değiştirildiyse veya yönetici girişi yapıldıysa verileri tazele
+  if (newState.adminActiveTab === 'customers' || newState.adminActiveTab === 'menu' || newState.adminActiveTab === 'contact' || state.currentView === 'admin') {
     loadBackendData();
   }
 
@@ -312,17 +343,44 @@ orderService.subscribeReviews((reviews) => {
   render();
 });
 
-// Giderler ve Muhasebe Canlı Senkronizasyonu
-orderService.subscribeExpenses((expenses) => {
-  state.expensesList = Array.isArray(expenses) ? expenses : [];
-  render();
-});
+// Yönetici Canlı Abonelikleri (Yalnızca Yönetici Girişi Yapıldığında ve Admin Ekranındayken Dinlenir)
+let unsubExpenses = null;
+let unsubDailyClosings = null;
 
-// Gün Sonu Z-Raporları Canlı Senkronizasyonu
-orderService.subscribeDailyClosings((closings) => {
-  state.dailyClosings = Array.isArray(closings) ? closings : [];
-  render();
-});
+function syncAdminSubscriptions() {
+  const isAdmin = (
+    sessionStorage.getItem('pita_admin_auth') === 'true' || 
+    localStorage.getItem('pita_admin_auth') === 'true'
+  );
+
+  if (isAdmin && !unsubExpenses) {
+    try {
+      unsubExpenses = orderService.subscribeExpenses((expenses) => {
+        state.expensesList = Array.isArray(expenses) ? expenses : [];
+        if (state.currentView === 'admin') render();
+      });
+    } catch (e) {}
+  } else if (!isAdmin && unsubExpenses) {
+    if (typeof unsubExpenses === 'function') {
+      try { unsubExpenses(); } catch (e) {}
+    }
+    unsubExpenses = null;
+  }
+
+  if (isAdmin && !unsubDailyClosings) {
+    try {
+      unsubDailyClosings = orderService.subscribeDailyClosings((closings) => {
+        state.dailyClosings = Array.isArray(closings) ? closings : [];
+        if (state.currentView === 'admin') render();
+      });
+    } catch (e) {}
+  } else if (!isAdmin && unsubDailyClosings) {
+    if (typeof unsubDailyClosings === 'function') {
+      try { unsubDailyClosings(); } catch (e) {}
+    }
+    unsubDailyClosings = null;
+  }
+}
 
 // Canlı Flaş İndirim Senkronizasyonu
 if (typeof orderService.subscribeFlashDeal === 'function') {

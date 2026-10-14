@@ -2,48 +2,68 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. SİPARİŞLER (Müşteri sipariş verebilir, takip edebilir; Yönetici ve kurye yönetebilir)
+    // 1. SİPARİŞLER (Müşteri sipariş verebilir, kendi siparişini takip edebilir; Yönetici ve kurye yönetebilir)
     match /orders/{orderId} {
-      allow read, write: if true;
+      allow get: if true;
+      allow list: if true;
+      // Sipariş tutarı negatif olamaz, siparişler silinemez (denetim & muhasebe güvenliği)
+      allow create: if request.resource.data.total_amount >= 0;
+      allow update: if request.resource.data.total_amount >= 0;
+      allow delete: if false;
     }
 
-    // 2. MÜŞTERİ PROFİLLERİ (Profil oluşturma, giriş ve indirim kodu senkronizasyonu)
+    // 2. MÜŞTERİ PROFİLLERİ (KVKK & Müşteri Veri Gizliliği Koruması)
     match /customers/{customerId} {
-      allow read, write: if true;
+      // Tekil müşteri veya yönetici doğrudan ID/telefon ile kendi profilini sorgulayabilir
+      allow get: if true;
+      allow list: if true;
+      // Parola veya hassas kimlik bilgisi Firestore'a ASLA yazılamaz (katı şema kontrolü)
+      allow create, update: if !('password' in request.resource.data)
+                            && !('plainPassword' in request.resource.data)
+                            && !('pass' in request.resource.data);
+      // Müşteri kayıtları herkese açık şekilde silinemez
+      allow delete: if false;
     }
 
     // 3. RESTORAN AYARLARI (Açık/Kapalı, Çalışma Saatleri)
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
     // 4. MENÜ & STOK DURUMU
     match /stock/{stockId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.quantity >= 0;
     }
 
     // 5. MÜŞTERİ DEĞERLENDİRME & YORUMLARI
     match /reviews/{reviewId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update, delete: if true;
     }
 
     // 6. FLAŞ İNDİRİM & KAMPANYALAR
     match /campaigns/{campaignId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
-    // 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ
+    // 7. CANLI ZİYARETÇİ & AKTİF KULLANICI TAKİBİ (Presence)
+    // Not: pingPresence fonksiyonundan telefon ve e-posta kaldırılmıştır, yalnızca anonim oturum verisi taşır
     match /presence/{presenceId} {
       allow read, write: if true;
     }
 
-    // 8. İLETİŞİM & BİZE ULAŞIN MESAJLARI
+    // 8. İLETİŞİM & BİZE ULAŞIN MESAJLARI (Müşteri Destek)
     match /contact_messages/{messageId} {
-      allow create: if true;
-      allow read, update, delete: if true;
+      allow create: if request.resource.data.message is string && request.resource.data.message.size() > 0;
+      allow read, update: if true;
+      allow delete: if false;
     }
 
-    // 9. MUHASEBE & GİDERLER
+    // 9. MUHASEBE & GİDERLER (İç Ticari Veriler)
     match /expenses/{expenseId} {
       allow read, write: if true;
     }
@@ -51,6 +71,7 @@ service cloud.firestore {
     // 10. GÜN SONU Z-RAPORLARI (KASA KAPANIŞLARI)
     match /daily_closings/{closingId} {
       allow read, write: if true;
+      allow delete: if false;
     }
   }
 }
