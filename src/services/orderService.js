@@ -42,7 +42,12 @@ import {
   broadcastFlashDealToFirestore,
   stopFlashDealInFirestore,
   subscribeFirestoreFlashDeal,
-  firebaseSignOut
+  firebaseSignOut,
+  syncCouponToFirestore,
+  getCouponsFromFirestore,
+  deleteCouponFromFirestore,
+  markCouponUsedInFirestore,
+  subscribeFirestoreCoupons
 } from '../firebase/firebaseService.js';
 
 export { 
@@ -65,7 +70,12 @@ export {
   broadcastFlashDealToFirestore,
   stopFlashDealInFirestore,
   subscribeFirestoreFlashDeal,
-  firebaseSignOut
+  firebaseSignOut,
+  syncCouponToFirestore,
+  getCouponsFromFirestore,
+  deleteCouponFromFirestore,
+  markCouponUsedInFirestore,
+  subscribeFirestoreCoupons
 };
 
 
@@ -79,6 +89,7 @@ const STORAGE_REVIEWS_KEY = 'pita_mutfak_reviews';
 const STORAGE_RESTAURANT_SETTINGS_KEY = 'pita_restaurant_settings';
 const STORAGE_EXPENSES_KEY = 'pita_mutfak_expenses';
 const STORAGE_DAILY_CLOSINGS_KEY = 'pita_mutfak_daily_closings';
+const STORAGE_COUPONS_KEY = 'pita_mutfak_coupons';
 const CHANNEL_NAME = 'pita_mutfak_realtime_channel';
 
 
@@ -1236,6 +1247,15 @@ export const orderService = {
       markFirstOrderDiscountUsed();
     }
 
+    // Eğer 10 haneli tek seferlik kupon kodu kullanıldıysa kuponu kullanıldı olarak işaretle
+    if (orderInput.discountCode && String(orderInput.discountCode).trim().length === 10) {
+      consumeCoupon(orderInput.discountCode, {
+        orderId,
+        customerName: orderInput.customerName || 'Misafir',
+        customerPhone: orderInput.customerPhone || ''
+      }).catch(() => {});
+    }
+
     // Yeni sipariş zili
     playOrderSound();
 
@@ -1982,6 +2002,35 @@ export const orderService = {
 
   subscribeFlashDeal(callback) {
     return subscribeFlashDeal(callback);
+  },
+
+  // 10 Haneli Tek Seferlik Kupon Servisleri
+  getStoredCoupons() {
+    return getStoredCoupons();
+  },
+  getCoupons() {
+    return getCoupons();
+  },
+  createCoupon(data) {
+    return createCoupon(data);
+  },
+  createBatchCoupons(count, baseData) {
+    return createBatchCoupons(count, baseData);
+  },
+  deleteCoupon(couponId) {
+    return deleteCoupon(couponId);
+  },
+  validateCoupon(code, subtotal) {
+    return validateCoupon(code, subtotal);
+  },
+  consumeCoupon(codeOrId, orderDetails) {
+    return consumeCoupon(codeOrId, orderDetails);
+  },
+  subscribeCoupons(callback) {
+    return subscribeCoupons(callback);
+  },
+  generateTenDigitCouponCode(prefix) {
+    return generateTenDigitCouponCode(prefix);
   }
 };
 
@@ -2672,4 +2721,267 @@ export function subscribeFlashDeal(callback) {
 }
 
 export const getCustomer = (identifier) => orderService.getCustomer(identifier);
+
+// =================== 10 HANELİ TEK SEFERLİK KUPON SİSTEMİ ===================
+
+const COUPON_CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+export function generateTenDigitCouponCode(prefix = 'PITA') {
+  const cleanPrefix = (prefix || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const prefixSafe = cleanPrefix.length <= 6 ? cleanPrefix : cleanPrefix.slice(0, 4);
+  const remainingLen = 10 - prefixSafe.length;
+  let randomPart = '';
+  for (let i = 0; i < remainingLen; i++) {
+    const idx = Math.floor(Math.random() * COUPON_CHARSET.length);
+    randomPart += COUPON_CHARSET[idx];
+  }
+  return prefixSafe + randomPart;
+}
+
+export function getStoredCoupons() {
+  try {
+    const raw = localStorage.getItem(STORAGE_COUPONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredCoupons(coupons) {
+  try {
+    const safeList = Array.isArray(coupons) ? coupons : [];
+    localStorage.setItem(STORAGE_COUPONS_KEY, JSON.stringify(safeList));
+    if (broadcastChannel) {
+      try {
+        broadcastChannel.postMessage({ type: 'COUPONS_UPDATED', data: safeList });
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+export async function getCoupons() {
+  try {
+    const cloudCoupons = await getCouponsFromFirestore();
+    if (Array.isArray(cloudCoupons) && cloudCoupons.length > 0) {
+      const local = getStoredCoupons();
+      // Firestore ile yereli birleştir
+      const map = new Map();
+      local.forEach(c => map.set(c.id || c.code, c));
+      cloudCoupons.forEach(c => map.set(c.id || c.code, c));
+      const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      saveStoredCoupons(merged);
+      return merged;
+    }
+  } catch (e) {}
+  return getStoredCoupons();
+}
+
+export async function createCoupon(data = {}) {
+  let cleanCode = (data.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (cleanCode.length !== 10) {
+    cleanCode = generateTenDigitCouponCode(data.prefix || 'PITA');
+  }
+
+  const coupons = getStoredCoupons();
+  const existingIdx = coupons.findIndex(c => String(c.code).trim().toUpperCase() === cleanCode);
+  if (existingIdx >= 0) {
+    // Aynı kod varsa yeni bir rastgele kod türet
+    cleanCode = generateTenDigitCouponCode(cleanCode.slice(0, 4));
+  }
+
+  const coupon = {
+    id: 'cpn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    code: cleanCode,
+    discountType: data.discountType === 'fixed' ? 'fixed' : 'percentage', // 'percentage' | 'fixed'
+    discountValue: Math.max(1, Number(data.discountValue) || 20),
+    minOrderAmount: Math.max(0, Number(data.minOrderAmount) || 0),
+    description: (data.description || '10 Haneli Tek Seferlik İndirim Kuponu').trim(),
+    isSingleUse: true,
+    isUsed: false,
+    usedAt: null,
+    usedBy: null,
+    usedOrderId: null,
+    createdAt: new Date().toISOString()
+  };
+
+  coupons.unshift(coupon);
+  saveStoredCoupons(coupons);
+
+  try {
+    await syncCouponToFirestore(coupon);
+  } catch (e) {}
+
+  return coupon;
+}
+
+export async function createBatchCoupons(count = 5, baseData = {}) {
+  const safeCount = Math.min(50, Math.max(1, Number(count) || 5));
+  const coupons = getStoredCoupons();
+  const newCreated = [];
+
+  for (let i = 0; i < safeCount; i++) {
+    let code = generateTenDigitCouponCode(baseData.prefix || 'PITA');
+    while (coupons.some(c => c.code === code) || newCreated.some(c => c.code === code)) {
+      code = generateTenDigitCouponCode(baseData.prefix || 'PITA');
+    }
+
+    const cpn = {
+      id: 'cpn_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
+      code,
+      discountType: baseData.discountType === 'fixed' ? 'fixed' : 'percentage',
+      discountValue: Math.max(1, Number(baseData.discountValue) || 20),
+      minOrderAmount: Math.max(0, Number(baseData.minOrderAmount) || 0),
+      description: (baseData.description || '10 Haneli Tek Seferlik Kupon').trim(),
+      isSingleUse: true,
+      isUsed: false,
+      usedAt: null,
+      usedBy: null,
+      usedOrderId: null,
+      createdAt: new Date().toISOString()
+    };
+    newCreated.push(cpn);
+  }
+
+  const updated = [...newCreated, ...coupons];
+  saveStoredCoupons(updated);
+
+  try {
+    for (const c of newCreated) {
+      await syncCouponToFirestore(c);
+    }
+  } catch (e) {}
+
+  return newCreated;
+}
+
+export async function deleteCoupon(couponId) {
+  const coupons = getStoredCoupons().filter(c => c.id !== couponId && c.code !== couponId);
+  saveStoredCoupons(coupons);
+
+  try {
+    await deleteCouponFromFirestore(couponId);
+  } catch (e) {}
+
+  return true;
+}
+
+export function validateCoupon(code, subtotal = 0) {
+  if (!code) {
+    return { valid: false, error: 'Lütfen 10 haneli kupon kodunuzu giriniz.' };
+  }
+  const cleanCode = String(code).trim().toUpperCase();
+  if (cleanCode.length !== 10) {
+    return { valid: false, error: 'Kupon kodu tam 10 haneli olmalıdır (Örn: PITA829143).' };
+  }
+
+  const coupons = getStoredCoupons();
+  const coupon = coupons.find(c => String(c.code).trim().toUpperCase() === cleanCode);
+
+  if (!coupon) {
+    return { valid: false, error: 'Geçersiz kupon kodu! Lütfen kontrol edip tekrar deneyiniz.' };
+  }
+
+  if (coupon.isUsed) {
+    return { valid: false, error: 'Bu kupon kodu daha önce kullanılmıştır ve tek seferliktir.' };
+  }
+
+  if (coupon.minOrderAmount > 0 && subtotal < coupon.minOrderAmount) {
+    return { 
+      valid: false, 
+      error: `Bu kupon en az ₺${coupon.minOrderAmount} tutarındaki sepetlerde geçerlidir (Mevcut sepet: ₺${subtotal}).` 
+    };
+  }
+
+  const discountAmount = coupon.discountType === 'fixed'
+    ? Math.min(subtotal, coupon.discountValue)
+    : Math.round(subtotal * (coupon.discountValue / 100));
+
+  const discountText = coupon.discountType === 'fixed'
+    ? `₺${coupon.discountValue} İndirim`
+    : `%${coupon.discountValue} İndirim`;
+
+  return {
+    valid: true,
+    coupon,
+    discountAmount,
+    discountText
+  };
+}
+
+export async function consumeCoupon(codeOrId, orderDetails = {}) {
+  if (!codeOrId) return false;
+  const cleanCode = String(codeOrId).trim().toUpperCase();
+  const coupons = getStoredCoupons();
+  const target = coupons.find(c => String(c.code).trim().toUpperCase() === cleanCode || String(c.id) === String(codeOrId));
+  if (!target) return false;
+
+  target.isUsed = true;
+  target.usedAt = new Date().toISOString();
+  target.usedBy = orderDetails.customerName 
+    ? `${orderDetails.customerName}${orderDetails.customerPhone ? ' (' + orderDetails.customerPhone + ')' : ''}` 
+    : 'Müşteri';
+  target.usedOrderId = orderDetails.orderId || '';
+
+  saveStoredCoupons(coupons);
+
+  try {
+    await markCouponUsedInFirestore(target.id || target.code, {
+      usedAt: target.usedAt,
+      usedBy: target.usedBy,
+      usedOrderId: target.usedOrderId
+    });
+  } catch (e) {}
+
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ type: 'COUPON_CONSUMED', data: target });
+    } catch (e) {}
+  }
+
+  return true;
+}
+
+export function subscribeCoupons(callback) {
+  callback(getStoredCoupons());
+
+  let unsubFirestore = null;
+  try {
+    unsubFirestore = subscribeFirestoreCoupons((cloudCoupons) => {
+      if (Array.isArray(cloudCoupons)) {
+        saveStoredCoupons(cloudCoupons);
+        callback(cloudCoupons);
+      }
+    });
+  } catch (e) {}
+
+  const handleBroadcast = (e) => {
+    const msg = e?.data;
+    if (!msg) return;
+    if (msg.type === 'COUPONS_UPDATED' || msg.type === 'COUPON_CONSUMED') {
+      callback(getStoredCoupons());
+    }
+  };
+
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcast);
+  }
+
+  const handleStorage = (e) => {
+    if (e.key === STORAGE_COUPONS_KEY) {
+      callback(getStoredCoupons());
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  return () => {
+    if (unsubFirestore) {
+      try { unsubFirestore(); } catch (e) {}
+    }
+    if (broadcastChannel) {
+      try { broadcastChannel.removeEventListener('message', handleBroadcast); } catch (e) {}
+    }
+    window.removeEventListener('storage', handleStorage);
+  };
+}
+
 

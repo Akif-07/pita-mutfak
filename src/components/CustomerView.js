@@ -21,7 +21,9 @@ import {
   resetRecaptchaVerifier,
   submitContactMessage,
   firebaseSignOut,
-  formatDeliveryCode
+  formatDeliveryCode,
+  validateCoupon,
+  consumeCoupon
 } from '../services/orderService.js';
 
 
@@ -116,9 +118,16 @@ export function renderCustomerView(container, state, onStateChange) {
   }
 
   // İndirim hesaplama
-  const discountAmount = (firstOrderDiscountApplied && canApplyDiscount && subtotal > 0)
-    ? Math.round(subtotal * (activeDiscountRate / 100))
-    : 0;
+  let discountAmount = 0;
+  if (state.appliedCoupon) {
+    if (state.appliedCoupon.discountType === 'fixed') {
+      discountAmount = Math.min(subtotal, state.appliedCoupon.discountValue);
+    } else {
+      discountAmount = Math.round(subtotal * (state.appliedCoupon.discountValue / 100));
+    }
+  } else if (firstOrderDiscountApplied && canApplyDiscount && subtotal > 0) {
+    discountAmount = Math.round(subtotal * (activeDiscountRate / 100));
+  }
   const cartTotal = Math.max(0, subtotal - discountAmount);
 
   // Herhangi bir modal veya çekmece açık mı kontrolü (Mobilde buton çakışmalarını önlemek için)
@@ -648,10 +657,10 @@ export function renderCustomerView(container, state, onStateChange) {
       ${selectedProduct ? renderProductModal(selectedProduct, activeFlashDeal, flashCountdownStr) : ''}
 
       <!-- Sepet Çekmecesi (Cart Drawer) -->
-      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible, menu) : ''}
+      ${state.isCartOpen ? renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen, restStatus.message, isFirstOrderEligible, menu, state) : ''}
 
       <!-- Sipariş Tamamlama / Checkout Modalı -->
-      ${state.isCheckoutOpen ? renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) : ''}
+      ${state.isCheckoutOpen ? renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser, state) : ''}
 
       <!-- Canlı Sipariş Takip Modalı -->
       ${activeTrackingOrder && state.showTrackingModal ? renderTrackingModal(activeTrackingOrder) : ''}
@@ -2193,7 +2202,8 @@ function renderProductModal(product, activeFlashDeal = null, flashCountdownStr =
 
 
 // Sepet Çekmecesi (İlk Sipariş İndirim Satırı, Kupon Kutusu ve Yanında İyi Gider ile)
-function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true, menu = []) {
+function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderDiscountApplied, currentUser, isRestaurantOpen = true, closedMessage = '', isFirstOrderEligible = true, menu = [], state = {}) {
+  const appliedCoupon = state.appliedCoupon;
   return `
     <div id="cart-drawer-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col justify-between">
@@ -2318,6 +2328,63 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
               `;
             })()}
 
+            <!-- 10 HANELİ TEK SEFERLİK KUPON KODU KUTUSU -->
+            <div class="bg-white border ${appliedCoupon ? 'border-emerald-300 bg-emerald-50/40' : 'border-gray-200'} rounded-2xl p-3 shadow-2xs transition">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[11px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                  <span>🎟️</span>
+                  <span>10 Haneli İndirim Kuponu</span>
+                </span>
+                ${appliedCoupon ? `
+                  <span class="text-[10px] font-extrabold bg-[#06C167] text-white px-2 py-0.5 rounded-full shadow-2xs">Kupon Aktif</span>
+                ` : ''}
+              </div>
+
+              ${appliedCoupon ? `
+                <div class="flex items-center justify-between bg-white border border-emerald-300 rounded-xl px-3 py-2">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-xs font-mono font-black text-emerald-900 tracking-wider">${appliedCoupon.code}</span>
+                      <span class="text-[11px] font-bold text-emerald-700">• ${appliedCoupon.discountType === 'fixed' ? `₺${appliedCoupon.discountValue} İndirim` : `%${appliedCoupon.discountValue} İndirim`}</span>
+                    </div>
+                    ${appliedCoupon.description ? `<p class="text-[10px] text-gray-500 truncate mt-0.5">${appliedCoupon.description}</p>` : ''}
+                  </div>
+                  <button 
+                    type="button" 
+                    id="remove-applied-coupon-btn" 
+                    class="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition cursor-pointer shrink-0 ml-2"
+                    title="Kuponu Kaldır"
+                  >
+                    Kaldır ✕
+                  </button>
+                </div>
+              ` : `
+                <div class="flex gap-2">
+                  <input 
+                    type="text" 
+                    id="cart-coupon-input" 
+                    maxlength="10" 
+                    placeholder="10 Haneli Kod (Örn: PITA829143)" 
+                    value="${state.couponInputCode || ''}"
+                    class="flex-1 bg-gray-50 border border-gray-200 focus:border-[#06C167] focus:bg-white rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider outline-none transition"
+                  />
+                  <button 
+                    type="button" 
+                    id="apply-cart-coupon-btn" 
+                    class="bg-[#121212] hover:bg-black active:scale-95 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs transition shadow-md whitespace-nowrap cursor-pointer"
+                  >
+                    Uygula
+                  </button>
+                </div>
+                ${state.couponError ? `
+                  <p class="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>${state.couponError}</span>
+                  </p>
+                ` : ''}
+              `}
+            </div>
+
             <div class="flex items-center justify-between text-xs text-gray-500 pt-1">
               <span>Ara Toplam</span>
               <span class="font-bold text-gray-700">₺${subtotal}</span>
@@ -2373,7 +2440,7 @@ function renderCartDrawer(cart, subtotal, discountAmount, cartTotal, firstOrderD
 }
 
 // Sipariş Tamamlama / Checkout Modalı
-function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser) {
+function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentUser, state = {}) {
   // Giriş yapmamış kullanıcı doğrudan sipariş veremez, önce giriş yapmalı
   if (!currentUser) {
     return `
@@ -2641,7 +2708,7 @@ function renderCheckoutModal(cart, subtotal, discountAmount, cartTotal, currentU
 
           ${discountAmount > 0 ? `
             <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-900">
-              <span class="font-bold">🎉 İlk Sipariş İndirimi (%20):</span>
+              <span class="font-bold">${state.appliedCoupon ? `🎟️ 10 Haneli Kupon İndirimi (${state.appliedCoupon.code}):` : '🎉 İlk Sipariş İndirimi:'}</span>
               <span class="font-black text-[#06C167]">-₺${discountAmount}</span>
             </div>
           ` : ''}
@@ -5078,6 +5145,64 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
     });
   });
 
+  // ===== 10 HANELİ KUPON KODU İŞLEMLERİ (SEPET İÇİ) =====
+  const cartCouponInput = container.querySelector('#cart-coupon-input');
+  const applyCartCouponBtn = container.querySelector('#apply-cart-coupon-btn');
+  const removeAppliedCouponBtn = container.querySelector('#remove-applied-coupon-btn');
+
+  if (cartCouponInput) {
+    cartCouponInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+      state.couponInputCode = e.target.value;
+    });
+
+    cartCouponInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (applyCartCouponBtn) applyCartCouponBtn.click();
+      }
+    });
+  }
+
+  if (applyCartCouponBtn) {
+    applyCartCouponBtn.addEventListener('click', () => {
+      const code = (cartCouponInput ? cartCouponInput.value : (state.couponInputCode || '')).trim().toUpperCase();
+      if (!code) {
+        onStateChange({ couponError: 'Lütfen 10 haneli kupon kodunuzu giriniz.' });
+        return;
+      }
+      if (code.length !== 10) {
+        onStateChange({ couponError: 'Kupon kodu tam 10 haneli olmalıdır (Örn: PITA829143).' });
+        return;
+      }
+
+      const currentSubtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+      const res = validateCoupon(code, currentSubtotal);
+
+      if (res.valid) {
+        onStateChange({
+          appliedCoupon: res.coupon,
+          couponError: '',
+          couponInputCode: '',
+          firstOrderDiscountApplied: false
+        });
+      } else {
+        onStateChange({ couponError: res.error });
+      }
+    });
+  }
+
+  if (removeAppliedCouponBtn) {
+    removeAppliedCouponBtn.addEventListener('click', () => {
+      onStateChange({
+        appliedCoupon: null,
+        couponError: '',
+        couponInputCode: '',
+        firstOrderDiscountApplied: isFirstOrderDiscountAvailable(state.currentUser, state.orders)
+      });
+    });
+  }
+
   // Siparişi Onayla / Checkout'a Geç Butonu
   const proceedBtn = container.querySelector('#proceed-checkout-btn');
   if (proceedBtn) {
@@ -5261,16 +5386,30 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
       registerCustomer(customerName, customerPhone).catch(() => {});
 
       const currentSubtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-      const hasCustom = state.currentUser && state.currentUser.custom_code && state.currentUser.custom_discount > 0;
-      const appliedRate = hasCustom ? state.currentUser.custom_discount : state.discountPercentage;
-      const couponCode = hasCustom ? state.currentUser.custom_code : 'PITA20';
+      let currentDiscount = 0;
+      let usedCouponCode = '';
 
-      const isEligible = isFirstOrderDiscountAvailable(state.currentUser, state.orders);
-      const canApply = hasCustom || isEligible;
+      if (state.appliedCoupon) {
+        if (state.appliedCoupon.discountType === 'fixed') {
+          currentDiscount = Math.min(currentSubtotal, state.appliedCoupon.discountValue);
+        } else {
+          currentDiscount = Math.round(currentSubtotal * (state.appliedCoupon.discountValue / 100));
+        }
+        usedCouponCode = state.appliedCoupon.code;
+      } else {
+        const hasCustom = state.currentUser && state.currentUser.custom_code && state.currentUser.custom_discount > 0;
+        const appliedRate = hasCustom ? state.currentUser.custom_discount : state.discountPercentage;
+        const defaultCode = hasCustom ? state.currentUser.custom_code : 'PITA20';
 
-      const currentDiscount = (state.firstOrderDiscountApplied && canApply && currentSubtotal > 0)
-        ? Math.round(currentSubtotal * (appliedRate / 100))
-        : 0;
+        const isEligible = isFirstOrderDiscountAvailable(state.currentUser, state.orders);
+        const canApply = hasCustom || isEligible;
+
+        if (state.firstOrderDiscountApplied && canApply && currentSubtotal > 0) {
+          currentDiscount = Math.round(currentSubtotal * (appliedRate / 100));
+          usedCouponCode = defaultCode;
+        }
+      }
+
       const finalTotal = Math.max(0, currentSubtotal - currentDiscount);
       const cartCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -5285,17 +5424,29 @@ function attachCustomerEventListeners(container, state, onStateChange, menu) {
         items: state.cart,
         subtotalAmount: currentSubtotal,
         discountAmount: currentDiscount,
-        discountCode: currentDiscount > 0 ? couponCode : '',
+        discountCode: currentDiscount > 0 ? usedCouponCode : '',
         totalAmount: finalTotal,
         totalCount: cartCount
       });
+
+      // Eğer 10 haneli tek seferlik kupon kodu kullanıldıysa kuponu kullanıldı yap
+      if (state.appliedCoupon) {
+        consumeCoupon(state.appliedCoupon.code, {
+          orderId: createdOrder.id,
+          customerName,
+          customerPhone
+        }).catch(() => {});
+      }
 
       onStateChange({
         cart: [],
         isCheckoutOpen: false,
         activeTrackingOrder: createdOrder,
         showTrackingModal: true,
-        firstOrderDiscountApplied: false // Kullanıldı
+        firstOrderDiscountApplied: false,
+        appliedCoupon: null,
+        couponInputCode: '',
+        couponError: ''
       });
     });
   }

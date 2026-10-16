@@ -1,5 +1,14 @@
 // Pita Mutfak - Yönetim & Admin Paneli
-import { orderService, formatDeliveryCode, playOrderSound, isRestaurantOpenNow } from '../services/orderService.js';
+import { 
+  orderService, 
+  formatDeliveryCode, 
+  playOrderSound, 
+  isRestaurantOpenNow,
+  generateTenDigitCouponCode,
+  createCoupon,
+  createBatchCoupons,
+  deleteCoupon
+} from '../services/orderService.js';
 import { categories } from '../data/initialMenu.js';
 
 // Admin Kimlik Doğrulama Yardımcıları
@@ -208,9 +217,11 @@ export function renderAdminPanel(container, state, onStateChange) {
   const adminFilter = state.adminFilter || 'all';
   const adminDateFilter = state.adminDateFilter || 'today'; // 'today' (Varsayılan Günlük!) | 'yesterday' | 'custom' | 'all'
   const adminCustomDate = state.adminCustomDate || '';
-  const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers' | 'reviews' | 'accounting' | 'contact'
+  const activeTab = state.adminActiveTab || 'orders'; // 'orders' | 'menu' | 'customers' | 'reviews' | 'accounting' | 'contact' | 'coupons'
   const contactMessages = state.contactMessages || [];
   const unreadContactCount = contactMessages.filter(m => m.status === 'new').length;
+  const coupons = state.coupons || (orderService.getStoredCoupons ? orderService.getStoredCoupons() : []);
+  const activeCouponsCount = coupons.filter(c => !c.isUsed).length;
   const settings = state.restaurantSettings || orderService.getRestaurantSettings();
   const restStatus = isRestaurantOpenNow(settings);
   let adminBtnClass = 'bg-[#E8F8EE] text-[#06C167] hover:bg-emerald-100 border border-[#06C167]/30';
@@ -464,6 +475,12 @@ export function renderAdminPanel(container, state, onStateChange) {
               >
                 📩 Mesajlar${unreadContactCount > 0 ? ` <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-black flex items-center justify-center">${unreadContactCount}</span>` : ''}
               </button>
+              <button 
+                id="tab-coupons-btn" 
+                class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer whitespace-nowrap relative ${activeTab === 'coupons' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-700 hover:text-black'}"
+              >
+                🎟️ Kuponlar${activeCouponsCount > 0 ? ` <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTab === 'coupons' ? 'bg-white text-amber-600' : 'bg-amber-100 text-amber-800'}">${activeCouponsCount}</span>` : ''}
+              </button>
             </div>
 
           </div>
@@ -677,6 +694,9 @@ export function renderAdminPanel(container, state, onStateChange) {
 
         <!-- =================== 6. SEKME: MÜŞTERİ MESAJLARI (BİZE ULAŞIN) =================== -->
         ${activeTab === 'contact' ? renderContactMessagesTab(contactMessages, state) : ''}
+
+        <!-- =================== 7. SEKME: 10 HANELİ KUPONLAR =================== -->
+        ${activeTab === 'coupons' ? renderCouponsTab(state) : ''}
 
       </main>
 
@@ -2969,6 +2989,20 @@ function attachAdminEventListeners(container, state, onStateChange) {
     });
   }
 
+  const tabCouponsBtn = container.querySelector('#tab-coupons-btn');
+  if (tabCouponsBtn) {
+    tabCouponsBtn.addEventListener('click', async () => {
+      try {
+        if (orderService.getCoupons) {
+          const fresh = await orderService.getCoupons();
+          onStateChange({ adminActiveTab: 'coupons', coupons: fresh });
+          return;
+        }
+      } catch (e) {}
+      onStateChange({ adminActiveTab: 'coupons' });
+    });
+  }
+
   // Canlı Ziyaretçi Rozeti & KPI Kartları Tıklanınca Müşteriler Sekmesine Geç
   const presenceBadgeBtn = container.querySelector('#admin-presence-badge-btn');
   if (presenceBadgeBtn) {
@@ -3736,6 +3770,213 @@ function attachAdminEventListeners(container, state, onStateChange) {
       }
     });
   });
+
+  // =================== 7. KUPON YÖNETİMİ EVENTLERİ ===================
+
+  // Rastgele 10 Haneli Kod Üret Butonu
+  const genCodeBtn = container.querySelector('#admin-generate-code-btn');
+  if (genCodeBtn) {
+    genCodeBtn.addEventListener('click', () => {
+      const codeInput = container.querySelector('#coupon-code-input');
+      if (codeInput) {
+        codeInput.value = generateTenDigitCouponCode('PITA');
+        codeInput.focus();
+      }
+    });
+  }
+
+  // Kod giriş kutusu: büyük harf ve 10 hane sınırlama
+  const couponCodeInput = container.querySelector('#coupon-code-input');
+  if (couponCodeInput) {
+    couponCodeInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    });
+  }
+
+  // İndirim türü seçimi değişince etiketleri güncelle
+  const couponTypeSelect = container.querySelector('#coupon-type-select');
+  const couponValueLabel = container.querySelector('#coupon-value-label');
+  const couponValueInput = container.querySelector('#coupon-value-input');
+  if (couponTypeSelect && couponValueLabel && couponValueInput) {
+    couponTypeSelect.addEventListener('change', () => {
+      if (couponTypeSelect.value === 'fixed') {
+        couponValueLabel.textContent = 'İndirim Tutarı (₺) *';
+        couponValueInput.placeholder = 'Örn: 50';
+        couponValueInput.removeAttribute('max');
+      } else {
+        couponValueLabel.textContent = 'İndirim Oranı (%) *';
+        couponValueInput.placeholder = 'Örn: 20';
+        couponValueInput.max = '100';
+      }
+    });
+  }
+
+  // Tekil Kupon Formu Submit
+  const couponForm = container.querySelector('#admin-create-coupon-form');
+  if (couponForm) {
+    couponForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeInput = container.querySelector('#coupon-code-input');
+      const typeSelect = container.querySelector('#coupon-type-select');
+      const valInput = container.querySelector('#coupon-value-input');
+      const minOrderInput = container.querySelector('#coupon-min-order-input');
+      const descInput = container.querySelector('#coupon-desc-input');
+      const submitBtn = container.querySelector('#admin-submit-coupon-btn');
+
+      let code = (codeInput?.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!code || code.length !== 10) {
+        code = generateTenDigitCouponCode('PITA');
+      }
+
+      const discountType = typeSelect?.value === 'fixed' ? 'fixed' : 'percent';
+      const discountValue = Number(valInput?.value) || 0;
+      const minOrderAmount = Number(minOrderInput?.value) || 0;
+      const description = (descInput?.value || '').trim();
+
+      if (discountValue <= 0) {
+        alert('Lütfen geçerli bir indirim tutarı veya oranı giriniz.');
+        return;
+      }
+      if (discountType === 'percent' && discountValue > 100) {
+        alert('Yüzde indirim oranı %100 den fazla olamaz.');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>⏳</span><span>Kaydediliyor...</span>';
+      }
+
+      try {
+        const newCoupon = await createCoupon({
+          code,
+          discountType,
+          discountValue,
+          minOrderAmount,
+          description
+        });
+        alert(`✓ ${newCoupon.code} kodlu 10 haneli kupon başarıyla oluşturuldu!`);
+        const freshCoupons = orderService.getStoredCoupons();
+        onStateChange({ coupons: freshCoupons });
+      } catch (err) {
+        console.error('Kupon oluşturma hatası:', err);
+        alert('Kupon oluşturulurken bir hata meydana geldi.');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>➕</span><span>Kuponu Kaydet & Yayınla</span>';
+        }
+      }
+    });
+  }
+
+  // Toplu Kupon Üretme Fonksiyonu
+  async function handleBatchCoupons(count) {
+    const typeSelect = container.querySelector('#coupon-type-select');
+    const valInput = container.querySelector('#coupon-value-input');
+    const minOrderInput = container.querySelector('#coupon-min-order-input');
+    const descInput = container.querySelector('#coupon-desc-input');
+
+    const discountType = typeSelect?.value === 'fixed' ? 'fixed' : 'percent';
+    const discountValue = Number(valInput?.value) || (discountType === 'fixed' ? 50 : 20);
+    const minOrderAmount = Number(minOrderInput?.value) || 0;
+    const description = (descInput?.value || '').trim() || `Toplu Kampanya (${count} Adet)`;
+
+    const confirmMsg = `${count} adet benzersiz 10 haneli tek seferlik kupon üretilsin mi?\n(${discountType === 'fixed' ? '₺' + discountValue + ' Sabit' : '%' + discountValue + ' Yüzde'} İndirim)`;
+    if (confirm(confirmMsg)) {
+      try {
+        const created = await createBatchCoupons(count, {
+          discountType,
+          discountValue,
+          minOrderAmount,
+          description,
+          prefix: 'PITA'
+        });
+        alert(`✓ ${created.length} adet 10 haneli tek seferlik kupon başarıyla üretildi ve yayına alındı!`);
+        const freshCoupons = orderService.getStoredCoupons();
+        onStateChange({ coupons: freshCoupons });
+      } catch (err) {
+        console.error('Toplu kupon hatası:', err);
+        alert('Toplu kupon oluşturulurken bir hata oluştu.');
+      }
+    }
+  }
+
+  const batch5Btn = container.querySelector('#admin-batch-5-btn');
+  if (batch5Btn) {
+    batch5Btn.addEventListener('click', () => handleBatchCoupons(5));
+  }
+
+  const batch10Btn = container.querySelector('#admin-batch-10-btn');
+  if (batch10Btn) {
+    batch10Btn.addEventListener('click', () => handleBatchCoupons(10));
+  }
+
+  // Kupon Kodu Kopyalama Butonları
+  container.querySelectorAll('[data-copy-coupon]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = btn.getAttribute('data-copy-coupon');
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✓';
+        btn.classList.add('bg-emerald-100', 'text-emerald-700');
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.classList.remove('bg-emerald-100', 'text-emerald-700');
+        }, 1500);
+      } catch (e) {
+        prompt('Kupon Kodunu Kopyalayın:', code);
+      }
+    });
+  });
+
+  // Kupon Silme Butonları
+  container.querySelectorAll('[data-delete-coupon]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const couponId = btn.getAttribute('data-delete-coupon');
+      if (!couponId) return;
+      if (confirm('Bu kupon kodunu kalıcı olarak silmek istediğinize emin misiniz?')) {
+        try {
+          await deleteCoupon(couponId);
+          const freshCoupons = orderService.getStoredCoupons();
+          onStateChange({ coupons: freshCoupons });
+        } catch (e) {
+          console.error('Kupon silme hatası:', e);
+          alert('Kupon silinirken bir hata oluştu.');
+        }
+      }
+    });
+  });
+
+  // Kupon Filtre Butonları (Tümü, Aktifler, Kullanılanlar)
+  container.querySelectorAll('[data-coupon-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filter = btn.getAttribute('data-coupon-filter');
+      onStateChange({ couponFilter: filter });
+    });
+  });
+
+  // Kupon Arama Kutusu
+  const couponSearchInput = container.querySelector('#admin-coupon-search');
+  if (couponSearchInput) {
+    if (state.couponSearchQuery && document.activeElement && document.activeElement.id === 'admin-coupon-search') {
+      couponSearchInput.focus();
+      const val = couponSearchInput.value;
+      couponSearchInput.setSelectionRange(val.length, val.length);
+    }
+    couponSearchInput.addEventListener('input', (e) => {
+      onStateChange({ couponSearchQuery: e.target.value });
+    });
+  }
+
+  const clearCouponSearchBtn = container.querySelector('#clear-coupon-search-btn');
+  if (clearCouponSearchBtn) {
+    clearCouponSearchBtn.addEventListener('click', () => {
+      onStateChange({ couponSearchQuery: '' });
+    });
+  }
 }
 
 // =================== CONTACT MESSAGES (MÜŞTERİ İLETİŞİM) ===================
@@ -3902,3 +4143,394 @@ function renderContactMessagesTab(messages, state) {
     </div>
   `;
 }
+
+// =================== 7. 10 HANELİ KUPON YÖNETİMİ ===================
+
+function renderCouponsTab(state) {
+  const coupons = Array.isArray(state.coupons) ? state.coupons : (orderService.getStoredCoupons ? orderService.getStoredCoupons() : []);
+  const activeFilter = state.couponFilter || 'all';
+  const searchQuery = (state.couponSearchQuery || '').trim().toLowerCase();
+
+  const totalCount = coupons.length;
+  const activeList = coupons.filter(c => !c.isUsed);
+  const usedList = coupons.filter(c => c.isUsed);
+  const activeCount = activeList.length;
+  const usedCount = usedList.length;
+
+  // Toplam sağlanan tasarruf
+  const totalSavings = usedList.reduce((sum, c) => sum + (Number(c.usedDiscountAmount) || 0), 0);
+
+  // Filtreleme
+  let filtered = coupons;
+  if (activeFilter === 'active') {
+    filtered = activeList;
+  } else if (activeFilter === 'used') {
+    filtered = usedList;
+  }
+
+  if (searchQuery) {
+    filtered = filtered.filter(c => 
+      (c.code && c.code.toLowerCase().includes(searchQuery)) ||
+      (c.description && c.description.toLowerCase().includes(searchQuery)) ||
+      (c.usedBy && c.usedBy.toLowerCase().includes(searchQuery)) ||
+      (c.usedOrderId && String(c.usedOrderId).toLowerCase().includes(searchQuery))
+    );
+  }
+
+  return `
+    <div class="space-y-6 pb-12">
+
+      <!-- KPI & İstatistik Kartları -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <!-- Toplam Kupon -->
+        <div class="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl p-4 sm:p-5 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-amber-100">Toplam Kupon</span>
+            <span class="text-xl">🎟️</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black">${totalCount}</div>
+          <div class="text-[11px] text-amber-100 mt-1">Sistemdeki tüm kodlar</div>
+        </div>
+
+        <!-- Kullanıma Hazır -->
+        <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-2xl p-4 sm:p-5 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-emerald-100">Kullanıma Hazır</span>
+            <span class="text-xl">🟢</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black">${activeCount}</div>
+          <div class="text-[11px] text-emerald-100 mt-1">Tek seferlik aktif kod</div>
+        </div>
+
+        <!-- Kullanılmış Kupon -->
+        <div class="bg-gradient-to-br from-gray-700 to-gray-800 text-white rounded-2xl p-4 sm:p-5 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-gray-300">Kullanılan Kupon</span>
+            <span class="text-xl">🔴</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black">${usedCount}</div>
+          <div class="text-[11px] text-gray-300 mt-1">Siparişte tüketildi</div>
+        </div>
+
+        <!-- Toplam İndirim Hacmi -->
+        <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-2xl p-4 sm:p-5 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-indigo-100">Sağlanan İndirim</span>
+            <span class="text-xl">💰</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black">₺${totalSavings.toLocaleString('tr-TR')}</div>
+          <div class="text-[11px] text-indigo-100 mt-1">Müşterilere kazandırılan</div>
+        </div>
+      </div>
+
+      <!-- Yeni Kupon Oluşturma Kartı -->
+      <div class="bg-white rounded-2xl sm:rounded-3xl border border-amber-200/70 p-5 sm:p-7 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
+          <div>
+            <h3 class="text-lg font-black text-gray-900 flex items-center gap-2">
+              <span>🎟️</span>
+              <span>Yeni 10 Haneli Kupon Tanımla</span>
+            </h3>
+            <p class="text-xs text-gray-500 mt-0.5">Müşteriler sepetlerinde tek seferlik geçerli bu 10 haneli kodları kullanarak indirim kazanır.</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] bg-amber-50 text-amber-800 font-bold px-3 py-1 rounded-full border border-amber-200">
+              ⚡ Tek Seferlik & Otomatik İmha
+            </span>
+          </div>
+        </div>
+
+        <form id="admin-create-coupon-form" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            <!-- 10 Haneli Kod -->
+            <div class="lg:col-span-2">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-extrabold text-gray-700">10 Haneli Kod *</label>
+                <button 
+                  type="button" 
+                  id="admin-generate-code-btn"
+                  class="text-[11px] font-bold text-amber-600 hover:text-amber-700 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>🎲</span>
+                  <span>10 Haneli Kod Üret</span>
+                </button>
+              </div>
+              <div class="relative">
+                <input 
+                  type="text" 
+                  id="coupon-code-input"
+                  name="code"
+                  maxlength="10" 
+                  placeholder="Örn: PITA8K9F2Q" 
+                  class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl px-4 py-2.5 text-sm font-mono font-black uppercase tracking-wider outline-none transition"
+                  required
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono font-bold" id="coupon-char-count">10 hane</span>
+              </div>
+            </div>
+
+            <!-- İndirim Türü -->
+            <div>
+              <label class="block text-xs font-extrabold text-gray-700 mb-1.5">İndirim Türü</label>
+              <select 
+                id="coupon-type-select" 
+                name="discountType"
+                class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none transition cursor-pointer"
+              >
+                <option value="percent">% Yüzde İndirim</option>
+                <option value="fixed">₺ Sabit Tutar İndirim</option>
+              </select>
+            </div>
+
+            <!-- İndirim Tutarı / Oranı -->
+            <div>
+              <label class="block text-xs font-extrabold text-gray-700 mb-1.5" id="coupon-value-label">İndirim Oranı (%) *</label>
+              <input 
+                type="number" 
+                id="coupon-value-input"
+                name="discountValue"
+                min="1" 
+                max="100" 
+                placeholder="Örn: 20" 
+                class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl px-4 py-2.5 text-sm font-extrabold outline-none transition"
+                required
+              />
+            </div>
+
+            <!-- Min Sepet Tutarı -->
+            <div>
+              <label class="block text-xs font-extrabold text-gray-700 mb-1.5">Min. Sepet Tutarı (₺)</label>
+              <input 
+                type="number" 
+                id="coupon-min-order-input"
+                name="minOrderAmount"
+                min="0" 
+                placeholder="0 (Şartsız)" 
+                class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl px-4 py-2.5 text-sm font-medium outline-none transition"
+              />
+              <span class="text-[10px] text-gray-400 mt-0.5 block">0 bırakırsanız alt limit aranmaz</span>
+            </div>
+
+            <!-- Açıklama / Kampanya Notu -->
+            <div class="sm:col-span-1 lg:col-span-3">
+              <label class="block text-xs font-extrabold text-gray-700 mb-1.5">Kampanya Notu / Açıklama</label>
+              <input 
+                type="text" 
+                id="coupon-desc-input"
+                name="description"
+                placeholder="Örn: Instagram takipçilerine özel, Hoş geldin indirimi..." 
+                class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl px-4 py-2.5 text-sm font-medium outline-none transition"
+              />
+            </div>
+
+          </div>
+
+          <!-- Aksiyon & Toplu Üretim Butonları -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-bold text-gray-500 mr-1">Hızlı Toplu Üretim:</span>
+              <button 
+                type="button" 
+                id="admin-batch-5-btn"
+                class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-extrabold border border-amber-200 transition cursor-pointer flex items-center gap-1.5"
+                title="Aynı indirim oranıyla 5 adet benzersiz 10 haneli kod üretir"
+              >
+                <span>⚡</span>
+                <span>Toplu 5 Adet</span>
+              </button>
+              <button 
+                type="button" 
+                id="admin-batch-10-btn"
+                class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-extrabold border border-amber-200 transition cursor-pointer flex items-center gap-1.5"
+                title="Aynı indirim oranıyla 10 adet benzersiz 10 haneli kod üretir"
+              >
+                <span>⚡</span>
+                <span>Toplu 10 Adet</span>
+              </button>
+            </div>
+
+            <button 
+              type="submit" 
+              id="admin-submit-coupon-btn"
+              class="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm transition shadow-md shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>➕</span>
+              <span>Kuponu Kaydet & Yayınla</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Filtreler, Arama & Liste Kartı -->
+      <div class="bg-white rounded-2xl sm:rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-xs space-y-5">
+        
+        <!-- Üst Arama & Filtre Çubuğu -->
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          
+          <!-- Filtre Butonları -->
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button 
+              type="button"
+              data-coupon-filter="all"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer whitespace-nowrap ${activeFilter === 'all' ? 'bg-[#121212] text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+            >
+              Tümü (${totalCount})
+            </button>
+            <button 
+              type="button"
+              data-coupon-filter="active"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer whitespace-nowrap ${activeFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}"
+            >
+              🟢 Kullanıma Hazır (${activeCount})
+            </button>
+            <button 
+              type="button"
+              data-coupon-filter="used"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer whitespace-nowrap ${activeFilter === 'used' ? 'bg-gray-800 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+            >
+              🔴 Kullanılmış (${usedCount})
+            </button>
+          </div>
+
+          <!-- Arama Kutusu -->
+          <div class="relative w-full md:w-72">
+            <input 
+              type="text" 
+              id="admin-coupon-search"
+              value="${state.couponSearchQuery || ''}"
+              placeholder="Kod, müşteri, sipariş #..."
+              class="w-full bg-gray-50 border border-gray-200 focus:border-amber-500 focus:bg-white rounded-xl pl-9 pr-8 py-2 text-xs font-medium outline-none transition"
+            />
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+            ${state.couponSearchQuery ? `
+              <button 
+                type="button"
+                id="clear-coupon-search-btn"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 flex items-center justify-center text-[10px] cursor-pointer"
+                title="Aramayı Temizle"
+              >✕</button>
+            ` : ''}
+          </div>
+
+        </div>
+
+        <!-- Kuponlar Tablosu / Grid Listesi -->
+        ${filtered.length === 0 ? `
+          <div class="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+            <div class="text-5xl mb-3">🎟️</div>
+            <h4 class="text-base font-extrabold text-gray-800 mb-1">
+              ${searchQuery || activeFilter !== 'all' ? 'Aramanıza Uygun Kupon Bulunamadı' : 'Henüz Kupon Tanımlanmamış'}
+            </h4>
+            <p class="text-xs text-gray-500 max-w-sm mx-auto">
+              ${searchQuery || activeFilter !== 'all' ? 'Filtreleri temizleyerek veya farklı bir arama yaparak tekrar deneyin.' : 'Yukarıdaki formdan hemen müşterileriniz için ilk 10 haneli kupon kodunu oluşturabilirsiniz.'}
+            </p>
+          </div>
+        ` : `
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-gray-200 text-gray-400 font-extrabold uppercase text-[10px] tracking-wider">
+                  <th class="py-3 px-3">10 Haneli Kupon Kodu</th>
+                  <th class="py-3 px-3">İndirim & Şartlar</th>
+                  <th class="py-3 px-3">Açıklama / Not</th>
+                  <th class="py-3 px-3">Durum & Kullanım Bilgisi</th>
+                  <th class="py-3 px-3 text-right">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                ${filtered.map(c => {
+                  const isUsed = Boolean(c.isUsed);
+                  const discountBadge = c.discountType === 'fixed' 
+                    ? `₺${c.discountValue} Sabit İndirim`
+                    : `%${c.discountValue} Yüzde İndirim`;
+
+                  return `
+                    <tr class="hover:bg-gray-50/80 transition-colors ${isUsed ? 'opacity-85 bg-gray-50/40' : ''}">
+                      
+                      <!-- Kod & Kopyala -->
+                      <td class="py-3.5 px-3">
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono text-xs font-black px-2.5 py-1 rounded-lg tracking-wider ${isUsed ? 'bg-gray-100 text-gray-400 line-through' : 'bg-amber-100 text-amber-900 border border-amber-200'}">
+                            ${c.code}
+                          </span>
+                          <button 
+                            type="button"
+                            data-copy-coupon="${c.code}"
+                            class="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition cursor-pointer text-xs"
+                            title="Kodu Kopyala"
+                          >
+                            📋
+                          </button>
+                        </div>
+                        <div class="text-[10px] text-gray-400 mt-1">
+                          Oluşturuldu: ${c.createdAt ? new Date(c.createdAt).toLocaleDateString('tr-TR') : '-'}
+                        </div>
+                      </td>
+
+                      <!-- İndirim & Şartlar -->
+                      <td class="py-3.5 px-3">
+                        <div class="font-extrabold text-[#121212] flex items-center gap-1.5">
+                          <span class="px-2 py-0.5 rounded-md text-[11px] font-black ${c.discountType === 'fixed' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}">
+                            ${discountBadge}
+                          </span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 mt-1">
+                          ${c.minOrderAmount > 0 ? `Min. Sepet: <span class="font-bold text-gray-700">₺${c.minOrderAmount}</span>` : '<span class="text-gray-400">Alt sepet limiti yok</span>'}
+                        </div>
+                      </td>
+
+                      <!-- Açıklama -->
+                      <td class="py-3.5 px-3">
+                        <div class="font-medium text-gray-700 max-w-xs truncate" title="${c.description || ''}">
+                          ${c.description || '<span class="text-gray-400 italic">Açıklama belirtilmedi</span>'}
+                        </div>
+                      </td>
+
+                      <!-- Durum & Kullanım Bilgisi -->
+                      <td class="py-3.5 px-3">
+                        ${isUsed ? `
+                          <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200 text-[11px] font-black mb-1">
+                            <span>🔴 Kullanıldı</span>
+                          </div>
+                          <div class="text-[11px] text-gray-600 space-y-0.5">
+                            <div><span class="text-gray-400">Kullanan:</span> <strong class="text-gray-900">${c.usedBy || 'Müşteri'}</strong> ${c.usedPhone ? `(${c.usedPhone})` : ''}</div>
+                            ${c.usedOrderId ? `<div><span class="text-gray-400">Sipariş:</span> <span class="font-mono font-bold text-emerald-700">#${c.usedOrderId}</span></div>` : ''}
+                            ${c.usedAt ? `<div><span class="text-gray-400">Tarih:</span> ${new Date(c.usedAt).toLocaleString('tr-TR')}</div>` : ''}
+                            ${c.usedDiscountAmount ? `<div><span class="text-gray-400">Düşen Tutar:</span> <strong class="text-emerald-700">-₺${c.usedDiscountAmount}</strong></div>` : ''}
+                          </div>
+                        ` : `
+                          <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-black">
+                            <span>🟢 Kullanıma Hazır</span>
+                          </div>
+                          <div class="text-[10px] text-gray-400 mt-1">Tek kullanımlıktır, siparişte otomatik kapanır</div>
+                        `}
+                      </td>
+
+                      <!-- İşlemler -->
+                      <td class="py-3.5 px-3 text-right">
+                        <button 
+                          type="button"
+                          data-delete-coupon="${c.id || c.code}"
+                          class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1"
+                          title="Kuponu Sil"
+                        >
+                          <span>🗑️</span>
+                          <span class="hidden sm:inline">Sil</span>
+                        </button>
+                      </td>
+
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+
+      </div>
+
+    </div>
+  `;
+}
+

@@ -73,5 +73,10 @@ service cloud.firestore {
       allow read, write: if true;
       allow delete: if false;
     }
+
+    // 11. 10 HANELİ TEK SEFERLİK KUPONLAR (Kupon İndirim Sistemi)
+    match /coupons/{couponId} {
+      allow read, write: if true;
+    }
   }
 }

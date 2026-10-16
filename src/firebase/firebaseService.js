@@ -1270,3 +1270,91 @@ export function subscribeFirestoreFlashDeal(callback) {
   };
 }
 
+// =================== 11. 10 HANELİ TEK SEFERLİK KUPONLAR ===================
+
+export async function syncCouponToFirestore(coupon) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc } = ctx;
+    const couponId = String(coupon.id || coupon.code);
+    const sanitized = cleanForFirestore(coupon);
+    await setDoc(doc(db, 'coupons', couponId), sanitized);
+    return true;
+  } catch (e) {
+    console.warn('Coupon Firestore sync hatası:', e);
+    return false;
+  }
+}
+
+export async function getCouponsFromFirestore() {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return [];
+    const { db, collection, getDocs } = ctx;
+    const snap = await getDocs(collection(db, 'coupons'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('Coupons Firestore getirme hatası:', e);
+    return [];
+  }
+}
+
+export async function deleteCouponFromFirestore(couponId) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, deleteDoc } = ctx;
+    await deleteDoc(doc(db, 'coupons', String(couponId)));
+    return true;
+  } catch (e) {
+    console.warn('Coupon Firestore silme hatası:', e);
+    return false;
+  }
+}
+
+export async function markCouponUsedInFirestore(couponId, usageDetails = {}) {
+  try {
+    const ctx = await getFirestoreContext();
+    if (!ctx || !ctx.db) return false;
+    const { db, doc, setDoc, getDoc } = ctx;
+    const ref = doc(db, 'coupons', String(couponId));
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      await setDoc(ref, {
+        ...snap.data(),
+        isUsed: true,
+        usedAt: usageDetails.usedAt || new Date().toISOString(),
+        usedBy: usageDetails.usedBy || 'Müşteri',
+        usedOrderId: usageDetails.usedOrderId || ''
+      }, { merge: true });
+    }
+    return true;
+  } catch (e) {
+    console.warn('Coupon Firestore mark used hatası:', e);
+    return false;
+  }
+}
+
+export function subscribeFirestoreCoupons(callback) {
+  let unsubscribe = () => {};
+  try {
+    getFirestoreContext().then(ctx => {
+      if (!ctx || !ctx.db) return;
+      const { db, collection, onSnapshot } = ctx;
+      unsubscribe = onSnapshot(collection(db, 'coupons'), (snap) => {
+        const coupons = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        callback(coupons);
+      }, (err) => {
+        console.warn('Firestore coupons dinleme hatası:', err);
+      });
+    }).catch(() => {});
+  } catch (e) {}
+
+  return () => {
+    if (typeof unsubscribe === 'function') {
+      try { unsubscribe(); } catch (e) {}
+    }
+  };
+}
+

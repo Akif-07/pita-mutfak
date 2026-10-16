@@ -66,7 +66,14 @@ const state = {
   contactMessages: [],
   isProfileMenuOpen: false,
   activeFlashDeal: orderService.getActiveFlashDeal ? orderService.getActiveFlashDeal() : null,
-  isFlashDealModalOpen: false
+  isFlashDealModalOpen: false,
+  coupons: orderService.getStoredCoupons ? orderService.getStoredCoupons() : [],
+  appliedCoupon: null,
+  couponInputCode: '',
+  couponError: '',
+  couponFilter: 'all',
+  couponSearchQuery: '',
+  isAddCouponModalOpen: false
 };
 
 
@@ -140,6 +147,12 @@ async function loadBackendData() {
       state.dailyClosings = [];
       state.contactMessages = [];
     }
+
+    // Kuponları yükle
+    try {
+      const allCoupons = await orderService.getCoupons();
+      state.coupons = Array.isArray(allCoupons) ? allCoupons : [];
+    } catch (e) {}
 
     // Müşteri oturum açmışsa mesajlarını ve özel kodunu da güncelle
     if (state.currentUser && state.currentUser.phone) {
@@ -387,6 +400,23 @@ if (typeof orderService.subscribeFlashDeal === 'function') {
   orderService.subscribeFlashDeal((deal) => {
     state.activeFlashDeal = deal;
     render();
+  });
+}
+
+// 10 Haneli Tek Seferlik Kupon Senkronizasyonu
+if (typeof orderService.subscribeCoupons === 'function') {
+  orderService.subscribeCoupons((cloudCoupons) => {
+    if (Array.isArray(cloudCoupons)) {
+      state.coupons = cloudCoupons;
+      if (state.appliedCoupon) {
+        const found = cloudCoupons.find(c => c.code === state.appliedCoupon.code || c.id === state.appliedCoupon.id);
+        if (!found || found.isUsed) {
+          state.appliedCoupon = null;
+          state.couponError = 'Uyguladığınız kupon kodu artık geçerli değildir.';
+        }
+      }
+      render();
+    }
   });
 }
 
